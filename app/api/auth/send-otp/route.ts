@@ -1,0 +1,162 @@
+// import { NextRequest, NextResponse } from "next/server";
+// import { db } from "@/lib/firebaseAdmin";
+// import { transporter } from "@/lib/mailer";
+// import { SendOtpRequest } from "@/types/auth";
+
+
+
+
+
+// export async function POST(req: NextRequest) {
+//   try {
+//     console.log("📩 Incoming OTP request...");
+
+//     const { email }: SendOtpRequest = await req.json();
+
+//     console.log("📧 Email received:", email);
+
+//     if (!email || !email.includes("@")) {
+//       console.log("❌ Invalid email");
+//       return NextResponse.json({ error: "Valid email required" }, { status: 400 });
+//     }
+
+//     const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+//     console.log("🔢 Generated OTP:", otp);
+
+//     console.log("📦 Saving OTP to Firestore...");
+//     await db.collection("otps").doc(email).set({
+//       otp,
+//       createdAt: Date.now(),
+//       expiresAt: Date.now() + 5 * 60 * 1000,
+//     });
+
+//     console.log("✅ OTP saved successfully");
+
+//     console.log("📤 Sending email...");
+//     await transporter.sendMail({
+//       from: `"SportsFan360" <${process.env.EMAIL}>`,
+//       to: email,
+//       subject: "Your OTP Code",
+//       html: `<h1>${otp}</h1>`,
+//     });
+
+//     console.log("✅ Email sent successfully");
+
+//     return NextResponse.json({ success: true });
+
+//   } catch (error: any) {
+//     console.error("❌ OTP ERROR FULL:", error);
+//     console.error("❌ ERROR MESSAGE:", error.message);
+//     console.error("❌ ERROR CODE:", error.code);
+
+//     return NextResponse.json({ error: error.message }, { status: 500 });
+//   }
+// }
+
+
+
+
+
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/firebaseAdmin";
+import { transporter } from "@/lib/mailer";
+
+export async function POST(req: NextRequest) {
+  try {
+    console.log("📩 Incoming Register + OTP request...");
+
+    const { firstName, lastName, email } = await req.json();
+
+    console.log("📧 Email:", email);
+    console.log("👤 Name:", firstName, lastName);
+
+    // ✅ Validation
+    if (!email || !email.includes("@")) {
+      return NextResponse.json({ error: "Valid email required" }, { status: 400 });
+    }
+
+    if (!firstName || !lastName) {
+      return NextResponse.json({ error: "Name is required" }, { status: 400 });
+    }
+
+    // =========================
+    // 🔍 CHECK USER EXISTS
+    // =========================
+    console.log("🔍 Checking if user exists...");
+
+    const userRef = db.collection("users").doc(email);
+    const userDoc = await userRef.get();
+
+    if (userDoc.exists) {
+      console.log("⚠️ User already exists");
+
+      return NextResponse.json(
+        { error: "User already exists. Please login." },
+        { status: 409 }
+      );
+    }
+
+    // =========================
+    // ✅ CREATE USER
+    // =========================
+    console.log("🆕 Creating new user...");
+
+    await userRef.set({
+      firstName,
+      lastName,
+      email,
+      createdAt: Date.now(),
+      isVerified: false,
+    });
+
+    console.log("✅ User created");
+
+    // =========================
+    // 🔢 GENERATE OTP
+    // =========================
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    console.log("🔢 OTP:", otp);
+
+    // =========================
+    // 💾 SAVE OTP
+    // =========================
+    await db.collection("otps").doc(email).set({
+      otp,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 5 * 60 * 1000,
+    });
+
+    console.log("✅ OTP saved");
+
+    // =========================
+    // 📧 SEND EMAIL
+    // =========================
+    await transporter.sendMail({
+      from: `"SportsFan360" <${process.env.EMAIL}>`,
+      to: email,
+      subject: "Your OTP Code",
+      html: `
+        <h2>Welcome to SportsFan360 🎉</h2>
+        <p>Your OTP is:</p>
+        <h1>${otp}</h1>
+        <p>Expires in 5 minutes.</p>
+      `,
+    });
+
+    console.log("✅ Email sent");
+
+    return NextResponse.json({
+      success: true,
+      message: "User created & OTP sent",
+    });
+
+  } catch (error: any) {
+    console.error("❌ ERROR:", error);
+
+    return NextResponse.json(
+      { error: error.message },
+      { status: 500 }
+    );
+  }
+}
