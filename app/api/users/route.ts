@@ -42,11 +42,11 @@ export async function DELETE(req: NextRequest) {
       message: "User deleted successfully",
     });
 
-  } catch (error: any) {
-    console.error("DELETE USER ERROR:", error);
-
+  }catch (error: unknown) {
+    console.error("❌ ERROR:", error);
+    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
     return NextResponse.json(
-      { error: error.message },
+      { error: errorMessage },
       { status: 500 }
     );
   }

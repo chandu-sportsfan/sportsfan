@@ -5,6 +5,7 @@
 import { StatCard, TableWrap, TableToolbar, Badge, UserCell } from "@/components/admin/ui";
 
 export default function DashboardPage() {
+  
   return (
     <div>
       <div style={{ marginBottom: 18 }}>

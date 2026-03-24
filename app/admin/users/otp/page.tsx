@@ -158,8 +158,13 @@ export default function OtpPage() {
             await axios.post("/api/auth/send-otp", { email, firstName, lastName });
             setSuccess("OTP sent to " + email);
             setStep("otp");
-        } catch (err: any) {
-            setError(err.response?.data?.error ?? "Failed to send OTP");
+        } catch (err: unknown) {
+            if(err instanceof Error) {
+                setError(err.message);
+            } else {
+                setError("Failed to send OTP");
+            }
+        
         } finally {
             setLoading(false);
         }
@@ -173,8 +178,9 @@ export default function OtpPage() {
             await axios.post("/api/auth/verify-otp", { email, otp });
             setSuccess("OTP verified! Now set your password.");
             setStep("password");
-        } catch (err: any) {
-            setError(err.response?.data?.error ?? "Invalid OTP");
+        } catch (err: unknown) {
+            const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred";
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }
@@ -189,8 +195,9 @@ export default function OtpPage() {
         await axios.post("/api/auth/set-password", { email, password });
         setSuccess("Password set! Logging you in…");
         await handleLogin(password); // ✅ pass password directly
-    } catch (err: any) {
-        setError(err.response?.data?.error ?? "Failed to set password");
+    } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred";
+        setError(errorMessage);
         setLoading(false);
     }
 }
@@ -207,8 +214,9 @@ export default function OtpPage() {
         setToken(res.data.token ?? "");
         setSuccess("Logged in successfully!");
         setStep("done");
-    } catch (err: any) {
-        setError(err.response?.data?.error ?? "Login failed");
+    } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred";
+        setError(errorMessage);
     } finally {
         setLoading(false);
     }

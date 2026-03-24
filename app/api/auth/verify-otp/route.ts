@@ -106,8 +106,12 @@ export async function POST(req: NextRequest) {
       message: "OTP verified successfully",
     });
 
-  } catch (error: any) {
-    console.error("VERIFY OTP ERROR:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    console.error("❌ ERROR:", error);
+    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
+    return NextResponse.json(
+      { error: errorMessage },
+      { status: 500 }
+    );
   }
 }

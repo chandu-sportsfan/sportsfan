@@ -3,6 +3,7 @@ import { db } from "@/lib/firebaseAdmin";
 import bcrypt from "bcryptjs";
 
 export async function POST(req: NextRequest) {
+ 
   try {
     const { email, password } = await req.json();
 
@@ -34,8 +35,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, message: "Password set successfully" });
 
-  } catch (error: any) {
-     console.error("❌ set-password error:", error.message, error.code);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  }catch (error: unknown) {
+    console.error("❌ ERROR:", error);
+    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
+    return NextResponse.json(
+      { error: errorMessage },
+      { status: 500 }
+    );
   }
 }
