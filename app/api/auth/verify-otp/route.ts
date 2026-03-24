@@ -1,3 +1,60 @@
+// import { NextRequest, NextResponse } from "next/server";
+// import { db } from "@/lib/firebaseAdmin";
+// import { VerifyOtpRequest } from "@/types/auth";
+
+// export async function POST(req: NextRequest) {
+//   try {
+//     const { email, otp }: VerifyOtpRequest = await req.json();
+
+//     if (!email || !otp) {
+//       return NextResponse.json({ error: "Email & OTP required" }, { status: 400 });
+//     }
+
+
+//     const doc = await db.collection("otps").doc(email).get();
+
+//     if (!doc.exists) {
+//       return NextResponse.json({ error: "OTP not found" }, { status: 400 });
+//     }
+
+//     const data = doc.data();
+
+//     if (data?.otp !== otp) {
+//       return NextResponse.json({ error: "Invalid OTP" }, { status: 400 });
+//     }
+
+
+//     if (Date.now() > data.expiresAt) {
+//       return NextResponse.json({ error: "OTP expired" }, { status: 400 });
+//     }
+
+
+//     await db.collection("users").doc(email).update({
+//       isVerified: true,
+//       verifiedAt: Date.now(),
+//     });
+
+    
+//     await db.collection("otps").doc(email).delete();
+
+//     return NextResponse.json({
+//       success: true,
+//       message: "OTP verified successfully",
+//     });
+
+//   } catch (error: any) {
+//     console.error("VERIFY OTP ERROR:", error);
+//     return NextResponse.json({ error: error.message }, { status: 500 });
+//   }
+// }
+
+
+
+
+
+
+
+
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { VerifyOtpRequest } from "@/types/auth";
@@ -6,40 +63,51 @@ export async function POST(req: NextRequest) {
   try {
     const { email, otp }: VerifyOtpRequest = await req.json();
 
-    const doc = await db.collection("otps").doc(email).get();
-
-    if (!doc.exists) {
-      return NextResponse.json({ error: "OTP not found" }, { status: 400 });
+    if (!email || !otp) {
+      return NextResponse.json({ error: "Email & OTP required" }, { status: 400 });
     }
 
-    const data = doc.data();
+    // ── 1. Get OTP doc ────────────────────────────
+    const otpDoc = await db.collection("otps").doc(email).get();
 
-    if (data?.otp !== otp) {
+    if (!otpDoc.exists) {
+      return NextResponse.json({ error: "OTP not found. Please request a new one." }, { status: 400 });
+    }
+
+    const data = otpDoc.data()!;
+
+    // ── 2. Check expiry FIRST (before checking value) ─
+    if (Date.now() > data.expiresAt) {
+      await db.collection("otps").doc(email).delete(); // clean up expired OTP
+      return NextResponse.json({ error: "OTP expired. Please request a new one." }, { status: 400 });
+    }
+
+    // ── 3. Check OTP value ────────────────────────
+    if (data.otp !== otp) {
       return NextResponse.json({ error: "Invalid OTP" }, { status: 400 });
     }
 
-    if (Date.now() - data.createdAt > 5 * 60 * 1000) {
-      return NextResponse.json({ error: "OTP expired" }, { status: 400 });
-    }
+    // ── 4. Mark user as verified ──────────────────
+    // ✅ set() with merge:true works whether doc exists or not
+    await db.collection("users").doc(email).set(
+      {
+        email,
+        isVerified: true,
+        verifiedAt: Date.now(),
+      },
+      { merge: true }   // won't overwrite firstName, lastName, createdAt etc.
+    );
 
-    // Save user
-    await db.collection("users").doc(email).set({
-      email,
-      createdAt: Date.now(),
-    });
+    // ── 5. Delete used OTP ────────────────────────
+    await db.collection("otps").doc(email).delete();
 
     return NextResponse.json({
       success: true,
-      token: "dummy-token",
+      message: "OTP verified successfully",
     });
-  } catch (error) {
-    return NextResponse.json({ error: "Verification failed" }, { status: 500 });
+
+  } catch (error: any) {
+    console.error("VERIFY OTP ERROR:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
-}
-
-
-export async function GET() {
-  const snap = await db.collection("users").orderBy("createdAt", "desc").get();
-  const users = snap.docs.map(d => d.data());
-  return NextResponse.json({ users, total: users.length });
 }
