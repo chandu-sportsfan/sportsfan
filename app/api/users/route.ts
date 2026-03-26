@@ -5,8 +5,27 @@ import { db } from "@/lib/firebaseAdmin";
 
 export async function GET() {
   const snap = await db.collection("users").orderBy("createdAt", "desc").get();
-  const users = snap.docs.map(d => d.data());
+  const users = snap.docs.map(d => ({
+    email: d.id,
+    ...d.data(),
+    // default status/role if old users don't have it
+    status: d.data().status ?? "active",
+    role:   d.data().role   ?? "user",
+  }));
   return NextResponse.json({ users, total: users.length });
+}
+
+
+export async function PATCH(req: NextRequest) {
+  const { email, status, role } = await req.json();
+
+  await db.collection("users").doc(email).update({
+    ...(status !== undefined && { status }),
+    ...(role   !== undefined && { role   }),
+    updatedAt: Date.now(),
+  });
+
+  return NextResponse.json({ success: true });
 }
 
 

@@ -48,6 +48,8 @@ export async function POST(req: NextRequest) {
       email,
       createdAt: Date.now(),
       isVerified: false,
+      status: "active", 
+      role: "user",
     });
 
     console.log("✅ User created");
