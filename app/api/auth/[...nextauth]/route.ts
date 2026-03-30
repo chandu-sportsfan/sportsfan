@@ -2,7 +2,7 @@
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { db } from "@/lib/firebaseAdmin";
-import { NextRequest } from "next/server";
+// import { NextRequest } from "next/server";
 
 const handler = NextAuth({
   providers: [
@@ -101,10 +101,5 @@ const handler = NextAuth({
   session: { strategy: "jwt" },
 });
 
-export async function GET(req: NextRequest) {
-  return handler(req);
-}
-
-export async function POST(req: NextRequest) {
-  return handler(req);
-}
+export const GET = handler;
+export const POST = handler;
