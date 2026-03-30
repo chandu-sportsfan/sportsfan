@@ -3,21 +3,21 @@ import { db } from "@/lib/firebaseAdmin";
 
 type BadgeType = "FEATURE" | "ANALYSIS" | "OPINION" | "NEWS";
 
+//  Helper: extract ID from URL 
+function getIdFromUrl(req: NextRequest): string {
+  const url = new URL(req.url);
+  const parts = url.pathname.split("/");
+  return parts[parts.length - 1];
+}
+
 // GET - Fetch single article by ID
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(req: NextRequest) {
   try {
-    const { id } = await params;
+    const id = getIdFromUrl(req);
 
     if (!id) {
-      return NextResponse.json(
-        { error: "Article ID is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Article ID is required" }, { status: 400 });
     }
-
     const docRef = db.collection("cricketArticles").doc(id);
     const doc = await docRef.get();
 
@@ -41,20 +41,15 @@ export async function GET(
 }
 
 // PUT - Update article by ID
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(req: NextRequest) {
   try {
-    const { id } = await params;
+    const id   = getIdFromUrl(req);
     const body = await req.json();
 
     if (!id) {
-      return NextResponse.json(
-        { error: "Article ID is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Article ID is required" }, { status: 400 });
     }
+
 
     const docRef = db.collection("cricketArticles").doc(id);
     const doc = await docRef.get();
@@ -110,19 +105,14 @@ export async function PUT(
 }
 
 // DELETE - Delete article by ID
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(req: NextRequest) {
   try {
-    const { id } = await params;
+    const id = getIdFromUrl(req);
 
     if (!id) {
-      return NextResponse.json(
-        { error: "Article ID is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Article ID is required" }, { status: 400 });
     }
+
 
     const docRef = db.collection("cricketArticles").doc(id);
     const doc = await docRef.get();
@@ -137,9 +127,9 @@ export async function DELETE(
     await docRef.delete();
 
     return NextResponse.json({
-      success: true,
-      message: "Article deleted successfully",
-    });
+         success: true,
+         message: `Post ${id} deleted successfully`,
+       });
 
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";

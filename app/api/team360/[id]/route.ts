@@ -2,13 +2,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 
+function getIdFromUrl(req: NextRequest): string {
+  const url = new URL(req.url);
+  const parts = url.pathname.split("/");
+  return parts[parts.length - 1];
+}
 //  GET single post 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(req: NextRequest) {
   try {
-    const doc = await db.collection("team360Posts").doc(params.id).get();
+    const id = getIdFromUrl(req);
+
+    if (!id) {
+      return NextResponse.json({ error: "ID required" }, { status: 400 });
+    }
+
+    const doc = await db.collection("team360Posts").doc(id).get();
 
     if (!doc.exists) {
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
@@ -23,17 +31,19 @@ export async function GET(
 }
 
 //  PUT update post 
-// PUT update post
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+
+export async function PUT(req: NextRequest) {
   try {
-    const { id } = await params;
+    const id   = getIdFromUrl(req);
     const body = await req.json();
 
+    if (!id) {
+      return NextResponse.json({ error: "ID required" }, { status: 400 });
+    }
+
     const docRef = db.collection("team360Posts").doc(id);
-    const doc = await docRef.get();
+    const doc    = await docRef.get();
+
 
     if (!doc.exists) {
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
@@ -89,12 +99,15 @@ export async function PUT(
 }
 
 //  DELETE post 
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(req: NextRequest) {
   try {
-    const docRef = db.collection("team360Posts").doc(params.id);
+    const id = getIdFromUrl(req);
+
+    if (!id) {
+      return NextResponse.json({ error: "ID required" }, { status: 400 });
+    }
+
+    const docRef = db.collection("team360Posts").doc(id);
     const doc    = await docRef.get();
 
     if (!doc.exists) {
@@ -105,7 +118,7 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      message: `Post ${params.id} deleted successfully`,
+      message: `Post ${id} deleted successfully`,
     });
 
   } catch (error: unknown) {

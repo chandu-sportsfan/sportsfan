@@ -1,14 +1,24 @@
-// app/api/team360/[id]/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 
+//  Helper: extract ID from URL 
+function getIdFromUrl(req: NextRequest): string {
+  const url = new URL(req.url);
+  const parts = url.pathname.split("/");
+  return parts[parts.length - 1];
+}
+
 //  GET single post 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(req: NextRequest) {
   try {
-    const doc = await db.collection("players360Posts").doc(params.id).get();
+    const id = getIdFromUrl(req);
+
+    if (!id) {
+      return NextResponse.json({ error: "ID required" }, { status: 400 });
+    }
+
+    const doc = await db.collection("players360Posts").doc(id).get();
 
     if (!doc.exists) {
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
@@ -23,55 +33,40 @@ export async function GET(
 }
 
 //  PUT update post 
-// PUT update post
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(req: NextRequest) {
   try {
-    const { id } = await params;
+    const id   = getIdFromUrl(req);
     const body = await req.json();
 
+    if (!id) {
+      return NextResponse.json({ error: "ID required" }, { status: 400 });
+    }
+
     const docRef = db.collection("players360Posts").doc(id);
-    const doc = await docRef.get();
+    const doc    = await docRef.get();
 
     if (!doc.exists) {
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
     }
 
-    // Only update fields that are actually sent
     const allowedFields = [
-      "playerName", "title", "category", "image", "logo", "catlogo",
-      "hasVideo"
+      "playerName", "title", "category", "image",
+      "logo", "catlogo", "hasVideo",
     ];
-
-    // Numeric fields (convert to numbers)
     const numericFields = ["likes", "comments", "live", "shares"];
 
     const updates: Record<string, unknown> = { updatedAt: Date.now() };
 
-    // Handle regular fields
     allowedFields.forEach(field => {
-      if (body[field] !== undefined) {
-        updates[field] = body[field];
-      }
+      if (body[field] !== undefined) updates[field] = body[field];
     });
 
-    // Handle numeric fields with conversion
     numericFields.forEach(field => {
-      if (body[field] !== undefined) {
-        updates[field] = Number(body[field]) || 0;
-      }
+      if (body[field] !== undefined) updates[field] = Number(body[field]) || 0;
     });
 
-    // Handle arrays with default values
-    if (body.category !== undefined) {
-      updates.category = body.category ?? [];
-    }
-
-    if (body.catlogo !== undefined) {
-      updates.catlogo = body.catlogo ?? [];
-    }
+    if (body.category !== undefined) updates.category = body.category ?? [];
+    if (body.catlogo  !== undefined) updates.catlogo  = body.catlogo  ?? [];
 
     await docRef.update(updates);
 
@@ -89,12 +84,15 @@ export async function PUT(
 }
 
 //  DELETE post 
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(req: NextRequest) {
   try {
-    const docRef = db.collection("players360Posts").doc(params.id);
+    const id = getIdFromUrl(req);
+
+    if (!id) {
+      return NextResponse.json({ error: "ID required" }, { status: 400 });
+    }
+
+    const docRef = db.collection("players360Posts").doc(id);
     const doc    = await docRef.get();
 
     if (!doc.exists) {
@@ -105,7 +103,7 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      message: `Post ${params.id} deleted successfully`,
+      message: `Post ${id} deleted successfully`,
     });
 
   } catch (error: unknown) {
