@@ -2,6 +2,7 @@
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { db } from "@/lib/firebaseAdmin";
+import { NextRequest } from "next/server";
 
 const handler = NextAuth({
   providers: [
@@ -28,7 +29,7 @@ const handler = NextAuth({
             lastName:   nameParts.slice(1).join(" ") ?? "",
             avatar:     user.image    ?? "",
             provider:   "google",
-            isVerified: true,           // Google already verified the email
+            isVerified: true,
             status:     "active",
             role:       "user",
             createdAt:  Date.now(),
@@ -39,7 +40,7 @@ const handler = NextAuth({
 
           //  Block disabled users
           if (data.status === "disabled") {
-            return false;               // returning false blocks sign in
+            return false;
           }
 
           //  Update last login time
@@ -80,7 +81,7 @@ const handler = NextAuth({
       return token;
     },
 
-    //  Expose token data to session 
+    //  Expose token data to session
     async session({ session, token }) {
       if (token.dbUser) {
         session.user = {
@@ -93,11 +94,17 @@ const handler = NextAuth({
   },
 
   pages: {
-    signIn:  "/auth/login",    // your custom login page
-    error:   "/auth/login",    // redirect errors to login
+    signIn:  "/auth/login",
+    error:   "/auth/login",
   },
 
   session: { strategy: "jwt" },
 });
 
-export { handler as GET, handler as POST };
+export async function GET(req: NextRequest) {
+  return handler(req);
+}
+
+export async function POST(req: NextRequest) {
+  return handler(req);
+}
