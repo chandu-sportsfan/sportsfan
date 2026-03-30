@@ -14,6 +14,7 @@
     "firebase-admin": "^13.7.0",
     "jsonwebtoken": "^9.0.3",
     "next": "15.5.14",
+    "next-auth": "^5.0.0-beta.30",
     "nodemailer": "^8.0.3",
     "react": "19.1.0",
     "react-dom": "19.1.0"
