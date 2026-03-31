@@ -36,9 +36,9 @@ export async function POST(req: NextRequest) {
       comments,
       live,
       shares,
-      image,
-      logo,
-      catlogo,
+      image,      // This is now a URL string from frontend
+      logo,       // This is now a URL string from frontend
+      catlogo,    // Array with URL strings
       hasVideo,
     } = body;
 
@@ -53,24 +53,15 @@ export async function POST(req: NextRequest) {
     const newPost = {
       teamName,
       title,
-
-      // category as array of objects
       category: category ?? [],
-
       likes: Number(likes) || 0,
       comments: Number(comments) || 0,
       live: Number(live) || 0,
       shares: Number(shares) || 0,
-
-      image,
-      logo,
-
-      // stats icons
+      image,      // Stores URL like "/Content/Drops/Images/123456-photo.jpg"
+      logo,       // Stores URL like "/Content/Drops/Images/123456-logo.png"
       catlogo: catlogo ?? [],
-
       hasVideo: hasVideo ?? false,
-
-      // timestamps only
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };

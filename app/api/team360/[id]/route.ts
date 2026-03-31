@@ -30,11 +30,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
-//  PUT update post 
-
+// PUT update post 
 export async function PUT(req: NextRequest) {
   try {
-    const id   = getIdFromUrl(req);
+    const id = getIdFromUrl(req);
     const body = await req.json();
 
     if (!id) {
@@ -42,45 +41,42 @@ export async function PUT(req: NextRequest) {
     }
 
     const docRef = db.collection("team360Posts").doc(id);
-    const doc    = await docRef.get();
-
+    const doc = await docRef.get();
 
     if (!doc.exists) {
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
     }
 
-    // Only update fields that are actually sent
-    const allowedFields = [
-      "teamName", "title", "category", "image", "logo", "catlogo",
-      "hasVideo"
-    ];
+    const updates: Record<string, unknown> = {
+      updatedAt: Date.now(),
+    };
 
-    // Numeric fields (convert to numbers)
-    const numericFields = ["likes", "comments", "live", "shares"];
+    // Strings
+    if (body.teamName !== undefined) updates.teamName = body.teamName;
+    if (body.title !== undefined) updates.title = body.title;
 
-    const updates: Record<string, unknown> = { updatedAt: Date.now() };
+    // Numbers
+    if (body.likes !== undefined) updates.likes = Number(body.likes) || 0;
+    if (body.comments !== undefined) updates.comments = Number(body.comments) || 0;
+    if (body.live !== undefined) updates.live = Number(body.live) || 0;
+    if (body.shares !== undefined) updates.shares = Number(body.shares) || 0;
 
-    // Handle regular fields
-    allowedFields.forEach(field => {
-      if (body[field] !== undefined) {
-        updates[field] = body[field];
-      }
-    });
+    // Media
+    if (body.image !== undefined) updates.image = body.image;
+    if (body.logo !== undefined) updates.logo = body.logo;
 
-    // Handle numeric fields with conversion
-    numericFields.forEach(field => {
-      if (body[field] !== undefined) {
-        updates[field] = Number(body[field]) || 0;
-      }
-    });
-
-    // Handle arrays with default values
+    // Arrays
     if (body.category !== undefined) {
       updates.category = body.category ?? [];
     }
 
     if (body.catlogo !== undefined) {
       updates.catlogo = body.catlogo ?? [];
+    }
+
+    // Boolean
+    if (body.hasVideo !== undefined) {
+      updates.hasVideo = body.hasVideo;
     }
 
     await docRef.update(updates);
@@ -97,7 +93,6 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
-
 //  DELETE post 
 export async function DELETE(req: NextRequest) {
   try {

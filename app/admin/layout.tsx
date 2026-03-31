@@ -33,8 +33,8 @@ const NAV: NavGroup[] = [
           { href: "/admin/users/otp",     label: "Send & Verify OTP" },
         ],
       },
-      { href: "/admin/content", icon: "◧", label: "Content / Posts"   },
-      { href: "/admin/orders",  icon: "◫", label: "Orders & Payments", badge: "8" },
+      // { href: "/admin/content", icon: "◧", label: "Content / Posts"   },
+      // { href: "/admin/orders",  icon: "◫", label: "Orders & Payments", badge: "8" },
     ],
   },
   {
@@ -42,13 +42,27 @@ const NAV: NavGroup[] = [
     items: [{ href: "/admin/otp-logs", icon: "⊡", label: "OTP Logs" }],
   },
   {
-    label: "Data Components",
+    label: "Home Data Components",
     items: [
       {
-        label: "Home Screen", icon: "◉",
+        label: "Teams 360", icon: "◉",
         children: [
-          { href: "/admin/homecomponents/team360", label: "Teams 360"          },
-          // { href: "/admin/users/otp",     label: "Send & Verify OTP" },
+          { href: "/admin/team360-management/add-team360", label: "Add Teams 360" },
+          { href: "/admin/team360-management/team360-list",     label: "Teams 360 List" },
+        ],
+      },
+      {
+        label: "Players 360", icon: "◉",
+        children: [
+          { href: "/admin/player360-management/add-player360", label: "Add Player 360" },
+          { href: "/admin/player360-management/player360-list",     label: "Player 360 List" },
+        ],
+      },
+       {
+        label: "Cricket Articles", icon: "◉",
+        children: [
+          { href: "/admin/cricketarticles-management/add-cricketarticles", label: "Add Cricket Article" },
+          { href: "/admin/cricketarticles-management/cricketarticles-list",     label: "Cricket Articles List" },
         ],
       },
       // { href: "/admin/content", icon: "◧", label: "Content / Posts"   },
