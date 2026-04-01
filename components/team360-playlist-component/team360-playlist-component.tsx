@@ -10,12 +10,12 @@ type FormState = {
     videoDrops: DropItem[];
 };
 
-type UploadingState = {
-    [key: string]: {
-        media: boolean;
-        thumbnail: boolean;
-    };
-};
+// type UploadingState = {
+//     [key: string]: {
+//         media: boolean;
+//         thumbnail: boolean;
+//     };
+// };
 
 export default function CreatePlaylistForm({
     playlistIdToEdit,
@@ -30,8 +30,8 @@ export default function CreatePlaylistForm({
         singlePlaylist,
         loading,
         fetchSinglePlaylist,
-        createPlaylist,
-        updatePlaylist,
+        // createPlaylist,
+        // updatePlaylist,
     } = useTeam360Playlist();
 
     const [form, setForm] = useState<FormState>({
@@ -40,7 +40,7 @@ export default function CreatePlaylistForm({
         videoDrops: [],
     });
 
-    const [uploading, setUploading] = useState<UploadingState>({});
+    // const [uploading, setUploading] = useState<UploadingState>({});
     // Store the actual File objects for upload
     const [audioFiles, setAudioFiles] = useState<Record<string, File>>({});
     const [videoFiles, setVideoFiles] = useState<Record<string, File>>({});

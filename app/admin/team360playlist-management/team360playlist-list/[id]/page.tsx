@@ -11,7 +11,6 @@ import {
   Eye, 
   ThumbsUp, 
   MessageCircle, 
-  Link as LinkIcon,
 
   Play
 } from "lucide-react";

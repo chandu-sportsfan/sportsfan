@@ -3,11 +3,43 @@ import { db } from "@/lib/firebaseAdmin";
 import cloudinary from "@/lib/cloudinary";
 
 
-//  Helper: extract ID from URL 
-function getIdFromUrl(req: NextRequest): string {
+// Define types
+interface DropItem {
+  title: string;
+  duration: string;
+  description: string;
+  mediaUrl: string;
+  thumbnail: string;
+  listens: number;
+  signals: number;
+  engagement: number;
+}
+
+interface PlaylistData {
+  team360PostId: string;
+  audioDrops: DropItem[];
+  videoDrops: DropItem[];
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+// Helper function to extract ID from URL
+function getIdFromUrl(req: NextRequest): string | null {
   const url = new URL(req.url);
-  const parts = url.pathname.split("/");
-  return parts[parts.length - 1];
+  const pathParts = url.pathname.split('/');
+  return pathParts[pathParts.length - 1] || null;
+}
+
+// Format duration helper
+function formatDuration(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${minutes}:${secs.toString().padStart(2, '0')}`;
 }
 
 // GET single playlist by ID
@@ -49,10 +81,11 @@ export async function GET(req: NextRequest) {
 }
 
 
-// PUT - Update playlist (supports partial updates and file uploads)
+
+
 export async function PUT(req: NextRequest) {
   try {
-    const id   = getIdFromUrl(req);
+    const id = getIdFromUrl(req);
 
     if (!id) {
       return NextResponse.json({ error: "ID required" }, { status: 400 });
@@ -69,15 +102,15 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    const existingData = doc.data();
+    const existingData = doc.data() as PlaylistData | undefined;
     
     // Check if request is FormData (file upload) or JSON (simple update)
     const contentType = req.headers.get("content-type") || "";
     const isFormData = contentType.includes("multipart/form-data");
 
-    let audioDrops = existingData?.audioDrops || [];
-    let videoDrops = existingData?.videoDrops || [];
-    let team360PostId = existingData?.team360PostId;
+    let audioDrops: DropItem[] = existingData?.audioDrops || [];
+    let videoDrops: DropItem[] = existingData?.videoDrops || [];
+    let team360PostId: string = existingData?.team360PostId || "";
 
     if (isFormData) {
       // Handle FormData with file uploads
@@ -95,10 +128,10 @@ export async function PUT(req: NextRequest) {
       
       // Parse existing drops if provided
       if (existingAudioDropsStr) {
-        audioDrops = JSON.parse(existingAudioDropsStr);
+        audioDrops = JSON.parse(existingAudioDropsStr) as DropItem[];
       }
       if (existingVideoDropsStr) {
-        videoDrops = JSON.parse(existingVideoDropsStr);
+        videoDrops = JSON.parse(existingVideoDropsStr) as DropItem[];
       }
       
       // Handle deletion of specific drops
@@ -106,12 +139,12 @@ export async function PUT(req: NextRequest) {
       const deleteVideoIndices = formData.getAll("deleteVideoIndices") as string[];
       
       if (deleteAudioIndices.length > 0) {
-        audioDrops = audioDrops.filter((_, index:number) => 
+        audioDrops = audioDrops.filter((_: DropItem, index: number) => 
           !deleteAudioIndices.includes(index.toString())
         );
       }
       if (deleteVideoIndices.length > 0) {
-        videoDrops = videoDrops.filter((_, index:number) => 
+        videoDrops = videoDrops.filter((_: DropItem, index: number) => 
           !deleteVideoIndices.includes(index.toString())
         );
       }
@@ -128,7 +161,7 @@ export async function PUT(req: NextRequest) {
       // Process new audio files
       for (let i = 0; i < audioFiles.length; i++) {
         const file = audioFiles[i];
-        if (!file) continue;
+        if (!file || file.size === 0) continue;
         
         const title = audioTitles[i] || `Audio ${audioDrops.length + 1}`;
         const description = audioDescriptions[i] || "";
@@ -163,16 +196,6 @@ export async function PUT(req: NextRequest) {
         
         // Format duration
         const duration = uploadRes.duration || 0;
-        const formatDuration = (seconds: number): string => {
-          const hours = Math.floor(seconds / 3600);
-          const minutes = Math.floor((seconds % 3600) / 60);
-          const secs = Math.floor(seconds % 60);
-          
-          if (hours > 0) {
-            return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-          }
-          return `${minutes}:${secs.toString().padStart(2, '0')}`;
-        };
         
         audioDrops.push({
           title,
@@ -198,7 +221,7 @@ export async function PUT(req: NextRequest) {
       // Process new video files
       for (let i = 0; i < videoFiles.length; i++) {
         const file = videoFiles[i];
-        if (!file) continue;
+        if (!file || file.size === 0) continue;
         
         const title = videoTitles[i] || `Video ${videoDrops.length + 1}`;
         const description = videoDescriptions[i] || "";
@@ -233,16 +256,6 @@ export async function PUT(req: NextRequest) {
         
         // Format duration
         const duration = uploadRes.duration || 0;
-        const formatDuration = (seconds: number): string => {
-          const hours = Math.floor(seconds / 3600);
-          const minutes = Math.floor((seconds % 3600) / 60);
-          const secs = Math.floor(seconds % 60);
-          
-          if (hours > 0) {
-            return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-          }
-          return `${minutes}:${secs.toString().padStart(2, '0')}`;
-        };
         
         videoDrops.push({
           title,
@@ -256,7 +269,7 @@ export async function PUT(req: NextRequest) {
         });
       }
       
-      // Update the playlist
+      // Update the playlist - use object spread to fix Firestore type issue
       const updatedData = {
         team360PostId,
         audioDrops,
@@ -281,7 +294,7 @@ export async function PUT(req: NextRequest) {
       const body = await req.json();
       
       // Only update fields that are provided
-      const updateData: any = {
+      const updateData: Record<string, unknown> = {
         updatedAt: Date.now(),
       };
       
