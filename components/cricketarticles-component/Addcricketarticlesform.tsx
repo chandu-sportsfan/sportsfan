@@ -30,7 +30,7 @@ export default function CricketArticleForm({
     const [loading, setLoading] = useState(false);
     const router = useRouter();
 
-    /* ---------------- FETCH SINGLE ARTICLE ---------------- */
+    /*  FETCH SINGLE ARTICLE  */
     useEffect(() => {
         if (!articleIdToEdit) return;
 
@@ -80,7 +80,7 @@ export default function CricketArticleForm({
         }));
     };
 
-    /* ---------------- FILE UPLOAD ---------------- */
+    /*  FILE UPLOAD  */
     const uploadFile = async (file: File) => {
         const formData = new FormData();
         formData.append("file", file);
@@ -90,7 +90,7 @@ export default function CricketArticleForm({
         return res.data.url;
     };
 
-    /* ---------------- SUBMIT ---------------- */
+    /*  SUBMIT  */
     const handleSubmit = async () => {
         if (!form.title) {
             alert("Title is required");

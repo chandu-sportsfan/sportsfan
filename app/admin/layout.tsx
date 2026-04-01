@@ -51,6 +51,13 @@ const NAV: NavGroup[] = [
           { href: "/admin/team360-management/team360-list",     label: "Teams 360 List" },
         ],
       },
+       {
+        label: "Teams 360 Playlist", icon: "◉",
+        children: [
+          { href: "/admin/team360playlist-management/add-team360playlist", label: "Add Teams 360 Playlist" },
+          { href: "/admin/team360playlist-management/team360playlist-list",     label: "Teams 360 Playlist List" },
+        ],
+      },
       {
         label: "Players 360", icon: "◉",
         children: [

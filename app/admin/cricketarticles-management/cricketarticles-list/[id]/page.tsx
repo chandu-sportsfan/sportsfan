@@ -38,7 +38,7 @@ export default function CricketArticleViewPage({
 
     const handleEdit = () => {
         router.push(
-            `/admin/cricket-articles-management/add-cricket-article?id=${id}`
+            `/admin/cricketarticles-management/add-cricketarticles?id=${id}`
         );
     };
 
@@ -51,7 +51,7 @@ export default function CricketArticleViewPage({
             alert("Article deleted successfully");
 
             router.push(
-                "/admin/cricket-articles-management/cricket-articles-list"
+                "/admin/cricketarticles-management/cricketarticles-list"
             );
         } catch (error) {
             console.error("Delete failed", error);

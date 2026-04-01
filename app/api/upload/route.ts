@@ -1,54 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
+import cloudinary from "@/lib/cloudinary";
 
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File;
-    const folder = formData.get("folder") as string;
 
     if (!file) {
       return NextResponse.json(
-        { error: "No file provided" },
+        { success: false, message: "No file found" },
         { status: 400 }
       );
     }
 
-    // save inside public folder
-    const baseDir = path.join(
-      process.cwd(),
-      "public",
-      "Content",
-      "Drops",
-      folder
-    );
-
-    await mkdir(baseDir, { recursive: true });
-
-    const timestamp = Date.now();
-    const originalName = file.name.replace(/\s/g, "_");
-    const uniqueFileName = `${timestamp}-${originalName}`;
-
-    const filePath = path.join(baseDir, uniqueFileName);
-
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    await writeFile(filePath, buffer);
+    const base64 = `data:${file.type};base64,${buffer.toString("base64")}`;
 
-    // return browser-accessible URL
-    const fileUrl = `/Content/Drops/${folder}/${uniqueFileName}`;
+    const uploadRes = await cloudinary.uploader.upload(base64, {
+      folder: "team360",
+    });
 
     return NextResponse.json({
       success: true,
-      url: fileUrl,
-      filename: uniqueFileName,
+      url: uploadRes.secure_url,
+      public_id: uploadRes.public_id,
     });
   } catch (error) {
-    console.error("Upload error:", error);
+    console.error("Cloudinary upload failed:", error);
     return NextResponse.json(
-      { error: "Upload failed" },
+      { success: false, message: "Upload failed" },
       { status: 500 }
     );
   }
