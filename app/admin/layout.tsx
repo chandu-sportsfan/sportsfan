@@ -72,6 +72,13 @@ const NAV: NavGroup[] = [
           { href: "/admin/cricketarticles-management/cricketarticles-list",     label: "Cricket Articles List" },
         ],
       },
+       {
+        label: "Club Profiles", icon: "◉",
+        children: [
+          { href: "/admin/clubprofile-management/add-clubprofile", label: "Add Club Profile" },
+          { href: "/admin/clubprofile-management/clubprofile-list",     label: "Club Profiles List" },
+        ],
+      },
       // { href: "/admin/content", icon: "◧", label: "Content / Posts"   },
       // { href: "/admin/orders",  icon: "◫", label: "Orders & Payments", badge: "8" },
     ],
