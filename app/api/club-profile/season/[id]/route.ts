@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 
-// ─── GET: Single Season ───────────────────────────────────────────────────────
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+// Helper function to extract ID from URL
+function getIdFromUrl(req: NextRequest): string | null {
+  const url = new URL(req.url);
+  const pathParts = url.pathname.split('/');
+  return pathParts[pathParts.length - 1] || null;
+}
+
+// ─── GET: Single Season 
+export async function GET(req: NextRequest) {
   try {
-    const doc = await db.collection("clubSeasons").doc(params.id).get();
+    const id   = getIdFromUrl(req);
+
+    if (!id) {
+      return NextResponse.json({ error: "ID required" }, { status: 400 });
+    }
+    const doc = await db.collection("clubSeasons").doc(id).get();
     if (!doc.exists) {
       return NextResponse.json(
         { success: false, message: "Season not found" },
@@ -23,16 +32,18 @@ export async function GET(
   }
 }
 
-// ─── PUT: Update Season ───────────────────────────────────────────────────────
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+// ─── PUT: Update Season 
+export async function PUT(req: NextRequest) {
   try {
+    const id   = getIdFromUrl(req);
+
+    if (!id) {
+      return NextResponse.json({ error: "ID required" }, { status: 400 });
+    }
     const body = await req.json();
     const { season } = body;
 
-    const existing = await db.collection("clubSeasons").doc(params.id).get();
+    const existing = await db.collection("clubSeasons").doc(id).get();
     if (!existing.exists) {
       return NextResponse.json(
         { success: false, message: "Season not found" },
@@ -68,11 +79,11 @@ export async function PUT(
       updatedAt: Date.now(),
     };
 
-    await db.collection("clubSeasons").doc(params.id).update(updateData);
+    await db.collection("clubSeasons").doc(id).update(updateData);
 
     return NextResponse.json({
       success: true,
-      season: { id: params.id, ...existingData, ...updateData },
+      season: { id: id, ...existingData, ...updateData },
     });
   } catch (error) {
     console.error("Update season error:", error);
@@ -83,20 +94,22 @@ export async function PUT(
   }
 }
 
-// ─── DELETE: Remove Season ────────────────────────────────────────────────────
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+// ─── DELETE: Remove Season 
+export async function DELETE(req: NextRequest) {
   try {
-    const doc = await db.collection("clubSeasons").doc(params.id).get();
+    const id   = getIdFromUrl(req);
+
+    if (!id) {
+      return NextResponse.json({ error: "ID required" }, { status: 400 });
+    }
+    const doc = await db.collection("clubSeasons").doc(id).get();
     if (!doc.exists) {
       return NextResponse.json(
         { success: false, message: "Season not found" },
         { status: 404 }
       );
     }
-    await db.collection("clubSeasons").doc(params.id).delete();
+    await db.collection("clubSeasons").doc(id).delete();
     return NextResponse.json({ success: true, message: "Season deleted" });
   } catch (error) {
     return NextResponse.json(

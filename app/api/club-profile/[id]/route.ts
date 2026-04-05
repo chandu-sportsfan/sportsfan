@@ -2,13 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import cloudinary from "@/lib/cloudinary";
 import { db } from "@/lib/firebaseAdmin";
 
+// Helper function to extract ID from URL
+function getIdFromUrl(req: NextRequest): string | null {
+  const url = new URL(req.url);
+  const pathParts = url.pathname.split('/');
+  return pathParts[pathParts.length - 1] || null;
+}
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(req: NextRequest) {
   try {
-    const doc = await db.collection("clubProfiles").doc(params.id).get();
+    const id   = getIdFromUrl(req);
+
+    if (!id) {
+      return NextResponse.json({ error: "ID required" }, { status: 400 });
+    }
+
+    const doc = await db.collection("clubProfiles").doc(id).get();
     if (!doc.exists) {
       return NextResponse.json(
         { success: false, message: "Profile not found" },
@@ -25,14 +34,16 @@ export async function GET(
 }
 
 
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(req: NextRequest) {
   try {
+    const id   = getIdFromUrl(req);
+
+    if (!id) {
+      return NextResponse.json({ error: "ID required" }, { status: 400 });
+    }
     const formData = await req.formData();
 
-    const existing = await db.collection("clubProfiles").doc(params.id).get();
+    const existing = await db.collection("clubProfiles").doc(id).get();
     if (!existing.exists) {
       return NextResponse.json(
         { success: false, message: "Profile not found" },
@@ -90,11 +101,11 @@ export async function PUT(
       updatedAt: Date.now(),
     };
 
-    await db.collection("clubProfiles").doc(params.id).update(updateData);
+    await db.collection("clubProfiles").doc(id).update(updateData);
 
     return NextResponse.json({
       success: true,
-      profile: { id: params.id, ...existingData, ...updateData },
+      profile: { id: id, ...existingData, ...updateData },
     });
   } catch (error) {
     console.error("Update club profile error:", error);
@@ -105,20 +116,22 @@ export async function PUT(
   }
 }
 
-// ─── DELETE: Remove Club Profile ──────────────────────────────────────────────
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+//  DELETE: Remove Club Profile 
+export async function DELETE(req: NextRequest) {
   try {
-    const doc = await db.collection("clubProfiles").doc(params.id).get();
+    const id   = getIdFromUrl(req);
+
+    if (!id) {
+      return NextResponse.json({ error: "ID required" }, { status: 400 });
+    }
+    const doc = await db.collection("clubProfiles").doc(id).get();
     if (!doc.exists) {
       return NextResponse.json(
         { success: false, message: "Profile not found" },
         { status: 404 }
       );
     }
-    await db.collection("clubProfiles").doc(params.id).delete();
+    await db.collection("clubProfiles").doc(id).delete();
     return NextResponse.json({ success: true, message: "Profile deleted" });
   } catch (error) {
     return NextResponse.json(

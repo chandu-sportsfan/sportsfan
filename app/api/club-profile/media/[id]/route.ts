@@ -2,13 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import cloudinary from "@/lib/cloudinary";
 import { db } from "@/lib/firebaseAdmin";
 
+
+// Helper function to extract ID from URL
+function getIdFromUrl(req: NextRequest): string | null {
+  const url = new URL(req.url);
+  const pathParts = url.pathname.split('/');
+  return pathParts[pathParts.length - 1] || null;
+}
+
 // ─── GET: Single Media Doc ────────────────────────────────────────────────────
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(req: NextRequest) {
   try {
-    const doc = await db.collection("clubMedia").doc(params.id).get();
+    const id   = getIdFromUrl(req);
+
+    if (!id) {
+      return NextResponse.json({ error: "ID required" }, { status: 400 });
+    }
+    const doc = await db.collection("clubMedia").doc(id).get();
     if (!doc.exists) {
       return NextResponse.json(
         { success: false, message: "Media not found" },
@@ -32,14 +42,16 @@ type MediaItem = {
 };
 
 // ─── PUT: Update Media Doc ────────────────────────────────────────────────────
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(req: NextRequest) {
   try {
+    const id   = getIdFromUrl(req);
+
+    if (!id) {
+      return NextResponse.json({ error: "ID required" }, { status: 400 });
+    }
     const formData = await req.formData();
 
-    const existing = await db.collection("clubMedia").doc(params.id).get();
+    const existing = await db.collection("clubMedia").doc(id).get();
     if (!existing.exists) {
       return NextResponse.json(
         { success: false, message: "Media not found" },
@@ -83,11 +95,11 @@ export async function PUT(
       updatedAt: Date.now(),
     };
 
-    await db.collection("clubMedia").doc(params.id).update(updateData);
+    await db.collection("clubMedia").doc(id).update(updateData);
 
     return NextResponse.json({
       success: true,
-      media: { id: params.id, ...existingData, ...updateData },
+      media: { id: id, ...existingData, ...updateData },
     });
   } catch (error) {
     console.error("Update media error:", error);
@@ -99,19 +111,21 @@ export async function PUT(
 }
 
 // ─── DELETE: Remove Media Doc ─────────────────────────────────────────────────
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(req: NextRequest) {
   try {
-    const doc = await db.collection("clubMedia").doc(params.id).get();
+    const id   = getIdFromUrl(req);
+
+    if (!id) {
+      return NextResponse.json({ error: "ID required" }, { status: 400 });
+    }
+    const doc = await db.collection("clubMedia").doc(id).get();
     if (!doc.exists) {
       return NextResponse.json(
         { success: false, message: "Media not found" },
         { status: 404 }
       );
     }
-    await db.collection("clubMedia").doc(params.id).delete();
+    await db.collection("clubMedia").doc(id).delete();
     return NextResponse.json({ success: true, message: "Media deleted" });
   } catch (error) {
     return NextResponse.json(
