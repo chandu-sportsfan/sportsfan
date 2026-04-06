@@ -21,7 +21,7 @@ function getIdFromUrl(req: NextRequest): string | null {
    ───────────────────────────────────────────── */
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }  // ← Add this even if not used
+  { params: _params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const id = getIdFromUrl(req);
@@ -76,7 +76,7 @@ export async function DELETE(
    ───────────────────────────────────────────── */
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }  // ← Add this even if not used
+  { params: _params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const id = getIdFromUrl(req);
@@ -132,7 +132,7 @@ export async function GET(
    ───────────────────────────────────────────── */
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }  // ← Add this even if not used
+  { params: _params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const id = getIdFromUrl(req);
