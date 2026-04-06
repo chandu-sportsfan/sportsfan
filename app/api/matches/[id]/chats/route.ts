@@ -19,7 +19,10 @@ function getIdFromUrl(req: NextRequest): string | null {
    DELETE  /api/watch-along/[id]/chats
    Deletes a room and all its chat messages
    ───────────────────────────────────────────── */
-export async function DELETE(req: NextRequest) {
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }  // ← Add this even if not used
+) {
   try {
     const id = getIdFromUrl(req);
 
@@ -71,7 +74,10 @@ export async function DELETE(req: NextRequest) {
    Returns paginated chat messages for a room
    Query params: limit (default: 50)
    ───────────────────────────────────────────── */
-export async function GET(req: NextRequest) {
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }  // ← Add this even if not used
+) {
   try {
     const id = getIdFromUrl(req);
     const { searchParams } = new URL(req.url);
@@ -124,7 +130,10 @@ export async function GET(req: NextRequest) {
    Adds a chat message to a room
    Body: JSON { user, text, color }
    ───────────────────────────────────────────── */
-export async function POST(req: NextRequest) {
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }  // ← Add this even if not used
+) {
   try {
     const id = getIdFromUrl(req);
 
