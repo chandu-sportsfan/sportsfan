@@ -52,11 +52,13 @@ export async function DELETE(req: NextRequest) {
    Adds a chat message to a room
    Body: JSON { user, text, color }
    ───────────────────────────────────────────── */
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(req: NextRequest) {
   try {
+    const id   = getIdFromUrl(req);
+
+    if (!id) {
+      return NextResponse.json({ error: "ID required" }, { status: 400 });
+    }
     const body = await req.json();
     const { user, text, color } = body;
 
@@ -67,7 +69,7 @@ export async function POST(
       );
     }
 
-    const roomRef = db.collection("watchAlongRooms").doc(params.id);
+    const roomRef = db.collection("watchAlongRooms").doc(id);
     const roomDoc = await roomRef.get();
 
     if (!roomDoc.exists) {
