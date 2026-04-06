@@ -1,0 +1,173 @@
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/firebaseAdmin";
+import cloudinary from "@/lib/cloudinary";
+
+/* ─────────────────────────────────────────────
+   GET  /api/watch-along
+   Returns all rooms with their related live match
+   Query params:
+     ?isLive=true        → filter live rooms only
+     ?limit=10&page=1    → pagination
+   ───────────────────────────────────────────── */
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const isLiveFilter = searchParams.get("isLive");
+    const limit = parseInt(searchParams.get("limit") || "20");
+    const page = parseInt(searchParams.get("page") || "1");
+
+    let query: FirebaseFirestore.Query = db.collection("watchAlongRooms");
+
+    if (isLiveFilter === "true") {
+      query = query.where("isLive", "==", true);
+    }
+
+    // Total count
+    const countSnap = await query.count().get();
+    const totalItems = countSnap.data().count;
+
+    // Paginated rooms
+    const snapshot = await query
+      .orderBy("createdAt", "desc")
+      .limit(limit)
+      .offset((page - 1) * limit)
+      .get();
+
+    // For each room, fetch its related live match (if any) in parallel
+    const rooms = await Promise.all(
+      snapshot.docs.map(async (doc) => {
+        const data = doc.data();
+
+        let liveMatch = null;
+        if (data.liveMatchId) {
+          const matchDoc = await db
+            .collection("watchAlongMatches")
+            .doc(data.liveMatchId)
+            .get();
+          if (matchDoc.exists) {
+            liveMatch = { id: matchDoc.id, ...matchDoc.data() };
+          }
+        }
+
+        return {
+          id: doc.id,
+          ...data,
+          liveMatch, // nested relation
+        };
+      })
+    );
+
+    return NextResponse.json({
+      success: true,
+      rooms,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(totalItems / limit),
+        totalItems,
+        itemsPerPage: limit,
+      },
+    });
+  } catch (error) {
+    console.error("[watch-along GET]", error);
+    return NextResponse.json(
+      { success: false, message: "Failed to fetch rooms: " + (error as Error).message },
+      { status: 500 }
+    );
+  }
+}
+
+/* ─────────────────────────────────────────────
+   POST  /api/watch-along
+   Creates a new Watch Along room (expert card)
+   Body: multipart/form-data
+   ───────────────────────────────────────────── */
+export async function POST(req: NextRequest) {
+  try {
+    const formData = await req.formData();
+
+    // ── Required fields ──
+    const name = formData.get("name") as string;
+    const role = formData.get("role") as string;
+    const badge = formData.get("badge") as string;
+
+    if (!name || !role || !badge) {
+      return NextResponse.json(
+        { success: false, message: "name, role, and badge are required" },
+        { status: 400 }
+      );
+    }
+
+    // ── Optional fields ──
+    const badgeColor = (formData.get("badgeColor") as string) || "bg-pink-600";
+    const borderColor = (formData.get("borderColor") as string) || "border-pink-500";
+    const isLive = formData.get("isLive") === "true";
+    const watching = (formData.get("watching") as string) || "0";
+    const engagement = (formData.get("engagement") as string) || "0%";
+    const active = (formData.get("active") as string) || "0";
+    const liveMatchId = (formData.get("liveMatchId") as string) || null;
+
+    // ── Upload display picture ──
+    let displayPicture = "";
+    const dpFile = formData.get("displayPicture") as File | null;
+    if (dpFile && dpFile.size > 0) {
+      const bytes = await dpFile.arrayBuffer();
+      const buffer = Buffer.from(bytes);
+      const base64 = `data:${dpFile.type};base64,${buffer.toString("base64")}`;
+
+      const uploaded = await cloudinary.uploader.upload(base64, {
+        folder: "watchAlong/experts",
+        public_id: `${Date.now()}-${dpFile.name.replace(/\s/g, "_")}`,
+      });
+      displayPicture = uploaded.secure_url;
+    }
+
+    // ── Derive initials from name ──
+    const initials = name
+      .split(" ")
+      .map((w) => w[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+
+    // ── Validate liveMatchId if provided ──
+    if (liveMatchId) {
+      const matchDoc = await db.collection("watchAlongMatches").doc(liveMatchId).get();
+      if (!matchDoc.exists) {
+        return NextResponse.json(
+          { success: false, message: `liveMatchId "${liveMatchId}" does not exist in watchAlongMatches` },
+          { status: 400 }
+        );
+      }
+    }
+
+    const roomData = {
+      name,
+      role,
+      badge,
+      badgeColor,
+      borderColor,
+      initials,
+      displayPicture,
+      isLive,
+      watching,
+      engagement,
+      active,
+      liveMatchId: liveMatchId || null,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    const docRef = await db.collection("watchAlongRooms").add(roomData);
+
+    return NextResponse.json({
+      success: true,
+      room: { id: docRef.id, ...roomData },
+    });
+  } catch (error) {
+    console.error("[watch-along POST]", error);
+    return NextResponse.json(
+      { success: false, message: "Create failed: " + (error as Error).message },
+      { status: 500 }
+    );
+  }
+}

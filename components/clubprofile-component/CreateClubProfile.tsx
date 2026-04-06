@@ -16,31 +16,15 @@ import type {
   MediaItem,
 } from "./shared";
 
-// import ClubProfileForm, {
-//   defaultProfileForm,
-// } from "@src/components/clubprofile-component/ClubProfileForm";
-// import SeasonStatsForm, {
-//   defaultSeasonForm,
-// } from "@/components/club-profile/SeasonStatsForm";
-// import InsightsForm from "@/components/club-profile/InsightsForm";
-// import MediaForm from "@/components/club-profile/MediaForm";
 
-// import type {
-//   Tab,
-//   ProfileForm,
-//   SeasonForm,
-//   Insight,
-//   MediaItem,
-// } from "@/components/club-profile/shared";
 
-// ─── PROPS ─────────────────────────────────────────────────────────────────────
+//  PROPS 
 
 type Props = {
   profileIdToEdit?: string;
 };
 
-// ─── TAB CONFIG ────────────────────────────────────────────────────────────────
-
+//  TAB CONFIG 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: "profile",  label: "Club Profile",  icon: "🏏" },
   { key: "season",   label: "Season Stats",  icon: "📊" },
@@ -68,7 +52,7 @@ export default function CreateClubProfile({ profileIdToEdit }: Props) {
   const [strengthsInitial,setStrengthsInitial]= useState<string[]>([]);
   const [mediaInitial,    setMediaInitial]    = useState<MediaItem[]>([]);
 
-  // ── Fetch all data when editing ──────────────────────────────────────────
+  //  Fetch all data when editing 
   useEffect(() => {
     if (!profileIdToEdit) return;
 
@@ -171,12 +155,12 @@ export default function CreateClubProfile({ profileIdToEdit }: Props) {
     setActiveTab(key);
   };
 
-  // ── Completion ────────────────────────────────────────────────────────────
+  // ── Completion 
   const handleFinish = () => {
-    router.push("/admin/club-profile-management/club-profile-list");
+    router.push("/admin/clubprofile-management/clubprofile-list");
   };
 
-  // ─── RENDER ────────────────────────────────────────────────────────────────
+  // ─── RENDER 
   return (
     <div className="max-w-[1440px] mx-auto p-6">
       {/* Page header */}

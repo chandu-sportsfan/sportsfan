@@ -13,7 +13,7 @@ import {
   getPreview,
 } from "./shared";
 
-// ─── PROPS ─────────────────────────────────────────────────────────────────────
+//  PROPS 
 
 type Props = {
   profileIdToEdit?: string;
@@ -23,7 +23,7 @@ type Props = {
   onCancel: () => void;
 };
 
-// ─── DEFAULT FORM ──────────────────────────────────────────────────────────────
+//  DEFAULT FORM 
 
 export const defaultProfileForm: ProfileForm = {
   name: "",
@@ -40,7 +40,7 @@ export const defaultProfileForm: ProfileForm = {
   overviewVenue: "",
 };
 
-// ─── COMPONENT ─────────────────────────────────────────────────────────────────
+//  COMPONENT 
 
 export default function ClubProfileForm({
   profileIdToEdit,

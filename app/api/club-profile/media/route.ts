@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import cloudinary from "@/lib/cloudinary";
 import { db } from "@/lib/firebaseAdmin";
 
-// ─── POST: Create Media Item(s) ───────────────────────────────────────────────
+// ─── POST: Create Media Item(s) 
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();

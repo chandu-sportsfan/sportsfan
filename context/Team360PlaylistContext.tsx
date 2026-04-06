@@ -8,7 +8,7 @@ import {
 } from "react";
 import axios from "axios";
 
-/* ================= TYPES ================= */
+/*  TYPES  */
 
 export interface DropItem {
   title: string;

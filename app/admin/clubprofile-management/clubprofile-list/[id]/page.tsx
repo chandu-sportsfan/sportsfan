@@ -463,7 +463,7 @@ export default function ClubProfileViewPage() {
   );
 }
 
-// ─── SUBCOMPONENTS ─────────────────────────────────────────────────────────────
+// ─── SUBCOMPONENTS 
 
 type AccentColor = "blue" | "green" | "yellow" | "red" | "purple" | "gray";
 

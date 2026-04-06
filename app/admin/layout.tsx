@@ -79,6 +79,13 @@ const NAV: NavGroup[] = [
           { href: "/admin/clubprofile-management/clubprofile-list",     label: "Club Profiles List" },
         ],
       },
+       {
+        label: "Watch Along", icon: "◉",
+        children: [
+          { href: "/admin/watchalong-management/add-watchalong", label: "Add Watch Along" },
+          { href: "/admin/watchalong-management/watchalong-list",     label: "Watch Along List" },
+        ],
+      },
       // { href: "/admin/content", icon: "◧", label: "Content / Posts"   },
       // { href: "/admin/orders",  icon: "◫", label: "Orders & Payments", badge: "8" },
     ],
