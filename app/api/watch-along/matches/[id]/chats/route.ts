@@ -47,11 +47,7 @@ export async function GET(req: NextRequest) {  // ← Changed from DELETE to GET
   }
 }
 
-/* ─────────────────────────────────────────────
-   POST  /api/watch-along/[id]/chats
-   Adds a chat message to a room
-   Body: JSON { user, text, color }
-   ───────────────────────────────────────────── */
+
 export async function POST(req: NextRequest) {
   try {
     const id = getIdFromUrl(req);
