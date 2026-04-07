@@ -12,9 +12,9 @@ function getIdFromUrl(req: NextRequest): string | null {
    GET  /api/watch-along/[id]/chats
    Returns paginated chat messages for a room
    ───────────────────────────────────────────── */
-export async function DELETE(req: NextRequest) {
+export async function GET(req: NextRequest) {  // ← Changed from DELETE to GET
   try {
-    const id   = getIdFromUrl(req);
+    const id = getIdFromUrl(req);
 
     if (!id) {
       return NextResponse.json({ error: "ID required" }, { status: 400 });
@@ -54,7 +54,7 @@ export async function DELETE(req: NextRequest) {
    ───────────────────────────────────────────── */
 export async function POST(req: NextRequest) {
   try {
-    const id   = getIdFromUrl(req);
+    const id = getIdFromUrl(req);
 
     if (!id) {
       return NextResponse.json({ error: "ID required" }, { status: 400 });
@@ -97,3 +97,11 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+/* ─────────────────────────────────────────────
+   DELETE  /api/watch-along/[id]/chats
+   (Optional - add if you need delete functionality)
+   ───────────────────────────────────────────── */
+// export async function DELETE(req: NextRequest) {
+//   // Your delete logic here
+// }
