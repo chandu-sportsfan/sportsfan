@@ -78,14 +78,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
   }
 }
 
-/* ─────────────────────────────────────────────
-   POST  /api/watch-along/matches/[id]/quiz
-   action = "create"  (admin)
-     Body: { action, question, options, correctAnswer, timerSeconds?, points? }
 
-   action = "answer"  (user)
-     Body: { action, questionId, option, userId, displayName? }
-   ───────────────────────────────────────────── */
 export async function POST(req: NextRequest, { params }: RouteContext) {
   try {
     const { id } = await params;
@@ -121,9 +114,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         correctAnswer,
         timerSeconds,
         points,
-        isActive: false,
-        opensAt: null,
-        closesAt: null,
+        isActive: true, // ✅ Set to true for demo mode
+        opensAt: Date.now(),
+        closesAt: Date.now() + timerSeconds * 1000,
         competing: 0,
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -131,11 +124,10 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
       const docRef = await matchRef.collection("quizQuestions").add(questionData);
       const { correctAnswer: _ca, ...safeData } = questionData;
-      void _ca;
       return NextResponse.json({ success: true, question: { id: docRef.id, ...safeData } });
     }
 
-    // ── ANSWER ──
+    // ── ANSWER ── (Demo mode - no activation checks)
     if (action === "answer") {
       const { questionId, option, userId, displayName } = body;
 
@@ -155,12 +147,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
       const q = qDoc.data()!;
 
-      if (!q.isActive) {
-        return NextResponse.json({ success: false, message: "Question is not active" }, { status: 400 });
-      }
-      if (q.closesAt && Date.now() > q.closesAt) {
-        return NextResponse.json({ success: false, message: "Time is up" }, { status: 400 });
-      }
+   
+      
       if (!q.options.includes(option)) {
         return NextResponse.json({ success: false, message: "Invalid option" }, { status: 400 });
       }
@@ -189,7 +177,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       return NextResponse.json({
         success: true,
         isCorrect,
-        correctAnswer: q.correctAnswer,  // reveal only after submission
+        correctAnswer: q.correctAnswer,
         pointsEarned: earnedPoints,
       });
     }
@@ -203,7 +191,6 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ success: false, message: (error as Error).message }, { status: 500 });
   }
 }
-
 
 // Simplified API - just activate/deactivate
 export async function PATCH(req: NextRequest, { params }: RouteContext) {
