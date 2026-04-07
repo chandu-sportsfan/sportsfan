@@ -1,7 +1,7 @@
 "use client";
 
 import axios from "axios";
-import { useState, useEffect, ChangeEvent, InputHTMLAttributes } from "react";
+import { useState, useEffect, InputHTMLAttributes } from "react";
 
 /* ─── Types ─── */
 type Prediction = {
@@ -22,10 +22,10 @@ type PredictionForm = {
   closesAt: string; // datetime-local string
 };
 
-/* ─────────────────────────────────────────────
+/* 
    Predictions Admin Panel
    Props: matchId → the watch-along match ID
-   ───────────────────────────────────────────── */
+    */
 export default function PredictionsAdminPanel({ matchId }: { matchId: string }) {
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [fetching, setFetching] = useState(true);
@@ -306,7 +306,7 @@ export default function PredictionsAdminPanel({ matchId }: { matchId: string }) 
   );
 }
 
-/* ─── Reusable sub-components ─── */
+/*  Reusable sub-components  */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
