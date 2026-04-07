@@ -204,12 +204,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   }
 }
 
-/* ─────────────────────────────────────────────
-   PATCH  /api/watch-along/matches/[id]/quiz
-   Admin: activate or deactivate a question
-   Body: { questionId: string, isActive: boolean }
-   Activating auto-sets opensAt + closesAt from timerSeconds
-   ───────────────────────────────────────────── */
+
+// Simplified API - just activate/deactivate
 export async function PATCH(req: NextRequest, { params }: RouteContext) {
   try {
     const { id } = await params;
