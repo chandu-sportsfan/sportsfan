@@ -1,110 +1,105 @@
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/firebaseAdmin";
 
- import { NextRequest, NextResponse } from "next/server";
- import { db } from "@/lib/firebaseAdmin";
+type RouteContext = { params: Promise<{ id: string }> };
 
- // Helper function to extract ID from URL
- function getIdFromUrl(req: NextRequest): string | null {
-   const url = new URL(req.url);
-   const pathParts = url.pathname.split('/');
-   return pathParts[pathParts.length - 1] || null;
- }
+/* ─────────────────────────────────────────────
+   GET  /api/watch-along/matches/[id]/chat
+   Returns paginated chat messages for a match
+   Query: ?limit=50
+   ───────────────────────────────────────────── */
+export async function GET(req: NextRequest, { params }: RouteContext) {
+  try {
+    const { id } = await params;
+    const { searchParams } = new URL(req.url);
+    const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 100);
 
-// /* ─────────────────────────────────────────────
-//    GET  /api/watch-along/[id]/chats
-//    Returns paginated chat messages for a room
-//    ───────────────────────────────────────────── */
- export async function GET(req: NextRequest) {  // ← Changed from DELETE to GET
-   try {
-     const id = getIdFromUrl(req);
+    const matchRef = db.collection("watchAlongMatches").doc(id);
+    const matchDoc = await matchRef.get();
+    if (!matchDoc.exists) {
+      return NextResponse.json({ success: false, message: "Match not found" }, { status: 404 });
+    }
 
-     if (!id) {
-       return NextResponse.json({ error: "ID required" }, { status: 400 });
-     }
-     const { searchParams } = new URL(req.url);
-     const limit = parseInt(searchParams.get("limit") || "50");
+    const snapshot = await matchRef
+      .collection("chats")
+      .orderBy("createdAt", "asc")
+      .limitToLast(limit)
+      .get();
 
-     const roomRef = db.collection("watchAlongRooms").doc(id);
-     const roomDoc = await roomRef.get();
+    const chats = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 
-     if (!roomDoc.exists) {
-       return NextResponse.json({ success: false, message: "Room not found" }, { status: 404 });
-     }
+    return NextResponse.json({ success: true, chats });
+  } catch (error) {
+    console.error("[match chat GET]", error);
+    return NextResponse.json({ success: false, message: (error as Error).message }, { status: 500 });
+  }
+}
 
-     const snapshot = await roomRef
-       .collection("chats")
-       .orderBy("createdAt", "asc")
-       .limitToLast(limit)
-       .get();
+/* ─────────────────────────────────────────────
+   POST  /api/watch-along/matches/[id]/chat
+   Send a new chat message
+   Body: { user: string, text: string, color?: string }
+   ───────────────────────────────────────────── */
+export async function POST(req: NextRequest, { params }: RouteContext) {
+  try {
+    const { id } = await params;
+    const body = await req.json();
+    const { user, text, color } = body;
 
-     const chats = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    if (!user?.trim() || !text?.trim()) {
+      return NextResponse.json(
+        { success: false, message: "user and text are required" },
+        { status: 400 }
+      );
+    }
 
-     return NextResponse.json({ success: true, chats });
-   } catch (error) {
-     console.error("[chats GET]", error);
-     return NextResponse.json(
-       { success: false, message: (error as Error).message },
-       { status: 500 }
-     );
-   }
- }
+    const matchRef = db.collection("watchAlongMatches").doc(id);
+    const matchDoc = await matchRef.get();
+    if (!matchDoc.exists) {
+      return NextResponse.json({ success: false, message: "Match not found" }, { status: 404 });
+    }
 
+    const chatData = {
+      user: user.trim(),
+      text: text.trim(),
+      color: color || "text-pink-400",
+      createdAt: Date.now(),
+    };
 
- export async function POST(req: NextRequest) {
-   try {
-     const id = getIdFromUrl(req);
+    const docRef = await matchRef.collection("chats").add(chatData);
 
-     if (!id) {
-       return NextResponse.json({ error: "ID required" }, { status: 400 });
-     }
-     const body = await req.json();
-     const { user, text, color } = body;
+    return NextResponse.json({ success: true, chat: { id: docRef.id, ...chatData } });
+  } catch (error) {
+    console.error("[match chat POST]", error);
+    return NextResponse.json({ success: false, message: (error as Error).message }, { status: 500 });
+  }
+}
 
-     if (!user || !text) {
-       return NextResponse.json(
-         { success: false, message: "user and text are required" },
-         { status: 400 }
-       );
-     }
+/* ─────────────────────────────────────────────
+   DELETE  /api/watch-along/matches/[id]/chat
+   Admin: delete a specific chat message
+   Body: { chatId: string }
+   ───────────────────────────────────────────── */
+export async function DELETE(req: NextRequest, { params }: RouteContext) {
+  try {
+    const { id } = await params;
+    const { chatId } = await req.json();
 
-     const roomRef = db.collection("watchAlongRooms").doc(id);
-     const roomDoc = await roomRef.get();
+    if (!chatId) {
+      return NextResponse.json({ success: false, message: "chatId is required" }, { status: 400 });
+    }
 
-     if (!roomDoc.exists) {
-       return NextResponse.json({ success: false, message: "Room not found" }, { status: 404 });
-     }
+    const matchRef = db.collection("watchAlongMatches").doc(id);
+    const matchDoc = await matchRef.get();
+    if (!matchDoc.exists) {
+      return NextResponse.json({ success: false, message: "Match not found" }, { status: 404 });
+    }
 
-     const chatData = {
-       user,
-       text,
-       color: color || "text-pink-400",
-       createdAt: Date.now(),
-     };
+    await matchRef.collection("chats").doc(chatId).delete();
 
-     const docRef = await roomRef.collection("chats").add(chatData);
-
-     return NextResponse.json({
-       success: true,
-       chat: { id: docRef.id, ...chatData },
-     });
-   } catch (error) {
-     console.error("[chats POST]", error);
-     return NextResponse.json(
-       { success: false, message: (error as Error).message },
-       { status: 500 }
-     );
-   }
- }
-
-// /* ─────────────────────────────────────────────
-//    DELETE  /api/watch-along/[id]/chats
-//    (Optional - add if you need delete functionality)
-//    ───────────────────────────────────────────── */
-// // export async function DELETE(req: NextRequest) {
-// //   // Your delete logic here
-// // }
-
-
-
-
-
-
+    return NextResponse.json({ success: true, message: "Message deleted" });
+  } catch (error) {
+    console.error("[match chat DELETE]", error);
+    return NextResponse.json({ success: false, message: (error as Error).message }, { status: 500 });
+  }
+}
