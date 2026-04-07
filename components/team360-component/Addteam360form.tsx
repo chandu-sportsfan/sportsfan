@@ -269,12 +269,12 @@ export default function CreateTeam360Post({ team360IdToEdit }: { team360IdToEdit
 
             if (team360IdToEdit) {
                 res = await axios.put(
-                    `http://localhost:3001/api/team360/${team360IdToEdit}`,
+                    `/api/team360/${team360IdToEdit}`,
                     payload
                 );
             } else {
                 res = await axios.post(
-                    "http://localhost:3001/api/team360",
+                    "/api/team360",
                     payload
                 );
             }
