@@ -86,8 +86,8 @@
 //     console.error("[chats POST]", error);
 //     return NextResponse.json({ success: false, message: (error as Error).message }, { status: 500 });
 //   }
+// // }
+// import { NextRequest, NextResponse } from "next/server";
+// export async function POST(req: NextRequest) {
+//     return NextResponse.json({ success: true, message: "POST endpoint for chats" });
 // }
-import { NextRequest, NextResponse } from "next/server";
-export async function POST(req: NextRequest) {
-    return NextResponse.json({ success: true, message: "POST endpoint for chats" });
-}
