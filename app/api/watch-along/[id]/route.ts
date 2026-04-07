@@ -162,6 +162,7 @@ export async function DELETE(req: NextRequest) {
     }
 
     // Delete all chat messages in the sub-collection first
+    //
     const chatsSnap = await docRef.collection("chats").get();
     const batch = db.batch();
     chatsSnap.docs.forEach((chatDoc) => batch.delete(chatDoc.ref));
