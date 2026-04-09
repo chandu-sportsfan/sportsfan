@@ -14,7 +14,7 @@ import {
 //  PROPS
 
 type Props = {
-  clubProfileId: string;
+  playerProfilesId: string;
   mediaDocId?: string;
   initialItems?: MediaItem[];
   onSaved: (mediaDocId: string) => void;
@@ -25,7 +25,7 @@ type Props = {
 // ─── COMPONENT ─────────────────────────────────────────────────────────────────
 
 export default function MediaForm({
-  clubProfileId,
+  playerProfilesId,
   mediaDocId,
   initialItems = [],
   onSaved,
@@ -55,12 +55,12 @@ export default function MediaForm({
   const removeMediaItem = (i: number) =>
     setMediaItems((p) => p.filter((_, idx) => idx !== i));
 
-  // ── Submit ─────────────────────────────────────────────────────────────────
+  // ── Submit 
   const handleSubmit = async () => {
     setLoading(true);
     try {
       const fd = new FormData();
-      fd.append("clubProfileId", clubProfileId);
+      fd.append("playerProfilesId", playerProfilesId);
 
       mediaItems.forEach((m, i) => {
         fd.append("titles", m.title || `Media ${i + 1}`);
@@ -72,10 +72,10 @@ export default function MediaForm({
 
       let res;
       if (mediaDocId) {
-        res = await axios.put(`/api/club-profile/media/${mediaDocId}`, fd);
+        res = await axios.put(`/api/player-profile/media/${mediaDocId}`, fd);
         onSaved(mediaDocId);
       } else {
-        res = await axios.post("/api/club-profile/media", fd);
+        res = await axios.post("/api/player-profile/media", fd);
         onSaved(res.data.media.id);
       }
 

@@ -5,11 +5,11 @@ import { db } from "@/lib/firebaseAdmin";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { clubProfileId, insights, strengths } = body;
+    const { playerProfilesId, insights, strengths } = body;
 
-    if (!clubProfileId) {
+    if (!playerProfilesId) {
       return NextResponse.json(
-        { success: false, message: "clubProfileId is required" },
+        { success: false, message: "PlayerProfileId is required" },
         { status: 400 }
       );
     }
@@ -28,14 +28,14 @@ export async function POST(req: NextRequest) {
     );
 
     const insightsData = {
-      clubProfileId,
+      playerProfilesId,
       insights: sanitizedInsights,
       strengths: sanitizedStrengths,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
 
-    const docRef = await db.collection("clubInsights").add(insightsData);
+    const docRef = await db.collection("playerInsights").add(insightsData);
 
     return NextResponse.json({
       success: true,
@@ -50,18 +50,18 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// ─── GET: Fetch Insights (by clubProfileId) 
+// ─── GET: Fetch Insights (by playerProfileId) 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const clubProfileId = searchParams.get("clubProfileId");
+    const playerProfileId = searchParams.get("playerProfileId");
     const limit = parseInt(searchParams.get("limit") || "20");
     const page = parseInt(searchParams.get("page") || "1");
 
-    let query: FirebaseFirestore.Query = db.collection("clubInsights");
+    let query: FirebaseFirestore.Query = db.collection("playerInsights");
 
-    if (clubProfileId) {
-      query = query.where("clubProfileId", "==", clubProfileId);
+    if (playerProfileId) {
+      query = query.where("playerProfileId", "==", playerProfileId);
     }
 
     const countSnapshot = await query.count().get();

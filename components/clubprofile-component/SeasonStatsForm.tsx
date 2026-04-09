@@ -10,7 +10,7 @@ import {
   FormActions,
 } from "./shared";
 
-// ─── PROPS ─────────────────────────────────────────────────────────────────────
+//  PROPS 
 
 type Props = {
   clubProfileId: string;
@@ -20,7 +20,7 @@ type Props = {
   onBack: () => void;
 };
 
-// ─── DEFAULT FORM ──────────────────────────────────────────────────────────────
+//  DEFAULT FORM 
 
 export const defaultSeasonForm: SeasonForm = {
   year: "",

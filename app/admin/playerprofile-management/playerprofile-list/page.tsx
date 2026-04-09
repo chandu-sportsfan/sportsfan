@@ -20,7 +20,7 @@ import Link from "next/link";
 type Stats = { runs: string; sr: string; avg: string };
 type Overview = { captain: string; coach: string; owner: string; venue: string };
 
-type ClubProfile = {
+type PlayerProfile = {
   id: string;
   name: string;
   team: string;
@@ -36,8 +36,8 @@ type ClubProfile = {
 
 // ─── COMPONENT ─────────────────────────────────────────────────────────────────
 
-export default function ClubProfileListPage() {
-  const [profiles, setProfiles] = useState<ClubProfile[]>([]);
+export default function PlayerProfileListPage() {
+  const [profiles, setProfiles] = useState<PlayerProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
@@ -53,7 +53,7 @@ export default function ClubProfileListPage() {
     try {
       setLoading(true);
       const res = await axios.get(
-        `/api/club-profile?limit=${LIMIT}&page=${page}`
+        `/api/player-profile?limit=${LIMIT}&page=${page}`
       );
       setProfiles(res.data.profiles || []);
       setTotalPages(res.data.pagination?.totalPages || 1);
@@ -68,16 +68,16 @@ export default function ClubProfileListPage() {
 
   const handleDelete = async (id: string) => {
     const confirmed = window.confirm(
-      "Delete this club profile? This action cannot be undone."
+      "Delete this player profile? This action cannot be undone."
     );
     if (!confirmed) return;
     try {
-      await axios.delete(`/api/club-profile/${id}`);
+      await axios.delete(`/api/player-profile/${id}`);
       setProfiles((prev) => prev.filter((p) => p.id !== id));
       setTotalItems((prev) => prev - 1);
     } catch (error) {
       console.error("Delete failed", error);
-      alert("Failed to delete club profile");
+      alert("Failed to delete player profile");
     }
   };
 
@@ -92,8 +92,8 @@ export default function ClubProfileListPage() {
     "Club",
     "Team",
     "Type",
-    "Captain",
-    "Venue",
+    // "Captain",
+    // "Venue",
     "Runs",
     "Avg",
     "SR",
@@ -105,14 +105,14 @@ export default function ClubProfileListPage() {
       {/* ── Header ── */}
       <div className="mb-6 flex justify-between items-center">
         <div>
-          <h1 className="text-xl font-semibold text-white">Club Profiles</h1>
+          <h1 className="text-xl font-semibold text-white">Player Profiles</h1>
           <p className="text-sm text-gray-400 mt-1">
             {totalItems} profile{totalItems !== 1 ? "s" : ""} total
           </p>
         </div>
-        <Link href="/admin/club-profile-management/add-club-profile">
+        <Link href="/admin/player-profile-management/add-player-profile">
           <button className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-white text-sm transition">
-            + Create Club Profile
+            Create Player Profile
           </button>
         </Link>
       </div>
@@ -147,7 +147,7 @@ export default function ClubProfileListPage() {
               ) : profiles.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="text-center py-12 text-gray-500 text-sm">
-                    No club profiles found
+                    No player profiles found
                   </td>
                 </tr>
               ) : (
@@ -200,14 +200,14 @@ export default function ClubProfileListPage() {
                       </td>
 
                       {/* Captain */}
-                      <td className="px-4 py-3 text-sm text-gray-300">
+                      {/* <td className="px-4 py-3 text-sm text-gray-300">
                         {profile.overview?.captain || "—"}
-                      </td>
+                      </td> */}
 
                       {/* Venue */}
-                      <td className="px-4 py-3 text-sm text-gray-400 max-w-[160px] truncate">
+                      {/* <td className="px-4 py-3 text-sm text-gray-400 max-w-[160px] truncate">
                         {profile.overview?.venue || "—"}
-                      </td>
+                      </td> */}
 
                       {/* Runs */}
                       <td className="px-4 py-3 text-sm text-gray-300 font-mono">
@@ -235,7 +235,7 @@ export default function ClubProfileListPage() {
                             {expandedRows.has(profile.id) ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                           </button>
 
-                          <Link href={`/admin/clubprofile-management/clubprofile-list/${profile.id}`}>
+                          <Link href={`/admin/playerprofile-management/playerprofile-list/${profile.id}`}>
                             <button
                               onClick={(e) => e.stopPropagation()}
                               className="p-2 rounded-md bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition"
@@ -245,7 +245,7 @@ export default function ClubProfileListPage() {
                             </button>
                           </Link>
 
-                          <Link href={`/admin/clubprofile-management/add-clubprofile?id=${profile.id}`}>
+                          <Link href={`/admin/playerprofile-management/add-playerprofile?id=${profile.id}`}>
                             <button
                               onClick={(e) => e.stopPropagation()}
                               className="p-2 rounded-md bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 transition"
@@ -335,7 +335,7 @@ export default function ClubProfileListPage() {
   );
 }
 
-// ─── HELPERS ───────────────────────────────────────────────────────────────────
+// ─── HELPERS 
 
 function OverviewItem({
   icon,
