@@ -1,19 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 
-// type Params = {
-//   params: Promise<{ id: string }>;
-// };
 
-// export async function GET(req: NextRequest, { params }: Params) {
-//   try {
-//     const { id } = await params;
-
-// Helper function to extract ID from URL
 function getIdFromUrl(req: NextRequest): string | null {
   const url = new URL(req.url);
   const pathParts = url.pathname.split('/');
-  return pathParts[pathParts.length - 1] || null;
+  return pathParts[pathParts.length - 1] || null
 }
 
 // ─── GET: Single Season 
