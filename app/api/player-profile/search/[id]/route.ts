@@ -1,14 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 
-type Params = {
-  params: Promise<{ id: string }>;
-};
+// type Params = {
+//   params: Promise<{ id: string }>;
+// };
 
-export async function GET(req: NextRequest, { params }: Params) {
+// export async function GET(req: NextRequest, { params }: Params) {
+//   try {
+//     const { id } = await params;
+
+// Helper function to extract ID from URL
+function getIdFromUrl(req: NextRequest): string | null {
+  const url = new URL(req.url);
+  const pathParts = url.pathname.split('/');
+  return pathParts[pathParts.length - 1] || null;
+}
+
+// ─── GET: Single Season 
+export async function GET(req: NextRequest) {
   try {
-    const { id } = await params;
+    const id   = getIdFromUrl(req);
 
+    if (!id) {
+      return NextResponse.json({ error: "ID required" }, { status: 400 });
+    }
+   
     if (!id) {
       return NextResponse.json(
         { success: false, message: "Player profile id required" },
