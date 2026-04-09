@@ -24,7 +24,7 @@ export async function GET(req: NextRequest, { params }: Params) {
       mediaSnap,
     ] = await Promise.all([
       // 1️⃣ Profile
-      db.collection("playerProfiles").doc(id).get(),
+      db.collection("PlayerProfiles").doc(id).get(),
 
       // 2️⃣ Home
       db
@@ -36,8 +36,8 @@ export async function GET(req: NextRequest, { params }: Params) {
 
       // 3️⃣ Season
       db
-        .collection("playerSeasonStats")
-        .where("playerProfileId", "==", id)
+        .collection("playerSeasons")
+        .where("playerProfilesId", "==", id)
         .orderBy("createdAt", "desc")
         .limit(1)
         .get(),

@@ -110,7 +110,7 @@ export default function PlayerProfileListPage() {
             {totalItems} profile{totalItems !== 1 ? "s" : ""} total
           </p>
         </div>
-        <Link href="/admin/player-profile-management/add-player-profile">
+        <Link href="/admin/playerprofile-management/add-playerprofile">
           <button className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-white text-sm transition">
             Create Player Profile
           </button>

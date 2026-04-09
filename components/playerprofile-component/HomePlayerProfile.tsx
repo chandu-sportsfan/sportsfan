@@ -88,60 +88,112 @@ export default function PlayerHomeForm({
     };
 
 
+    // useEffect(() => {
+    //     if (!playerProfilesId) return;
+
+    //     const fetchSinglePost = async () => {
+    //         try {
+    //             const res = await axios.get(
+    //                 `/api/player-profile/home/${playerProfilesId}`
+    //             );
+
+    //             console.log("API Response:", res.data);
+
+    //             const post = res.data.posts?.[0]; // ✅ first post
+    //             if (!post) return;
+
+    //             // ✅ save actual firestore doc id for update
+    //             setEditPostId(post.id);
+
+    //             if (!post) return;
+
+    //             setForm({
+    //                 playerName: post.playerName || "",
+    //                 title: post.title || "",
+    //                 likes: String(post.likes || ""),
+    //                 comments: String(post.comments || ""),
+    //                 live: String(post.live || ""),
+    //                 shares: String(post.shares || ""),
+    //                 hasVideo: post.hasVideo || false,
+    //             });
+
+    //             setExistingImage(post.image || "");
+    //             setExistingLogo(post.logo || "");
+
+    //             setCategories(
+    //                 (post.category || []).map((cat: CategoryResponse) => ({
+    //                     title: cat.title,
+    //                     file: null,
+    //                     existingImage: cat.image,
+    //                 }))
+    //             );
+
+    //             setCatlogos(
+    //                 (post.catlogo || []).map((item: CatLogoResponse) => ({
+    //                     label: item.label,
+    //                     file: null,
+    //                     existingLogo: item.logo,
+    //                 }))
+    //             );
+    //         } catch (error) {
+    //             console.error("Failed to fetch post", error);
+    //         }
+    //     };
+
+    //     fetchSinglePost();
+    // }, [playerProfilesId]);
     useEffect(() => {
-        if (!playerProfilesId) return;
+    const targetId = homeDocId || player360IdToEdit;
 
-        const fetchSinglePost = async () => {
-            try {
-                const res = await axios.get(
-                    `/api/player-profile/home/${playerProfilesId}`
-                );
+    // ✅ only fetch in edit mode
+    if (!targetId) return;
 
-                console.log("API Response:", res.data);
+    const fetchSinglePost = async () => {
+        try {
+            const res = await axios.get(
+                `/api/player-profile/home/${targetId}`
+            );
 
-                const post = res.data.posts?.[0]; // ✅ first post
-                if (!post) return;
+            const post = res.data.post;
+            if (!post) return;
 
-                // ✅ save actual firestore doc id for update
-                setEditPostId(post.id);
+            setEditPostId(post.id);
 
-                if (!post) return;
+            setForm({
+                playerName: post.playerName || "",
+                title: post.title || "",
+                likes: String(post.likes || ""),
+                comments: String(post.comments || ""),
+                live: String(post.live || ""),
+                shares: String(post.shares || ""),
+                hasVideo: post.hasVideo || false,
+            });
 
-                setForm({
-                    playerName: post.playerName || "",
-                    title: post.title || "",
-                    likes: String(post.likes || ""),
-                    comments: String(post.comments || ""),
-                    live: String(post.live || ""),
-                    shares: String(post.shares || ""),
-                    hasVideo: post.hasVideo || false,
-                });
+            setExistingImage(post.image || "");
+            setExistingLogo(post.logo || "");
 
-                setExistingImage(post.image || "");
-                setExistingLogo(post.logo || "");
+            setCategories(
+                (post.category || []).map((cat: CategoryResponse) => ({
+                    title: cat.title,
+                    file: null,
+                    existingImage: cat.image,
+                }))
+            );
 
-                setCategories(
-                    (post.category || []).map((cat: CategoryResponse) => ({
-                        title: cat.title,
-                        file: null,
-                        existingImage: cat.image,
-                    }))
-                );
+            setCatlogos(
+                (post.catlogo || []).map((item: CatLogoResponse) => ({
+                    label: item.label,
+                    file: null,
+                    existingLogo: item.logo,
+                }))
+            );
+        } catch (error) {
+            console.error("Failed to fetch post", error);
+        }
+    };
 
-                setCatlogos(
-                    (post.catlogo || []).map((item: CatLogoResponse) => ({
-                        label: item.label,
-                        file: null,
-                        existingLogo: item.logo,
-                    }))
-                );
-            } catch (error) {
-                console.error("Failed to fetch post", error);
-            }
-        };
-
-        fetchSinglePost();
-    }, [playerProfilesId]);
+    fetchSinglePost();
+}, [homeDocId, playerProfilesId]);
 
     /* ---------------- INPUT ---------------- */
     const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
