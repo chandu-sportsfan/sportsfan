@@ -69,8 +69,7 @@ export default function PlayerProfileForm({
                     const ws = wb.Sheets[wsname];
                     const data = XLSX.utils.sheet_to_json(ws);
                     if (data && data.length > 0) {
-                        const row: any = data[0];
-
+                        const row = data[0] as Record<string, unknown>;
                         const lowerKeys = Object.keys(row).reduce((acc, k) => {
                             acc[k.toLowerCase()] = String(row[k]);
                             return acc;
