@@ -165,14 +165,14 @@ export async function DELETE(req: NextRequest) {
     if (!id) {
       return NextResponse.json({ error: "ID required" }, { status: 400 });
     }
-    const doc = await db.collection("playerProfiles").doc(id).get();
+    const doc = await db.collection("PlayerProfiles").doc(id).get();
     if (!doc.exists) {
       return NextResponse.json(
         { success: false, message: "Profile not found" },
         { status: 404 }
       );
     }
-    await db.collection("playerProfiles").doc(id).delete();
+    await db.collection("PlayerProfiles").doc(id).delete();
     return NextResponse.json({ success: true, message: "Profile deleted" });
   } catch (error) {
     return NextResponse.json(

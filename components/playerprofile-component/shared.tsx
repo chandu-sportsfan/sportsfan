@@ -4,7 +4,7 @@ import { InputHTMLAttributes, TextareaHTMLAttributes } from "react";
 
 // ─── SHARED TYPES ──────────────────────────────────────────────────────────────
 
-export type Tab = "profile" | "season" | "insights" | "media";
+export type Tab = "profile" | "season" | "insights" | "media" | "home"  ;
 
 export type ProfileForm = {
   name: string;
