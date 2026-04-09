@@ -347,7 +347,7 @@ export default function CreateClubProfile({ profileIdToEdit }: Props) {
     const [activeTab, setActiveTab] = useState<Tab>("profile");
 
     const [savedProfileId, setSavedProfileId] = useState(profileIdToEdit || "");
-    const [savedHomeId, setSavedHomeId] = useState(""); // ✅ NEW
+    const [, setSavedHomeId] = useState(""); // ✅ NEW
     const [savedSeasonId, setSavedSeasonId] = useState("");
     const [savedInsightsId, setSavedInsightsId] = useState("");
     const [savedMediaId, setSavedMediaId] = useState("");
