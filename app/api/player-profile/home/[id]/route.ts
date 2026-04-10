@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
       updatedAt: Date.now(),
     };
 
-    const docRef = await db.collection("players360Posts").add(newPost);
+    const docRef = await db.collection("playershome").add(newPost);
 
     return NextResponse.json({
       success: true,
@@ -167,7 +167,7 @@ export async function PUT(req: NextRequest) {
 
     const body = await req.json();
 
-    const docRef = db.collection("players360Posts").doc(id);
+    const docRef = db.collection("playershome").doc(id);
 
     await docRef.update({
       ...body,
@@ -204,7 +204,7 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const docRef = db.collection("players360Posts").doc(id);
+    const docRef = db.collection("playershome").doc(id);
     const doc = await docRef.get();
 
     if (!doc.exists) {

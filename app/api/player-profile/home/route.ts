@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const playerProfilesId = searchParams.get("playerProfilesId");
 
-    let query = db.collection("players360Posts").orderBy("createdAt", "desc");
+    let query = db.collection("playershome").orderBy("createdAt", "desc");
 
     if (playerProfilesId) {
       query = query.where("playerProfilesId", "==", playerProfilesId);
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
       updatedAt: Date.now(),
     };
 
-    const docRef = await db.collection("players360Posts").add(newPost);
+    const docRef = await db.collection("playershome").add(newPost);
 
     return NextResponse.json(
       {

@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
 
       // 2️ Home
       db
-        .collection("players360Posts")
+        .collection("playershome")
         .where("playerProfilesId", "==", id)
         .orderBy("createdAt", "desc")
         .get(),
