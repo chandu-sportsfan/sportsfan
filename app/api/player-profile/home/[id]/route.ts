@@ -2,34 +2,62 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 
 // ─── GET: All home posts OR by playerProfilesId ─────────────────
-export async function GET(req: NextRequest) {
+// export async function GET(req: NextRequest) {
+//   try {
+//     const { searchParams } = new URL(req.url);
+//     const playerProfilesId = searchParams.get("playerProfilesId");
+
+//     let query = db.collection("playershome") as FirebaseFirestore.Query;
+
+//     // filter by player profile if provided
+//     if (playerProfilesId) {
+//       query = query.where("playerProfilesId", "==", playerProfilesId);
+//     }
+
+//     const snap = await query.orderBy("createdAt", "desc").get();
+
+//     const posts = snap.docs.map((doc) => ({
+//       id: doc.id,
+//       ...doc.data(),
+//     }));
+
+//     return NextResponse.json({
+//       success: true,
+//       posts,
+//       total: posts.length,
+//     });
+//   } catch (error: unknown) {
+//     const msg =
+//       error instanceof Error ? error.message : "Unexpected error";
+
+//     return NextResponse.json(
+//       { success: false, message: msg },
+//       { status: 500 }
+//     );
+//   }
+// }
+
+
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    const { searchParams } = new URL(req.url);
-    const playerProfilesId = searchParams.get("playerProfilesId");
+    const doc = await db.collection("playershome").doc(params.id).get();
 
-    let query = db.collection("players360Posts") as FirebaseFirestore.Query;
-
-    // filter by player profile if provided
-    if (playerProfilesId) {
-      query = query.where("playerProfilesId", "==", playerProfilesId);
+    if (!doc.exists) {
+      return NextResponse.json(
+        { success: false, message: "Post not found" },
+        { status: 404 }
+      );
     }
-
-    const snap = await query.orderBy("createdAt", "desc").get();
-
-    const posts = snap.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
 
     return NextResponse.json({
       success: true,
-      posts,
-      total: posts.length,
+      post: { id: doc.id, ...doc.data() },  // ✅ singular "post"
     });
   } catch (error: unknown) {
-    const msg =
-      error instanceof Error ? error.message : "Unexpected error";
-
+    const msg = error instanceof Error ? error.message : "Unexpected error";
     return NextResponse.json(
       { success: false, message: msg },
       { status: 500 }

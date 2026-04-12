@@ -85,22 +85,31 @@ export async function POST(req: NextRequest) {
 }
 
 
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const limit = parseInt(searchParams.get("limit") || "20");
     const page = parseInt(searchParams.get("page") || "1");
+    const search = searchParams.get("search")?.trim().toLowerCase() || "";
 
     const collectionRef = db.collection("PlayerProfiles");
-    const countSnapshot = await collectionRef.count().get();
+    let query: FirebaseFirestore.Query = collectionRef;
+
+    if (search) {
+      query = query
+        .orderBy("nameLower")          // query the lowercase field
+        .startAt(search)
+        .endAt(search + "\uf8ff");
+    } else {
+      query = query.orderBy("createdAt", "desc");
+    }
+
+    const countSnapshot = await query.count().get();
     const totalItems = countSnapshot.data().count;
 
-    const startAt = (page - 1) * limit;
-    const snapshot = await collectionRef
-      .orderBy("createdAt", "desc")
-      .limit(limit)
-      .offset(startAt)
-      .get();
+    const offset = (page - 1) * limit;
+    const snapshot = await query.limit(limit).offset(offset).get();
 
     const profiles = snapshot.docs.map((doc) => ({
       id: doc.id,
@@ -118,7 +127,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Fetch club profiles error:", error);
+    console.error("Fetch player profiles error:", error);
     return NextResponse.json(
       { success: false, message: "Fetch failed" },
       { status: 500 }

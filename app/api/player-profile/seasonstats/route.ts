@@ -7,12 +7,12 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { playerProfilesId, season } = body;
 
-    if (!playerProfilesId || !season?.year) {
-      return NextResponse.json(
-        { success: false, message: "playerProfileId and season.year are required" },
-        { status: 400 }
-      );
-    }
+    // if (!playerProfilesId || !season?.year) {
+    //   return NextResponse.json(
+    //     { success: false, message: "playerProfileId and season.year are required" },
+    //     { status: 400 }
+    //   );
+    // }
 
     // Check if a season for this year already exists for this club
     const existing = await db

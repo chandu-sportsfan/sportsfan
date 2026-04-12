@@ -193,7 +193,7 @@ export default function PlayerHomeForm({
     };
 
     fetchSinglePost();
-}, [homeDocId, playerProfilesId]);
+}, [homeDocId, player360IdToEdit]);
 
     /* ---------------- INPUT ---------------- */
     const handleChange = (e: ChangeEvent<HTMLInputElement>) => {

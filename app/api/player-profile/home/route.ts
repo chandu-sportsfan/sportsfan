@@ -55,16 +55,16 @@ export async function POST(req: NextRequest) {
     } = body;
 
     // Validation
-    if (!playerProfilesId || !playerName || !title || !image || !logo) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "playerProfilesId, playerName, title, image and logo are required",
-        },
-        { status: 400 }
-      );
-    }
+    // if (!playerProfilesId || !playerName || !title || !image || !logo) {
+    //   return NextResponse.json(
+    //     {
+    //       success: false,
+    //       error:
+    //         "playerProfilesId, playerName, title, image and logo are required",
+    //     },
+    //     { status: 400 }
+    //   );
+    // }
 
     const newPost = {
       playerProfilesId,

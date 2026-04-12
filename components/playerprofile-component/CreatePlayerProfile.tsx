@@ -335,11 +335,11 @@ type Props = {
 
 /* TAB CONFIG */
 const TABS: { key: Tab; label: string; icon: string }[] = [
-    { key: "profile", label: "Player Profile", icon: "🏏" },
-    { key: "home", label: "Home", icon: "🏠" }, // ✅ NEW
-    { key: "season", label: "Season Stats", icon: "📊" },
-    { key: "insights", label: "Insights", icon: "💡" },
-    { key: "media", label: "Media", icon: "🎬" },
+    { key: "profile", label: "Player Profile", icon: "" },
+    { key: "home", label: "Home", icon: "" },
+    { key: "season", label: "Season Stats", icon: "" },
+    { key: "insights", label: "Insights", icon: "" },
+    { key: "media", label: "Media", icon: "" },
 ];
 
 export default function CreateClubProfile({ profileIdToEdit }: Props) {
@@ -347,7 +347,7 @@ export default function CreateClubProfile({ profileIdToEdit }: Props) {
     const [activeTab, setActiveTab] = useState<Tab>("profile");
 
     const [savedProfileId, setSavedProfileId] = useState(profileIdToEdit || "");
-    const [, setSavedHomeId] = useState(""); // ✅ NEW
+    const [savedHomeId, setSavedHomeId] = useState(""); // ✅ NEW
     const [savedSeasonId, setSavedSeasonId] = useState("");
     const [savedInsightsId, setSavedInsightsId] = useState("");
     const [savedMediaId, setSavedMediaId] = useState("");
@@ -573,6 +573,7 @@ export default function CreateClubProfile({ profileIdToEdit }: Props) {
             {activeTab === "home" && (
                 <PlayerHomeForm
                     playerProfilesId={savedProfileId}
+                    homeDocId={savedHomeId} 
                     onSaved={(id) => {
                         setSavedHomeId(id); // optional if you need later
                         setActiveTab("season");
