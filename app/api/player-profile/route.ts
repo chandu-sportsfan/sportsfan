@@ -86,6 +86,56 @@ export async function POST(req: NextRequest) {
 
 
 
+// export async function GET(req: NextRequest) {
+//   try {
+//     const { searchParams } = new URL(req.url);
+//     const limit = parseInt(searchParams.get("limit") || "20");
+//     const page = parseInt(searchParams.get("page") || "1");
+//     const search = searchParams.get("search")?.trim().toLowerCase() || "";
+
+//     const collectionRef = db.collection("PlayerProfiles");
+//     let query: FirebaseFirestore.Query = collectionRef;
+
+//     if (search) {
+//       query = query
+//         .orderBy("nameLower")          // query the lowercase field
+//         .startAt(search)
+//         .endAt(search + "\uf8ff");
+//     } else {
+//       query = query.orderBy("createdAt", "desc");
+//     }
+
+//     // const countSnapshot = await query.count().get();
+//     // const totalItems = countSnapshot.data().count;
+
+//     const offset = (page - 1) * limit;
+//     const snapshot = await query.limit(limit).offset(offset).get();
+
+//     const profiles = snapshot.docs.map((doc) => ({
+//       id: doc.id,
+//       ...doc.data(),
+//     }));
+
+//     return NextResponse.json({
+//       success: true,
+//       profiles,
+//       pagination: {
+//         currentPage: page,
+//         totalPages: Math.ceil(totalItems / limit),
+//         totalItems,
+//         itemsPerPage: limit,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Fetch player profiles error:", error);
+//     return NextResponse.json(
+//       { success: false, message: "Fetch failed" },
+//       { status: 500 }
+//     );
+//   }
+// }
+
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -98,20 +148,22 @@ export async function GET(req: NextRequest) {
 
     if (search) {
       query = query
-        .orderBy("nameLower")          // query the lowercase field
+        .orderBy("nameLower")
         .startAt(search)
         .endAt(search + "\uf8ff");
     } else {
       query = query.orderBy("createdAt", "desc");
     }
 
-    const countSnapshot = await query.count().get();
-    const totalItems = countSnapshot.data().count;
-
     const offset = (page - 1) * limit;
-    const snapshot = await query.limit(limit).offset(offset).get();
 
-    const profiles = snapshot.docs.map((doc) => ({
+    // Fetch one extra doc to know if there's a next page
+    const snapshot = await query.limit(limit + 1).offset(offset).get();
+
+    const hasMore = snapshot.docs.length > limit;
+    const docs = hasMore ? snapshot.docs.slice(0, limit) : snapshot.docs;
+
+    const profiles = docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
@@ -121,9 +173,8 @@ export async function GET(req: NextRequest) {
       profiles,
       pagination: {
         currentPage: page,
-        totalPages: Math.ceil(totalItems / limit),
-        totalItems,
         itemsPerPage: limit,
+        hasMore, // use this on frontend instead of totalPages
       },
     });
   } catch (error) {
