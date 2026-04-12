@@ -4,7 +4,7 @@ import { db } from "@/lib/firebaseAdmin";
 
 export async function DELETE(req: NextRequest) {
   try {
-    const { confirm, deleteAll } = await req.json();
+    const { confirm,  } = await req.json();
     
     // Safety check to prevent accidental deletion
     if (!confirm || confirm !== "DELETE_ALL") {
@@ -15,7 +15,7 @@ export async function DELETE(req: NextRequest) {
     }
 
     let deletedCount = 0;
-    let batchSize = 0;
+    // const batchSize = 0;
     let lastDoc = null;
     const BATCH_LIMIT = 300; // Firestore limit for batch operations
 

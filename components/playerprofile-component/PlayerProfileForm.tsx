@@ -547,7 +547,7 @@ export default function PlayerProfileForm({
                         const fd = new FormData();
                         Object.entries(playerForm).forEach(([k, v]) => fd.append(k, v));
                         const profileRes = await axios.post("/api/player-profile", fd);
-                       const profiles = profileRes.data.profiles;
+                    //    const profiles = profileRes.data.profiles;
                        const newProfileId: string = profileRes.data.profile.id;
                         // Step 2 — Create home post
                         await axios.post("/api/player-profile/home", {
