@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 
+// Helper function to extract ID from URL
+function getIdFromUrl(req: NextRequest): string | null {
+  const url = new URL(req.url);
+  const pathParts = url.pathname.split('/');
+  return pathParts[pathParts.length - 1] || null;
+}
+
 // ─── GET: All home posts OR by playerProfilesId ─────────────────
 // export async function GET(req: NextRequest) {
 //   try {
@@ -38,12 +45,23 @@ import { db } from "@/lib/firebaseAdmin";
 // }
 
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+// export async function GET(
+//   req: NextRequest,
+//   { params }: { params: { id: string } }
+// ) {
+//   try {
+export async function GET(req: NextRequest) {
   try {
-    const doc = await db.collection("playershome").doc(params.id).get();
+  
+    const url = new URL(req.url);
+   console.log("Pathname:", url.pathname);
+    
+    
+    const id = getIdFromUrl(req);
+     if (!id) {
+      return NextResponse.json({ error: "ID required" }, { status: 400 });
+    }
+    const doc = await db.collection("playershome").doc(id).get();
 
     if (!doc.exists) {
       return NextResponse.json(
@@ -179,7 +197,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// ✅ PUT
+//  PUT
 export async function PUT(req: NextRequest) {
   try {
     const url = new URL(req.url);
