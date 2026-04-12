@@ -696,7 +696,7 @@ export default function PlayerProfileForm({
                                 fours: findVal(lookup, "_raw_bat_fours_IPL26"),
                                 sixes: findVal(lookup, "_raw_bat_sixes_IPL26"),
                                 threeW_fiveW_Hauls: findVal(lookup, "3W_5W_IPL26"),
-                                 foursConceded: findVal(lookup, "_raw_bowl_fours_IPL26"),
+                                foursConceded: findVal(lookup, "_raw_bowl_fours_IPL26"),
                                 sixesConceded: findVal(lookup, "_raw_bowl_sixes_IPL26"),
                                 bestBowling: findVal(lookup, "BB_IPL26"),
                                 // FIX: column is "Econ_*" not "Economy_*"
