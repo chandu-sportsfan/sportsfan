@@ -487,18 +487,133 @@ export default function PlayerProfileForm({
 
     // ── Bulk Excel import ───────────────────────────────────────────────────
 
+    // const handleExcelUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    //     const file = e.target.files?.[0];
+    //     if (!file) return;
+
+    //     // Clear previous error log
+    //     setErrors([]);
+    //     setProgress({ current: 0, total: 0 });
+
+    //     try {
+    //         const XLSX = await import("xlsx");
+
+    //         // Use ArrayBuffer (readAsBinaryString is deprecated)
+    //         const buffer = await file.arrayBuffer();
+    //         const wb = XLSX.read(buffer, { type: "array" });
+    //         const ws = wb.Sheets[wb.SheetNames[0]];
+    //         const data = XLSX.utils.sheet_to_json(ws) as Record<string, unknown>[];
+
+    //         if (!data.length) {
+    //             alert("The uploaded file is empty.");
+    //             return;
+    //         }
+
+    //         let successCount = 0;
+    //         const failedRows: string[] = [];
+
+    //         setProgress({ current: 0, total: data.length });
+
+    //         await processBatch(
+    //             data,
+    //             5, // 5 rows in parallel — safe for most servers
+    //             async (row, idx) => {
+    //                 const lookup = buildLookup(row);
+
+    //                 const playerForm = {
+    //                     name: findVal(lookup, "player name", "name", "player"),
+    //                     team: findVal(lookup, "team"),
+    //                     battingStyle: findVal(lookup, "bat hand", "batting style", "batting"),
+    //                     bowlingStyle: findVal(lookup, "bowl type", "bowling type", "bowling style", "bowl"),
+    //                     dob: findVal(lookup, "age") ? `${findVal(lookup, "age")} yrs` : "",
+    //                     statsSr: findVal(lookup, "batting sr", "strike rate", "sr"),
+    //                     statsAvg: findVal(lookup, "batting avg", "average", "avg"),
+    //                     statsRuns: findVal(lookup, "total runs", "runs"),
+    //                     matches: findVal(lookup, "innings", "matches"),
+    //                     specialization: findVal(lookup, "role", "specialization"),
+    //                     iplDebut: findVal(lookup, "ipl debut", "debut"),
+    //                     about: findVal(lookup, "about", "description"),
+    //                 };
+
+    //                 if (!playerForm.name || !playerForm.team) {
+    //                     failedRows.push(
+    //                         `Row ${idx + 2}: Missing name ("${playerForm.name}") or team ("${playerForm.team}")`
+    //                     );
+    //                     return;
+    //                 }
+
+    //                 try {
+    //                     // Step 1 — Create player profile
+    //                     const fd = new FormData();
+    //                     Object.entries(playerForm).forEach(([k, v]) => fd.append(k, v));
+    //                     const profileRes = await axios.post("/api/player-profile", fd);
+    //                 //    const profiles = profileRes.data.profiles;
+    //                    const newProfileId: string = profileRes.data.profile.id;
+    //                     // Step 2 — Create home post
+    //                     await axios.post("/api/player-profile/home", {
+    //                         playerName: playerForm.name,
+    //                         title: findVal(lookup, "title"),
+    //                         likes: findVal(lookup, "likes"),
+    //                         comments: findVal(lookup, "comments"),
+    //                         live: findVal(lookup, "live"),
+    //                         shares: findVal(lookup, "shares"),
+    //                         playerProfilesId: newProfileId,
+    //                     });
+
+    //                     // Step 3 — Create season stats
+    //                     await axios.post("/api/player-profile/seasonstats", {
+    //                         playerProfilesId: newProfileId,
+    //                         season: {
+    //                             year: findVal(lookup, "year"),
+    //                             runs: findVal(lookup, "runs"),
+    //                             strikeRate: findVal(lookup, "batting sr", "strike rate", "sr"),
+    //                             average: findVal(lookup, "batting avg", "average", "avg"),
+    //                             wickets: findVal(lookup, "wickets"),
+    //                             economy: findVal(lookup, "economy"),
+    //                             bowlingSR: findVal(lookup, "bowling sr", "bowlingsr"),
+    //                             bowlingAvg: findVal(lookup, "bowling avg", "bowlingavg"),
+    //                         },
+    //                     });
+
+    //                     successCount++;
+    //                 } catch (err: unknown) {
+    //                     const msg =
+    //                         axios.isAxiosError(err)
+    //                             ? `${err.response?.status ?? ""} ${JSON.stringify(err.response?.data ?? err.message)}`
+    //                             : String(err);
+    //                     failedRows.push(`Row ${idx + 2} (${playerForm.name}): ${msg}`);
+    //                 }
+    //             },
+    //             (done) => setProgress((p) => ({ ...p, current: done }))
+    //         );
+
+    //         // Show results
+    //         setErrors(failedRows);
+    //         alert(
+    //             `Bulk import complete!\n✅ ${successCount} succeeded\n❌ ${failedRows.length} failed` +
+    //             (failedRows.length ? "\n\nSee error log below the upload button." : "")
+    //         );
+    //     } catch (err) {
+    //         console.error(err);
+    //         alert("Failed to parse the Excel file. Make sure it is a valid .xlsx / .xls / .csv.");
+    //     } finally {
+    //         // Reset file input AFTER the entire async operation is done
+    //         if (fileInputRef.current) fileInputRef.current.value = "";
+    //         setProgress((p) => ({ ...p, current: p.total })); // keep total visible
+    //     }
+    // };
+
+
     const handleExcelUpload = async (e: ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        // Clear previous error log
         setErrors([]);
         setProgress({ current: 0, total: 0 });
 
         try {
             const XLSX = await import("xlsx");
 
-            // Use ArrayBuffer (readAsBinaryString is deprecated)
             const buffer = await file.arrayBuffer();
             const wb = XLSX.read(buffer, { type: "array" });
             const ws = wb.Sheets[wb.SheetNames[0]];
@@ -516,23 +631,28 @@ export default function PlayerProfileForm({
 
             await processBatch(
                 data,
-                5, // 5 rows in parallel — safe for most servers
+                5,
                 async (row, idx) => {
                     const lookup = buildLookup(row);
 
                     const playerForm = {
-                        name: findVal(lookup, "player name", "name", "player"),
+                        name: findVal(lookup, "player", "name", "player name"),
                         team: findVal(lookup, "team"),
                         battingStyle: findVal(lookup, "bat hand", "batting style", "batting"),
-                        bowlingStyle: findVal(lookup, "bowl type", "bowling type", "bowling style", "bowl"),
+                        bowlingStyle: findVal(lookup, "bowling type", "bowl type", "bowling style", "bowl"),
+                        age: findVal(lookup, "age in yrs", "age"),
                         dob: findVal(lookup, "age") ? `${findVal(lookup, "age")} yrs` : "",
-                        statsSr: findVal(lookup, "batting sr", "strike rate", "sr"),
-                        statsAvg: findVal(lookup, "batting avg", "average", "avg"),
-                        statsRuns: findVal(lookup, "total runs", "runs"),
-                        matches: findVal(lookup, "innings", "matches"),
+                        // FIX: scoped to IPL stats to avoid ambiguity across _Overall/_IPL/_2025 variants
+                        statsSr: findVal(lookup, "batting sr_ipl", "batting sr_overall", "batting sr", "strike rate"),
+                        statsAvg: findVal(lookup, "batting avg_ipl", "batting avg_overall", "batting avg", "average"),
+                        statsRuns: findVal(lookup, "runs_ipl", "runs_overall", "total runs", "runs"),
+                        // FIX: "innings" is the correct column name; there is no "matches" column
+                        matches: findVal(lookup, "innings_ipl", "innings_overall", "innings", "matches"),
                         specialization: findVal(lookup, "role", "specialization"),
-                        iplDebut: findVal(lookup, "ipl debut", "debut"),
-                        about: findVal(lookup, "about", "description"),
+                        // FIX: "ipl debut" and "about" columns do not exist in the sheet — removed fallback
+                        // Add these columns to the Excel sheet if needed, otherwise they will be empty
+                        iplDebut: findVal(lookup, "ipl debut", "debut") ?? "",
+                        about: findVal(lookup, "about", "description") ?? "",
                     };
 
                     if (!playerForm.name || !playerForm.team) {
@@ -547,8 +667,8 @@ export default function PlayerProfileForm({
                         const fd = new FormData();
                         Object.entries(playerForm).forEach(([k, v]) => fd.append(k, v));
                         const profileRes = await axios.post("/api/player-profile", fd);
-                    //    const profiles = profileRes.data.profiles;
-                       const newProfileId: string = profileRes.data.profile.id;
+                        const newProfileId: string = profileRes.data.profile.id;
+
                         // Step 2 — Create home post
                         await axios.post("/api/player-profile/home", {
                             playerName: playerForm.name,
@@ -561,17 +681,28 @@ export default function PlayerProfileForm({
                         });
 
                         // Step 3 — Create season stats
+                        // FIX: scoped all stat lookups to IPL season; "economy" → "econ" to match Excel column name
                         await axios.post("/api/player-profile/seasonstats", {
                             playerProfilesId: newProfileId,
                             season: {
-                                year: findVal(lookup, "year"),
-                                runs: findVal(lookup, "runs"),
-                                strikeRate: findVal(lookup, "batting sr", "strike rate", "sr"),
-                                average: findVal(lookup, "batting avg", "average", "avg"),
-                                wickets: findVal(lookup, "wickets"),
-                                economy: findVal(lookup, "economy"),
-                                bowlingSR: findVal(lookup, "bowling sr", "bowlingsr"),
-                                bowlingAvg: findVal(lookup, "bowling avg", "bowlingavg"),
+                                // FIX: no "Year" column exists in Collated_Data — hardcode or derive as needed
+                                year: findVal(lookup, "year") ?? "2026",
+                                runs: findVal(lookup, "runs_ipl26", "runs_ipl", "runs_overall", "runs"),
+                                strikeRate: findVal(lookup, "batting sr_ipl26", "batting sr_ipl", "batting sr_overall", "batting sr", "strike rate"),
+                                average: findVal(lookup, "batting avg_ipl26", "batting avg_ipl", "batting avg_overall", "batting avg", "average"),
+                                wickets: findVal(lookup, "wickets_ipl26", "wickets_ipl", "wickets_overall", "wickets"),
+                                fiftiesAndHundreds: findVal(lookup, "50s_100s_IPL26"),
+                                highestScore: findVal(lookup, "HS_IPL26"),
+                                fours: findVal(lookup, "_raw_bat_fours_IPL26"),
+                                sixes: findVal(lookup, "_raw_bat_sixes_IPL26"),
+                                threeW_fiveW_Hauls: findVal(lookup, "3W_5W_IPL26"),
+                                 foursConceded: findVal(lookup, "_raw_bowl_fours_IPL26"),
+                                sixesConceded: findVal(lookup, "_raw_bowl_sixes_IPL26"),
+                                bestBowling: findVal(lookup, "BB_IPL26"),
+                                // FIX: column is "Econ_*" not "Economy_*"
+                                economy: findVal(lookup, "econ_ipl26", "econ_ipl", "econ_overall", "econ", "economy"),
+                                bowlingSR: findVal(lookup, "bowling sr_ipl26", "bowling sr_ipl", "bowling sr_overall", "bowling sr", "bowlingsr"),
+                                bowlingAvg: findVal(lookup, "bowling avg_ipl26", "bowling avg_ipl", "bowling avg_overall", "bowling avg", "bowlingavg"),
                             },
                         });
 
@@ -587,7 +718,6 @@ export default function PlayerProfileForm({
                 (done) => setProgress((p) => ({ ...p, current: done }))
             );
 
-            // Show results
             setErrors(failedRows);
             alert(
                 `Bulk import complete!\n✅ ${successCount} succeeded\n❌ ${failedRows.length} failed` +
@@ -597,13 +727,12 @@ export default function PlayerProfileForm({
             console.error(err);
             alert("Failed to parse the Excel file. Make sure it is a valid .xlsx / .xls / .csv.");
         } finally {
-            // Reset file input AFTER the entire async operation is done
             if (fileInputRef.current) fileInputRef.current.value = "";
-            setProgress((p) => ({ ...p, current: p.total })); // keep total visible
+            setProgress((p) => ({ ...p, current: p.total }));
         }
     };
 
-    // ── Single-player form ──────────────────────────────────────────────────
+    // ── Single-player form 
 
     const handleChange = (
         e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>

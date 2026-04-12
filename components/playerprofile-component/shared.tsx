@@ -34,8 +34,9 @@ export type SeasonForm = {
   runs: string;
   strikeRate: string;
   average: string;
-  fifties: string;
-  hundreds: string;
+  // fifties: string;
+  // hundreds: string;
+  fiftiesAndHundreds: string;
   highestScore: string;
   fours: string;
   sixes: string;
@@ -47,8 +48,9 @@ export type SeasonForm = {
   bowlingSR: string;
   economy: string;
   bestBowling: string;
-  threeWicketHauls: string;
-  fiveWicketHauls: string;
+  // threeWicketHauls: string;
+  // fiveWicketHauls: string;
+  threeW_fiveW_Hauls: string;
   foursConceded: string;
   sixesConceded: string;
 };

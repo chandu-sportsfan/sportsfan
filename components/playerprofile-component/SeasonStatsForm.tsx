@@ -35,8 +35,9 @@ export const defaultSeasonForm: SeasonForm = {
     runs: "",
     strikeRate: "",
     average: "",
-    fifties: "",
-    hundreds: "",
+    // fifties: "",
+    // hundreds: "",
+    fiftiesAndHundreds: "",
     highestScore: "",
     fours: "",
     sixes: "",
@@ -48,8 +49,9 @@ export const defaultSeasonForm: SeasonForm = {
     bowlingSR: "",
     economy: "",
     bestBowling: "",
-    threeWicketHauls: "",
-    fiveWicketHauls: "",
+    // threeWicketHauls: "",
+    // fiveWicketHauls: "",
+    threeW_fiveW_Hauls: "",
     foursConceded: "",
     sixesConceded: "",
 };
@@ -194,7 +196,7 @@ export default function SeasonStatsForm({
                     onChange={handleChange}
                     placeholder="e.g. 38.99"
                 />
-                <Input
+                {/* <Input
                     label="Fifties"
                     name="fifties"
                     value={form.fifties}
@@ -207,13 +209,20 @@ export default function SeasonStatsForm({
                     value={form.hundreds}
                     onChange={handleChange}
                     placeholder="e.g. 1"
-                />
+                /> */}
                 <Input
                     label="Highest Score"
                     name="highestScore"
                     value={form.highestScore}
                     onChange={handleChange}
                     placeholder="e.g. 113*"
+                />
+                <Input
+                    label="50s and 100s"
+                    name="fiftiesAndHundreds"
+                    value={form.fiftiesAndHundreds}
+                    onChange={handleChange}
+                    placeholder="e.g. 4/1"
                 />
                 <Input
                     label="Fours"
@@ -278,7 +287,7 @@ export default function SeasonStatsForm({
                     onChange={handleChange}
                     placeholder="e.g. 5/14"
                 />
-                <Input
+                {/* <Input
                     label="3-Wicket Hauls"
                     name="threeWicketHauls"
                     value={form.threeWicketHauls}
@@ -291,7 +300,14 @@ export default function SeasonStatsForm({
                     value={form.fiveWicketHauls}
                     onChange={handleChange}
                     placeholder="e.g. 1"
-                />
+                /> */}
+                <Input
+                    label="3W/5W Hauls"
+                    name="threeW_fiveW_Hauls"
+                    value={form.threeW_fiveW_Hauls}
+                    onChange={handleChange}
+                    placeholder="e.g. 2/1"
+                 />
                 <Input
                     label="Fours Conceded"
                     name="foursConceded"
