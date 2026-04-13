@@ -42,24 +42,35 @@ export async function GET(req: NextRequest) {
     const lastDocId = searchParams.get("lastDocId");
     const lastDocCreatedAt = searchParams.get("lastDocCreatedAt");
 
+    // ✅ SEARCH PATH — separate from paginated path to avoid orderBy conflict
+    if (search) {
+      let searchQuery = db.collection("playershome")
+        .orderBy("playerNameLower")           // must match the range filter field
+        .where("playerNameLower", ">=", search)
+        .where("playerNameLower", "<=", search + "\uf8ff")
+        .limit(limit);
+
+      if (playerProfilesId) {
+        searchQuery = searchQuery.where("playerProfilesId", "==", playerProfilesId);
+      }
+
+      const snap = await searchQuery.get();
+      const posts = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+      return NextResponse.json({
+        success: true,
+        posts,
+        pagination: { limit, hasMore: false, nextCursor: null },
+      });
+    }
+
+    // ✅ NORMAL PAGINATED PATH (no search)
     let query = db.collection("playershome").orderBy("createdAt", "desc");
 
-    // Filter by player ID if provided
     if (playerProfilesId) {
       query = query.where("playerProfilesId", "==", playerProfilesId);
     }
 
-    // 🔍 ADD SEARCH FUNCTIONALITY
-    // Note: For text search, you need a 'title' or 'content' field to search on
-    // Option 1: Search by title (requires index on 'titleLower')
-    if (search) {
-      query = query.where("titleLower", ">=", search)
-                   .where("titleLower", "<=", search + "\uf8ff");
-    }
-
-    query = query.limit(limit);
-
-    // Cursor-based pagination
     if (lastDocId && lastDocCreatedAt) {
       const lastDocRef = db.collection("playershome").doc(lastDocId);
       const lastDoc = await lastDocRef.get();
@@ -68,13 +79,9 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    query = query.limit(limit);
     const snap = await query.get();
-
-    const posts = snap.docs.map((d) => ({
-      id: d.id,
-      ...d.data(),
-    }));
-
+    const posts = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     const lastDoc = snap.docs[snap.docs.length - 1];
 
     return NextResponse.json({
@@ -84,20 +91,13 @@ export async function GET(req: NextRequest) {
         limit,
         hasMore: posts.length === limit,
         nextCursor: posts.length === limit
-          ? {
-              lastDocId: lastDoc?.id,
-              lastDocCreatedAt: lastDoc?.data()?.createdAt,
-            }
+          ? { lastDocId: lastDoc?.id, lastDocCreatedAt: lastDoc?.data()?.createdAt }
           : null,
       },
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
-    console.error("Fetch playershome error:", error);
-    return NextResponse.json(
-      { success: false, error: msg },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
 }
 
@@ -136,6 +136,7 @@ export async function POST(req: NextRequest) {
     const newPost = {
       playerProfilesId,
       playerName,
+       playerNameLower: playerName?.trim().toLowerCase() || "",
       title,
       category: category ?? [],
       likes: Number(likes) || 0,

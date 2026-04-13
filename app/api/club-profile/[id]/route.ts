@@ -11,7 +11,7 @@ function getIdFromUrl(req: NextRequest): string | null {
 
 export async function GET(req: NextRequest) {
   try {
-    const id   = getIdFromUrl(req);
+    const id = getIdFromUrl(req);
 
     if (!id) {
       return NextResponse.json({ error: "ID required" }, { status: 400 });
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const id   = getIdFromUrl(req);
+    const id = getIdFromUrl(req);
 
     if (!id) {
       return NextResponse.json({ error: "ID required" }, { status: 400 });
@@ -88,15 +88,15 @@ export async function PUT(req: NextRequest) {
       about: about ?? existingData.about,
       avatar: avatarUrl,
       stats: {
-        runs: statsRuns || (existingData.stats as Record<string,string>)?.runs || "0",
-        sr: statsSr || (existingData.stats as Record<string,string>)?.sr || "0",
-        avg: statsAvg || (existingData.stats as Record<string,string>)?.avg || "0",
+        runs: statsRuns || (existingData.stats as Record<string, string>)?.runs || "0",
+        sr: statsSr || (existingData.stats as Record<string, string>)?.sr || "0",
+        avg: statsAvg || (existingData.stats as Record<string, string>)?.avg || "0",
       },
       overview: {
-        captain: overviewCaptain || (existingData.overview as Record<string,string>)?.captain || "",
-        coach: overviewCoach || (existingData.overview as Record<string,string>)?.coach || "",
-        owner: overviewOwner || (existingData.overview as Record<string,string>)?.owner || "",
-        venue: overviewVenue || (existingData.overview as Record<string,string>)?.venue || "",
+        captain: overviewCaptain || (existingData.overview as Record<string, string>)?.captain || "",
+        coach: overviewCoach || (existingData.overview as Record<string, string>)?.coach || "",
+        owner: overviewOwner || (existingData.overview as Record<string, string>)?.owner || "",
+        venue: overviewVenue || (existingData.overview as Record<string, string>)?.venue || "",
       },
       updatedAt: Date.now(),
     };
@@ -119,7 +119,7 @@ export async function PUT(req: NextRequest) {
 //  DELETE: Remove Club Profile 
 export async function DELETE(req: NextRequest) {
   try {
-    const id   = getIdFromUrl(req);
+    const id = getIdFromUrl(req);
 
     if (!id) {
       return NextResponse.json({ error: "ID required" }, { status: 400 });

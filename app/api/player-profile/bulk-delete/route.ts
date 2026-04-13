@@ -5,7 +5,7 @@ import { db } from "@/lib/firebaseAdmin";
 // export async function DELETE(req: NextRequest) {
 //   try {
 //     const { confirm,  } = await req.json();
-    
+
 //     // Safety check to prevent accidental deletion
 //     if (!confirm || confirm !== "DELETE_ALL") {
 //       return NextResponse.json(
@@ -21,30 +21,30 @@ import { db } from "@/lib/firebaseAdmin";
 
 //     // Get all profiles (you'll need to paginate through them)
 //     const collectionRef = db.collection("PlayerProfiles");
-    
+
 //     // Method 1: Delete in batches
 //     while (true) {
 //       let query = collectionRef.limit(BATCH_LIMIT);
 //       if (lastDoc) {
 //         query = query.startAfter(lastDoc);
 //       }
-      
+
 //       const snapshot = await query.get();
-      
+
 //       if (snapshot.empty) {
 //         break;
 //       }
-      
+
 //       // Delete documents in batch
 //       const batch = db.batch();
 //       snapshot.docs.forEach((doc) => {
 //         batch.delete(doc.ref);
 //         deletedCount++;
 //       });
-      
+
 //       await batch.commit();
 //       lastDoc = snapshot.docs[snapshot.docs.length - 1];
-      
+
 //       if (snapshot.size < BATCH_LIMIT) {
 //         break;
 //       }
@@ -73,7 +73,7 @@ import { db } from "@/lib/firebaseAdmin";
 export async function DELETE(req: NextRequest) {
   try {
     const { confirm } = await req.json();
-    
+
     // Safety check to prevent accidental deletion
     if (!confirm || confirm !== "DELETE_ALL") {
       return NextResponse.json(
@@ -88,13 +88,13 @@ export async function DELETE(req: NextRequest) {
       playerMedia: 0,
       playerInsights: 0
     };
-    
+
     const BATCH_LIMIT = 300; // Firestore limit for batch operations
 
     // Collection names to delete from
     const collections = [
       "PlayerProfiles",
-      "playershome", 
+      "playershome",
       "playerMedia",
       "playerInsights"
     ];
@@ -103,40 +103,40 @@ export async function DELETE(req: NextRequest) {
     for (const collectionName of collections) {
       let deletedCount = 0;
       let lastDoc = null;
-      
+
       const collectionRef = db.collection(collectionName);
-      
+
       console.log(`Deleting all documents from ${collectionName}...`);
-      
+
       while (true) {
         let query = collectionRef.limit(BATCH_LIMIT);
         if (lastDoc) {
           query = query.startAfter(lastDoc);
         }
-        
+
         const snapshot = await query.get();
-        
+
         if (snapshot.empty) {
           break;
         }
-        
+
         // Delete documents in batch
         const batch = db.batch();
         snapshot.docs.forEach((doc) => {
           batch.delete(doc.ref);
           deletedCount++;
         });
-        
+
         await batch.commit();
         lastDoc = snapshot.docs[snapshot.docs.length - 1];
-        
+
         console.log(`Deleted ${deletedCount} documents from ${collectionName} so far...`);
-        
+
         if (snapshot.size < BATCH_LIMIT) {
           break;
         }
       }
-      
+
       results[collectionName as keyof typeof results] = deletedCount;
       console.log(`Completed deleting ${deletedCount} documents from ${collectionName}`);
     }
@@ -150,9 +150,9 @@ export async function DELETE(req: NextRequest) {
   } catch (error) {
     console.error("Bulk delete error:", error);
     return NextResponse.json(
-      { 
-        success: false, 
-        message: "Bulk delete failed: " + (error as Error).message 
+      {
+        success: false,
+        message: "Bulk delete failed: " + (error as Error).message
       },
       { status: 500 }
     );
