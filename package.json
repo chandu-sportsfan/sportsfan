@@ -6,7 +6,10 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:team360": "npm exec --yes tsx -- --test app/test1/api/team360/route.test.ts",
+    "test:club-profile": "npm exec --yes tsx -- --test app/test1/api/club-profile/route.test.ts",
+    "test:cricket-articles": "npm exec --yes tsx -- --test app/test1/api/cricket-articles/route.test.ts"
   },
   "dependencies": {
     "axios": "^1.13.6",
