@@ -113,7 +113,7 @@ export async function PUT(req: NextRequest) {
       avatarUrl = uploadRes.secure_url;
     }
 
-    const updateData: Record<string, any> = { updatedAt: Date.now() };
+    const updateData: Record<string, string | number> = { updatedAt: Date.now() };
 
     if (name) updateData.name = name;
     if (team) updateData.team = team;
@@ -134,9 +134,9 @@ export async function PUT(req: NextRequest) {
 
     try {
       await db.collection("PlayerProfiles").doc(id).update(updateData);
-    } catch (error: any) {
+    } catch (error) {
       // Firebase throws NOT_FOUND (code 5) if the doc doesn't exist
-      if (error.code === 5 || error.message.includes('No document to update')) {
+      if ((error as Error & { code?: number }).code === 5 || (error as Error).message.includes('No document to update')) {
         return NextResponse.json(
           { success: false, message: "Profile not found" },
           { status: 404 }
