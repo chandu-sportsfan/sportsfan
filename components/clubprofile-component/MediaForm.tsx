@@ -11,7 +11,7 @@ import {
   getPreview,
 } from "./shared";
 
-// ─── PROPS ─────────────────────────────────────────────────────────────────────
+//  PROPS
 
 type Props = {
   clubProfileId: string;

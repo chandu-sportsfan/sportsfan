@@ -41,12 +41,70 @@ export async function GET() {
      stadium: "M. Chinnaswamy Stadium, Bengaluru",
      isLive: true
    }
-   ───────────────────────────────────────────── */
+//    ───────────────────────────────────────────── */
+// export async function POST(req: NextRequest) {
+//   try {
+//     const body = await req.json();
+
+//     const { matchNo, tournament, team1, team2, stadium, isLive } = body;
+
+//     if (!matchNo || !team1?.name || !team2?.name) {
+//       return NextResponse.json(
+//         { success: false, message: "matchNo, team1.name, team2.name are required" },
+//         { status: 400 }
+//       );
+//     }
+
+//     const matchData = {
+//       matchNo: Number(matchNo),
+//       tournament: tournament || "",
+//       team1: {
+//         name: team1.name,
+//         score: team1.score || "",
+//         overs: team1.overs || "",
+//       },
+//       team2: {
+//         name: team2.name,
+//         score: team2.score || "",
+//         overs: team2.overs || "",
+//       },
+//       stadium: stadium || "",
+//       isLive: Boolean(isLive),
+//       createdAt: Date.now(),
+//       updatedAt: Date.now(),
+//     };
+
+//     const docRef = await db.collection("watchAlongMatches").add(matchData);
+
+//     return NextResponse.json({
+//       success: true,
+//       match: { id: docRef.id, ...matchData },
+//     });
+//   } catch (error) {
+//     console.error("[watch-along/matches POST]", error);
+//     return NextResponse.json(
+//       { success: false, message: "Create failed: " + (error as Error).message },
+//       { status: 500 }
+//     );
+//   }
+// }
+
+
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    const { matchNo, tournament, team1, team2, stadium, isLive } = body;
+    const { 
+      matchNo, 
+      tournament, 
+      team1, 
+      team2, 
+      stadium, 
+      isLive,
+      videoUrl,
+      videoType 
+    } = body;
 
     if (!matchNo || !team1?.name || !team2?.name) {
       return NextResponse.json(
@@ -70,6 +128,8 @@ export async function POST(req: NextRequest) {
       },
       stadium: stadium || "",
       isLive: Boolean(isLive),
+      videoUrl: videoUrl || "",           // ← Add video URL
+      videoType: videoType || "youtube",  // ← Add video type (youtube, vimeo, mp4, hls)
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };

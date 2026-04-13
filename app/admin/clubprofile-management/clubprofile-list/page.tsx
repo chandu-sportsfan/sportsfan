@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-// ─── TYPES ─────────────────────────────────────────────────────────────────────
+// ─── TYPES 
 
 type Stats = { runs: string; sr: string; avg: string };
 type Overview = { captain: string; coach: string; owner: string; venue: string };

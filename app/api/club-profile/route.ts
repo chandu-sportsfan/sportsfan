@@ -85,36 +85,92 @@ export async function POST(req: NextRequest) {
 }
 
 
+// export async function GET(req: NextRequest) {
+//   try {
+//     const { searchParams } = new URL(req.url);
+//     const limit = parseInt(searchParams.get("limit") || "20");
+//     const page = parseInt(searchParams.get("page") || "1");
+
+//     const collectionRef = db.collection("clubProfiles");
+//     const countSnapshot = await collectionRef.count().get();
+//     const totalItems = countSnapshot.data().count;
+
+//     const startAt = (page - 1) * limit;
+//     const snapshot = await collectionRef
+//       .orderBy("createdAt", "desc")
+//       .limit(limit)
+//       .offset(startAt)
+//       .get();
+
+//     const profiles = snapshot.docs.map((doc) => ({
+//       id: doc.id,
+//       ...doc.data(),
+//     }));
+
+//     return NextResponse.json({
+//       success: true,
+//       profiles,
+//       pagination: {
+//         currentPage: page,
+//         totalPages: Math.ceil(totalItems / limit),
+//         totalItems,
+//         itemsPerPage: limit,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Fetch club profiles error:", error);
+//     return NextResponse.json(
+//       { success: false, message: "Fetch failed" },
+//       { status: 500 }
+//     );
+//   }
+// }
+
+
+
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const limit = parseInt(searchParams.get("limit") || "20");
-    const page = parseInt(searchParams.get("page") || "1");
+    const lastDocId = searchParams.get("lastDocId");
+    const lastDocCreatedAt = searchParams.get("lastDocCreatedAt");
 
     const collectionRef = db.collection("clubProfiles");
-    const countSnapshot = await collectionRef.count().get();
-    const totalItems = countSnapshot.data().count;
-
-    const startAt = (page - 1) * limit;
-    const snapshot = await collectionRef
+    
+    let query = collectionRef
       .orderBy("createdAt", "desc")
-      .limit(limit)
-      .offset(startAt)
-      .get();
-
+      .limit(limit);
+    
+    // Use cursor-based pagination instead of offset (no count needed)
+    if (lastDocId && lastDocCreatedAt) {
+      const lastDocRef = db.collection("clubProfiles").doc(lastDocId);
+      const lastDoc = await lastDocRef.get();
+      if (lastDoc.exists) {
+        query = query.startAfter(lastDoc);
+      }
+    }
+    
+    const snapshot = await query.get();
+    
     const profiles = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
-
+    
+    // Get last document for next page cursor
+    const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+    
     return NextResponse.json({
       success: true,
       profiles,
       pagination: {
-        currentPage: page,
-        totalPages: Math.ceil(totalItems / limit),
-        totalItems,
-        itemsPerPage: limit,
+        limit,
+        hasMore: profiles.length === limit,
+        nextCursor: profiles.length === limit ? {
+          lastDocId: lastDoc?.id,
+          lastDocCreatedAt: lastDoc?.data()?.createdAt
+        } : null
       },
     });
   } catch (error) {

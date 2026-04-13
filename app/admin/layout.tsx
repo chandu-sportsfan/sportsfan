@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 
-const plexSans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["300","400","500","600"] });
-const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400","500"] });
+const plexSans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["300", "400", "500", "600"] });
+const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"] });
 
 interface NavChildItem { href: string; label: string; }
 interface NavItem {
@@ -19,8 +19,8 @@ const NAV: NavGroup[] = [
   {
     label: "Overview",
     items: [
-      { href: "/admin",           icon: "▣", label: "Dashboard"  },
-      { href: "/admin/analytics", icon: "◈", label: "Analytics"  },
+      { href: "/admin", icon: "▣", label: "Dashboard" },
+      { href: "/admin/analytics", icon: "◈", label: "Analytics" },
     ],
   },
   {
@@ -29,8 +29,8 @@ const NAV: NavGroup[] = [
       {
         label: "Users", icon: "◉", badge: "1.2k",
         children: [
-          { href: "/admin/users/signups", label: "Signups"          },
-          { href: "/admin/users/otp",     label: "Send & Verify OTP" },
+          { href: "/admin/users/signups", label: "Signups" },
+          { href: "/admin/users/otp", label: "Send & Verify OTP" },
         ],
       },
       // { href: "/admin/content", icon: "◧", label: "Content / Posts"   },
@@ -48,42 +48,49 @@ const NAV: NavGroup[] = [
         label: "Teams 360", icon: "◉",
         children: [
           { href: "/admin/team360-management/add-team360", label: "Add Teams 360" },
-          { href: "/admin/team360-management/team360-list",     label: "Teams 360 List" },
+          { href: "/admin/team360-management/team360-list", label: "Teams 360 List" },
         ],
       },
-       {
+      {
         label: "Teams 360 Playlist", icon: "◉",
         children: [
           { href: "/admin/team360playlist-management/add-team360playlist", label: "Add Teams 360 Playlist" },
-          { href: "/admin/team360playlist-management/team360playlist-list",     label: "Teams 360 Playlist List" },
+          { href: "/admin/team360playlist-management/team360playlist-list", label: "Teams 360 Playlist List" },
         ],
       },
       {
         label: "Players 360", icon: "◉",
         children: [
           { href: "/admin/player360-management/add-player360", label: "Add Player 360" },
-          { href: "/admin/player360-management/player360-list",     label: "Player 360 List" },
+          { href: "/admin/player360-management/player360-list", label: "Player 360 List" },
         ],
       },
-       {
+      {
         label: "Cricket Articles", icon: "◉",
         children: [
           { href: "/admin/cricketarticles-management/add-cricketarticles", label: "Add Cricket Article" },
-          { href: "/admin/cricketarticles-management/cricketarticles-list",     label: "Cricket Articles List" },
+          { href: "/admin/cricketarticles-management/cricketarticles-list", label: "Cricket Articles List" },
         ],
       },
-       {
+      {
         label: "Club Profiles", icon: "◉",
         children: [
           { href: "/admin/clubprofile-management/add-clubprofile", label: "Add Club Profile" },
-          { href: "/admin/clubprofile-management/clubprofile-list",     label: "Club Profiles List" },
+          { href: "/admin/clubprofile-management/clubprofile-list", label: "Club Profiles List" },
         ],
       },
        {
+        label: "Player Profiles", icon: "◉",
+        children: [
+          { href: "/admin/playerprofile-management/add-playerprofile", label: "Add Player Profile" },
+          { href: "/admin/playerprofile-management/playerprofile-list", label: "Player Profiles List" },
+        ],
+      },
+      {
         label: "Watch Along", icon: "◉",
         children: [
           { href: "/admin/watchalong-management/add-watchalong", label: "Add Watch Along" },
-          { href: "/admin/watchalong-management/watchalong-list",     label: "Watch Along List" },
+          { href: "/admin/watchalong-management/watchalong-list", label: "Watch Along List" },
         ],
       },
       // { href: "/admin/content", icon: "◧", label: "Content / Posts"   },
@@ -94,13 +101,13 @@ const NAV: NavGroup[] = [
     label: "System",
     items: [{ href: "/admin/settings", icon: "⊙", label: "Settings" }],
   },
-   
+
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const pathname   = usePathname();
+  const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [openMenus, setOpenMenus]     = useState<Record<string, boolean>>({});
+  const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
 
   const toggleMenu = (label: string) =>
     setOpenMenus(p => ({ ...p, [label]: !p[label] }));
@@ -112,99 +119,64 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   })();
 
   const SidebarContent = () => (
-    <>
-      {/* Logo */}
-      <div style={{
-        height: 52, display: "flex", alignItems: "center",
-        justifyContent: "space-between",
-        gap: 10, padding: "0 16px",
-        borderBottom: "1px solid #21282f",
-        fontSize: 14, fontWeight: 600, flexShrink: 0,
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{
-            width: 26, height: 26, borderRadius: 5, background: "#1f6feb",
-            display: "grid", placeItems: "center",
-            fontSize: 11, fontWeight: 700, color: "#fff",
-          }}>A</div>
-          AdminConsole
-        </div>
-        {/* Close button — mobile only */}
-        <button
-          onClick={() => setSidebarOpen(false)}
-          style={{
-            background: "none", border: "none", color: "#7d8590",
-            fontSize: 18, cursor: "pointer", padding: 4,
-            display: "block",
-          }}
-          className="md-hide-close"
-        >✕</button>
+  <>
+    {/* Logo */}
+    <div style={{
+      height: 52, display: "flex", alignItems: "center",
+      justifyContent: "space-between",
+      gap: 10, padding: "0 16px",
+      borderBottom: "1px solid #21282f",
+      fontSize: 14, fontWeight: 600, flexShrink: 0,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{
+          width: 26, height: 26, borderRadius: 5, background: "#1f6feb",
+          display: "grid", placeItems: "center",
+          fontSize: 11, fontWeight: 700, color: "#fff",
+        }}>A</div>
+        AdminConsole
       </div>
+      {/* Close button — mobile only */}
+      <button
+        onClick={() => setSidebarOpen(false)}
+        style={{
+          background: "none", border: "none", color: "#7d8590",
+          fontSize: 18, cursor: "pointer", padding: 4,
+          display: "block",
+        }}
+        className="md-hide-close"
+      >✕</button>
+    </div>
 
-      {/* Nav groups */}
-      <div style={{ overflowY: "auto", flex: 1 }}>
-        {NAV.map((group) => (
-          <div key={group.label} style={{ padding: "12px 0", borderBottom: "1px solid #21282f" }}>
-            <div style={{
-              fontSize: 10, fontWeight: 600, letterSpacing: ".08em",
-              color: "#7d8590", textTransform: "uppercase", padding: "0 16px 6px",
-            }}>{group.label}</div>
+    {/* Nav groups - with hidden scrollbar */}
+    <div style={{ 
+      overflowY: "auto", 
+      flex: 1,
+      /* Hide scrollbar for Chrome, Safari and Opera */
+      scrollbarWidth: "none", /* Firefox */
+      msOverflowStyle: "none", /* IE and Edge */
+    }}
+    className="hide-scrollbar">
+      {NAV.map((group) => (
+        <div key={group.label} style={{ padding: "12px 0", borderBottom: "1px solid #21282f" }}>
+          <div style={{
+            fontSize: 10, fontWeight: 600, letterSpacing: ".08em",
+            color: "#7d8590", textTransform: "uppercase", padding: "0 16px 6px",
+          }}>{group.label}</div>
 
-            {group.items.map((item) => {
-              if (item.children) {
-                const isOpen = openMenus[item.label] ?? pathname.startsWith("/admin/users");
-                return (
-                  <div key={item.label}>
-                    <div
-                      onClick={() => toggleMenu(item.label)}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 9,
-                        padding: "7px 16px", cursor: "pointer",
-                        color: "#7d8590", fontSize: 13,
-                      }}
-                    >
-                      <span style={{ width: 15 }}>{item.icon}</span>
-                      {item.label}
-                      {item.badge && (
-                        <span style={{
-                          marginLeft: "auto", background: "#1f6feb", color: "#fff",
-                          fontSize: 10, fontFamily: plexMono.style.fontFamily,
-                          padding: "1px 6px", borderRadius: 10, fontWeight: 600,
-                        }}>{item.badge}</span>
-                      )}
-                      <span style={{ marginLeft: item.badge ? 6 : "auto", fontSize: 10 }}>
-                        {isOpen ? "▼" : "▶"}
-                      </span>
-                    </div>
-                    {isOpen && item.children?.map((sub) => {
-                      const active = pathname === sub.href;
-                      return (
-                        <Link key={sub.href} href={sub.href} style={{ textDecoration: "none" }}
-                          onClick={() => setSidebarOpen(false)}>
-                          <div style={{
-                            padding: "6px 16px 6px 36px", fontSize: 12, cursor: "pointer",
-                            color: active ? "#e6edf3" : "#7d8590",
-                            background: active ? "rgba(31,111,235,.1)" : "transparent",
-                            borderLeft: `2px solid ${active ? "#388bfd" : "transparent"}`,
-                          }}>• {sub.label}</div>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                );
-              }
-
-              const active = pathname === item.href;
+          {group.items.map((item) => {
+            if (item.children) {
+              const isOpen = openMenus[item.label] ?? pathname.startsWith("/admin/users");
               return (
-                <Link key={item.href} href={item.href || "#"} style={{ textDecoration: "none" }}
-                  onClick={() => setSidebarOpen(false)}>
-                  <div style={{
-                    display: "flex", alignItems: "center", gap: 9,
-                    padding: "7px 16px", cursor: "pointer",
-                    color: active ? "#e6edf3" : "#7d8590", fontSize: 13,
-                    borderLeft: `2px solid ${active ? "#388bfd" : "transparent"}`,
-                    background: active ? "rgba(31,111,235,.1)" : "transparent",
-                  }}>
+                <div key={item.label}>
+                  <div
+                    onClick={() => toggleMenu(item.label)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 9,
+                      padding: "7px 16px", cursor: "pointer",
+                      color: "#7d8590", fontSize: 13,
+                    }}
+                  >
                     <span style={{ width: 15 }}>{item.icon}</span>
                     {item.label}
                     {item.badge && (
@@ -214,15 +186,57 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         padding: "1px 6px", borderRadius: 10, fontWeight: 600,
                       }}>{item.badge}</span>
                     )}
+                    <span style={{ marginLeft: item.badge ? 6 : "auto", fontSize: 10 }}>
+                      {isOpen ? "▼" : "▶"}
+                    </span>
                   </div>
-                </Link>
+                  {isOpen && item.children?.map((sub) => {
+                    const active = pathname === sub.href;
+                    return (
+                      <Link key={sub.href} href={sub.href} style={{ textDecoration: "none" }}
+                        onClick={() => setSidebarOpen(false)}>
+                        <div style={{
+                          padding: "6px 16px 6px 36px", fontSize: 12, cursor: "pointer",
+                          color: active ? "#e6edf3" : "#7d8590",
+                          background: active ? "rgba(31,111,235,.1)" : "transparent",
+                          borderLeft: `2px solid ${active ? "#388bfd" : "transparent"}`,
+                        }}>• {sub.label}</div>
+                      </Link>
+                    );
+                  })}
+                </div>
               );
-            })}
-          </div>
-        ))}
-      </div>
-    </>
-  );
+            }
+
+            const active = pathname === item.href;
+            return (
+              <Link key={item.href} href={item.href || "#"} style={{ textDecoration: "none" }}
+                onClick={() => setSidebarOpen(false)}>
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 9,
+                  padding: "7px 16px", cursor: "pointer",
+                  color: active ? "#e6edf3" : "#7d8590", fontSize: 13,
+                  borderLeft: `2px solid ${active ? "#388bfd" : "transparent"}`,
+                  background: active ? "rgba(31,111,235,.1)" : "transparent",
+                }}>
+                  <span style={{ width: 15 }}>{item.icon}</span>
+                  {item.label}
+                  {item.badge && (
+                    <span style={{
+                      marginLeft: "auto", background: "#1f6feb", color: "#fff",
+                      fontSize: 10, fontFamily: plexMono.style.fontFamily,
+                      padding: "1px 6px", borderRadius: 10, fontWeight: 600,
+                    }}>{item.badge}</span>
+                  )}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  </>
+);
 
   return (
     <html lang="en">

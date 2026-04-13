@@ -62,7 +62,7 @@ import admin from "firebase-admin";
 let db: FirebaseFirestore.Firestore;
 
 if (!admin.apps.length) {
-  console.log("🔥 Initializing Firebase Admin...");
+  console.log(" Initializing Firebase Admin...");
 
   const app = admin.initializeApp({
     credential: admin.credential.cert({
@@ -70,18 +70,18 @@ if (!admin.apps.length) {
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
       privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
     }),
-    // ✅ Add this — explicitly point to your database
+    //  Add this — explicitly point to your database
     databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}.firebaseio.com`,
   });
 
   db = admin.firestore(app);
   db.settings({
     ignoreUndefinedProperties: true,
-    // ✅ Add this — explicitly use the default database
+    //  Add this — explicitly use the default database
     databaseId: "default",
   });
 
-  console.log("✅ Firebase initialized");
+  console.log(" Firebase initialized");
 
 } else {
   db = admin.firestore();

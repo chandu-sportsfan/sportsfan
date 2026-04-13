@@ -41,7 +41,7 @@ type MediaItem = {
   thumbnail: string;
 };
 
-// ─── PUT: Update Media Doc ────────────────────────────────────────────────────
+// ─── PUT: Update Media Doc 
 export async function PUT(req: NextRequest) {
   try {
     const id   = getIdFromUrl(req);
