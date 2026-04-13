@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url);
     console.log("Full URL:", req.url);
     console.log("Pathname:", url.pathname);
-    
+
     const id = getIdFromUrl(req);
     console.log("Extracted ID:", id);
 
@@ -51,20 +51,20 @@ export async function GET(req: NextRequest) {
     const doc = await db.collection("PlayerProfiles").doc(id).get();
     console.log("Document exists:", doc.exists);
     console.log("Document data:", doc.data());
-    
+
     if (!doc.exists) {
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           message: "Profile not found",
-          debug: { 
+          debug: {
             requestedId: id,
           }
         },
         { status: 404 }
       );
     }
-    
+
     return NextResponse.json({ success: true, profile: { id: doc.id, ...doc.data() } });
   } catch (error) {
     console.error("Error:", error);
@@ -84,24 +84,32 @@ export async function PUT(req: NextRequest) {
     }
     const formData = await req.formData();
 
+    const existing = await db.collection("PlayerProfiles").doc(id).get();
+    if (!existing.exists) {
+      return NextResponse.json(
+        { success: false, message: "Profile not found" },
+        { status: 404 }
+      );
+    }
+
+    const existingData = existing.data() as Record<string, unknown>;
+
     const name = formData.get("name") as string;
     const team = formData.get("team") as string;
     const battingStyle = formData.get("battingStyle") as string;
     const bowlingStyle = formData.get("bowlingStyle") as string;
     const about = formData.get("about") as string;
-    
     const statsRuns = formData.get("statsRuns") as string;
     const statsSr = formData.get("statsSr") as string;
     const statsAvg = formData.get("statsAvg") as string;
-    
     const iplDebut = formData.get("iplDebut") as string;
     const specialization = formData.get("specialization") as string;
     const dob = formData.get("dob") as string;
     const matches = formData.get("matches") as string;
-    
     const avatarFile = formData.get("avatar") as File | null;
 
-    let avatarUrl = "";
+    // Upload new avatar only if provided
+    let avatarUrl = (existingData.avatar as string) || "";
     if (avatarFile && avatarFile.size > 0) {
       const bytes = await avatarFile.arrayBuffer();
       const buffer = Buffer.from(bytes);
@@ -113,41 +121,32 @@ export async function PUT(req: NextRequest) {
       avatarUrl = uploadRes.secure_url;
     }
 
-    const updateData: Record<string, string | number> = { updatedAt: Date.now() };
+    const updateData = {
+      name: name || existingData.name,
+      team: team || existingData.team,
+      battingStyle: battingStyle ?? existingData.battingStyle,
+      bowlingStyle: bowlingStyle ?? existingData.bowlingStyle,
+      about: about ?? existingData.about,
+      avatar: avatarUrl,
+      stats: {
+        runs: statsRuns || (existingData.stats as Record<string, string>)?.runs || "0",
+        sr: statsSr || (existingData.stats as Record<string, string>)?.sr || "0",
+        avg: statsAvg || (existingData.stats as Record<string, string>)?.avg || "0",
+      },
+      overview: {
+        iplDebut: iplDebut || (existingData.overview as Record<string, string>)?.iplDebut || "",
+        specialization: specialization || (existingData.overview as Record<string, string>)?.specialization || "",
+        dob: dob || (existingData.overview as Record<string, string>)?.dob || "",
+        matches: matches || (existingData.overview as Record<string, string>)?.matches || "",
+      },
+      updatedAt: Date.now(),
+    };
 
-    if (name) updateData.name = name;
-    if (team) updateData.team = team;
-    if (battingStyle !== null) updateData.battingStyle = battingStyle;
-    if (bowlingStyle !== null) updateData.bowlingStyle = bowlingStyle;
-    if (about !== null) updateData.about = about;
-    if (avatarUrl) updateData.avatar = avatarUrl;
-    
-    // Use dot notation for nested objects to prevent overwriting existing keys
-    if (statsRuns) updateData['stats.runs'] = statsRuns;
-    if (statsSr) updateData['stats.sr'] = statsSr;
-    if (statsAvg) updateData['stats.avg'] = statsAvg;
-    
-    if (iplDebut !== null) updateData['overview.iplDebut'] = iplDebut;
-    if (specialization !== null) updateData['overview.specialization'] = specialization;
-    if (dob !== null) updateData['overview.dob'] = dob;
-    if (matches !== null) updateData['overview.matches'] = matches;
-
-    try {
-      await db.collection("PlayerProfiles").doc(id).update(updateData);
-    } catch (error) {
-      // Firebase throws NOT_FOUND (code 5) if the doc doesn't exist
-      if ((error as Error & { code?: number }).code === 5 || (error as Error).message.includes('No document to update')) {
-        return NextResponse.json(
-          { success: false, message: "Profile not found" },
-          { status: 404 }
-        );
-      }
-      throw error;
-    }
+    await db.collection("PlayerProfiles").doc(id).update(updateData);
 
     return NextResponse.json({
       success: true,
-      profile: { id, ...updateData },
+      profile: { id: id, ...existingData, ...updateData },
     });
   } catch (error) {
     console.error("Update player profile error:", error);
@@ -161,7 +160,7 @@ export async function PUT(req: NextRequest) {
 //  DELETE: Remove Club Profile 
 export async function DELETE(req: NextRequest) {
   try {
-    const id   = getIdFromUrl(req);
+    const id = getIdFromUrl(req);
 
     if (!id) {
       return NextResponse.json({ error: "ID required" }, { status: 400 });
