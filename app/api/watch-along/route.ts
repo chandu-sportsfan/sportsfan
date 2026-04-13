@@ -9,12 +9,94 @@ import cloudinary from "@/lib/cloudinary";
      ?isLive=true        → filter live rooms only
      ?limit=10&page=1    → pagination
    ───────────────────────────────────────────── */
+// export async function GET(req: NextRequest) {
+//   try {
+//     const { searchParams } = new URL(req.url);
+//     const isLiveFilter = searchParams.get("isLive");
+//     const limit = parseInt(searchParams.get("limit") || "20");
+//     const page = parseInt(searchParams.get("page") || "1");
+
+//     let query: FirebaseFirestore.Query = db.collection("watchAlongRooms");
+
+//     if (isLiveFilter === "true") {
+//       query = query.where("isLive", "==", true);
+//     }
+
+//     // Total count
+//     const countSnap = await query.count().get();
+//     const totalItems = countSnap.data().count;
+
+//     // Paginated rooms
+//     const snapshot = await query
+//       .orderBy("createdAt", "desc")
+//       .limit(limit)
+//       .offset((page - 1) * limit)
+//       .get();
+
+//     // For each room, fetch its related live match (if any) in parallel
+//     const rooms = await Promise.all(
+//       snapshot.docs.map(async (doc) => {
+//         const data = doc.data();
+
+//         let liveMatch = null;
+//         if (data.liveMatchId) {
+//           const matchDoc = await db
+//             .collection("watchAlongMatches")
+//             .doc(data.liveMatchId)
+//             .get();
+//           if (matchDoc.exists) {
+//             liveMatch = { id: matchDoc.id, ...matchDoc.data() };
+//           }
+//         }
+
+//         return {
+//           id: doc.id,
+//           ...data,
+//           liveMatch, // nested relation
+//         };
+//       })
+//     );
+
+//     return NextResponse.json({
+//       success: true,
+//       rooms,
+//       pagination: {
+//         currentPage: page,
+//         totalPages: Math.ceil(totalItems / limit),
+//         totalItems,
+//         itemsPerPage: limit,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("[watch-along GET]", error);
+//     return NextResponse.json(
+//       { success: false, message: "Failed to fetch rooms: " + (error as Error).message },
+//       { status: 500 }
+//     );
+//   }
+// }
+
+// Define types for the data structures
+interface WatchAlongRoom {
+  id: string;
+  liveMatchId?: string;
+  isLive?: boolean;
+  createdAt?: number;
+  [key: string]: unknown; // For other dynamic fields
+}
+
+interface LiveMatch {
+  id: string;
+  [key: string]: unknown;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const isLiveFilter = searchParams.get("isLive");
     const limit = parseInt(searchParams.get("limit") || "20");
-    const page = parseInt(searchParams.get("page") || "1");
+    const lastDocId = searchParams.get("lastDocId");
+    const lastDocCreatedAt = searchParams.get("lastDocCreatedAt");
 
     let query: FirebaseFirestore.Query = db.collection("watchAlongRooms");
 
@@ -22,49 +104,67 @@ export async function GET(req: NextRequest) {
       query = query.where("isLive", "==", true);
     }
 
-    // Total count
-    const countSnap = await query.count().get();
-    const totalItems = countSnap.data().count;
+    query = query.orderBy("createdAt", "desc").limit(limit);
 
-    // Paginated rooms
-    const snapshot = await query
-      .orderBy("createdAt", "desc")
-      .limit(limit)
-      .offset((page - 1) * limit)
-      .get();
+    // Use cursor-based pagination instead of offset
+    if (lastDocId && lastDocCreatedAt) {
+      const lastDocRef = db.collection("watchAlongRooms").doc(lastDocId);
+      const lastDoc = await lastDocRef.get();
+      if (lastDoc.exists) {
+        query = query.startAfter(lastDoc);
+      }
+    }
 
-    // For each room, fetch its related live match (if any) in parallel
-    const rooms = await Promise.all(
-      snapshot.docs.map(async (doc) => {
-        const data = doc.data();
+    const snapshot = await query.get();
 
-        let liveMatch = null;
-        if (data.liveMatchId) {
-          const matchDoc = await db
-            .collection("watchAlongMatches")
-            .doc(data.liveMatchId)
-            .get();
-          if (matchDoc.exists) {
-            liveMatch = { id: matchDoc.id, ...matchDoc.data() };
-          }
-        }
+    const roomsData: WatchAlongRoom[] = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as WatchAlongRoom[];
 
-        return {
-          id: doc.id,
-          ...data,
-          liveMatch, // nested relation
-        };
-      })
-    );
+    // Batch fetch all related matches in ONE query instead of N queries
+    const liveMatchIds = roomsData
+      .map((room) => room.liveMatchId)
+      .filter((id): id is string => Boolean(id));
+
+    const matchesMap = new Map<string, LiveMatch>(); // Changed to const
+    if (liveMatchIds.length > 0) {
+      // Firestore 'in' limit is 30, so batch if needed
+      const batchSize = 30;
+      for (let i = 0; i < liveMatchIds.length; i += batchSize) {
+        const batch = liveMatchIds.slice(i, i + batchSize);
+        const matchesSnapshot = await db
+          .collection("watchAlongMatches")
+          .where("__name__", "in", batch)
+          .get();
+
+        matchesSnapshot.docs.forEach((doc) => {
+          matchesMap.set(doc.id, { id: doc.id, ...doc.data() } as LiveMatch);
+        });
+      }
+    }
+
+    // Attach matches to rooms
+    const rooms = roomsData.map((room) => ({
+      ...room,
+      liveMatch: room.liveMatchId ? matchesMap.get(room.liveMatchId) || null : null,
+    }));
+
+    // Get last document for next page cursor
+    const lastDoc = snapshot.docs[snapshot.docs.length - 1];
 
     return NextResponse.json({
       success: true,
       rooms,
       pagination: {
-        currentPage: page,
-        totalPages: Math.ceil(totalItems / limit),
-        totalItems,
-        itemsPerPage: limit,
+        limit,
+        hasMore: rooms.length === limit,
+        nextCursor: rooms.length === limit
+          ? {
+              lastDocId: lastDoc?.id,
+              lastDocCreatedAt: lastDoc?.data()?.createdAt,
+            }
+          : null,
       },
     });
   } catch (error) {

@@ -50,13 +50,69 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// ─── GET: Fetch Insights (by playerProfileId) 
+// // ─── GET: Fetch Insights (by playerProfileId) 
+// export async function GET(req: NextRequest) {
+//   try {
+//     const { searchParams } = new URL(req.url);
+//     const playerProfileId = searchParams.get("playerProfileId");
+//     const limit = parseInt(searchParams.get("limit") || "20");
+//     const page = parseInt(searchParams.get("page") || "1");
+
+//     let query: FirebaseFirestore.Query = db.collection("playerInsights");
+
+//     if (playerProfileId) {
+//       query = query.where("playerProfileId", "==", playerProfileId);
+//     }
+
+//     const countSnapshot = await query.count().get();
+//     const totalItems = countSnapshot.data().count;
+
+//     const startAt = (page - 1) * limit;
+//     const snapshot = await query
+//       .orderBy("createdAt", "desc")
+//       .limit(limit)
+//       .offset(startAt)
+//       .get();
+
+//     const insightsDocs = snapshot.docs.map((doc) => ({
+//       id: doc.id,
+//       ...doc.data(),
+//     }));
+
+//     return NextResponse.json({
+//       success: true,
+//       insightsDocs,
+//       pagination: {
+//         currentPage: page,
+//         totalPages: Math.ceil(totalItems / limit),
+//         totalItems,
+//         itemsPerPage: limit,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Fetch insights error:", error);
+//     return NextResponse.json(
+//       { success: false, message: "Fetch failed" },
+//       { status: 500 }
+//     );
+//   }
+// }
+
+
+
+
+
+
+
+
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const playerProfileId = searchParams.get("playerProfileId");
     const limit = parseInt(searchParams.get("limit") || "20");
-    const page = parseInt(searchParams.get("page") || "1");
+    const lastDocId = searchParams.get("lastDocId");
+    const lastDocCreatedAt = searchParams.get("lastDocCreatedAt");
 
     let query: FirebaseFirestore.Query = db.collection("playerInsights");
 
@@ -64,29 +120,39 @@ export async function GET(req: NextRequest) {
       query = query.where("playerProfileId", "==", playerProfileId);
     }
 
-    const countSnapshot = await query.count().get();
-    const totalItems = countSnapshot.data().count;
+    query = query.orderBy("createdAt", "desc").limit(limit);
 
-    const startAt = (page - 1) * limit;
-    const snapshot = await query
-      .orderBy("createdAt", "desc")
-      .limit(limit)
-      .offset(startAt)
-      .get();
+    // Use cursor-based pagination instead of offset
+    if (lastDocId && lastDocCreatedAt) {
+      const lastDocRef = db.collection("playerInsights").doc(lastDocId);
+      const lastDoc = await lastDocRef.get();
+      if (lastDoc.exists) {
+        query = query.startAfter(lastDoc);
+      }
+    }
+
+    const snapshot = await query.get();
 
     const insightsDocs = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
 
+    // Get last document for next page cursor
+    const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+
     return NextResponse.json({
       success: true,
       insightsDocs,
       pagination: {
-        currentPage: page,
-        totalPages: Math.ceil(totalItems / limit),
-        totalItems,
-        itemsPerPage: limit,
+        limit,
+        hasMore: insightsDocs.length === limit,
+        nextCursor: insightsDocs.length === limit
+          ? {
+              lastDocId: lastDoc?.id,
+              lastDocCreatedAt: lastDoc?.data()?.createdAt,
+            }
+          : null,
       },
     });
   } catch (error) {

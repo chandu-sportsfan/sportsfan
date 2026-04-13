@@ -188,12 +188,67 @@ export async function POST(req: NextRequest) {
 
 
 
+// export async function GET(req: NextRequest) {
+//   try {
+//     const { searchParams } = new URL(req.url);
+//     const team360PostId = searchParams.get("team360PostId");
+//     const limit = parseInt(searchParams.get("limit") || "50");
+//     const page = parseInt(searchParams.get("page") || "1");
+
+//     // Start with collection reference
+//     const collectionRef = db.collection("team360Playlists");
+//     let query: FirebaseFirestore.Query = collectionRef;
+
+//     // Apply filter if team360PostId is provided
+//     if (team360PostId) {
+//       query = query.where("team360PostId", "==", team360PostId);
+//     }
+
+//     // Get total count using count() on the query
+//     const countSnapshot = await query.count().get();
+//     const totalItems = countSnapshot.data().count;
+
+//     // Apply pagination and ordering
+//     const startAt = (page - 1) * limit;
+//     const snapshot = await query
+//       .orderBy("createdAt", "desc")
+//       .limit(limit)
+//       .offset(startAt)
+//       .get();
+
+//     const playlists = snapshot.docs.map((doc) => ({
+//       id: doc.id,
+//       ...doc.data(),
+//     }));
+
+//     return NextResponse.json({
+//       success: true,
+//       playlists,
+//       pagination: {
+//         currentPage: page,
+//         totalPages: Math.ceil(totalItems / limit),
+//         totalItems,
+//         itemsPerPage: limit,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Error fetching playlists:", error);
+//     return NextResponse.json(
+//       { success: false, message: "Failed to fetch playlists" },
+//       { status: 500 }
+//     );
+//   }
+// }
+
+
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const team360PostId = searchParams.get("team360PostId");
     const limit = parseInt(searchParams.get("limit") || "50");
-    const page = parseInt(searchParams.get("page") || "1");
+    const lastDocId = searchParams.get("lastDocId");
+    const lastDocCreatedAt = searchParams.get("lastDocCreatedAt");
 
     // Start with collection reference
     const collectionRef = db.collection("team360Playlists");
@@ -204,31 +259,39 @@ export async function GET(req: NextRequest) {
       query = query.where("team360PostId", "==", team360PostId);
     }
 
-    // Get total count using count() on the query
-    const countSnapshot = await query.count().get();
-    const totalItems = countSnapshot.data().count;
+    query = query.orderBy("createdAt", "desc").limit(limit);
 
-    // Apply pagination and ordering
-    const startAt = (page - 1) * limit;
-    const snapshot = await query
-      .orderBy("createdAt", "desc")
-      .limit(limit)
-      .offset(startAt)
-      .get();
+    // Use cursor-based pagination instead of offset
+    if (lastDocId && lastDocCreatedAt) {
+      const lastDocRef = db.collection("team360Playlists").doc(lastDocId);
+      const lastDoc = await lastDocRef.get();
+      if (lastDoc.exists) {
+        query = query.startAfter(lastDoc);
+      }
+    }
+
+    const snapshot = await query.get();
 
     const playlists = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
 
+    // Get last document for next page cursor
+    const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+
     return NextResponse.json({
       success: true,
       playlists,
       pagination: {
-        currentPage: page,
-        totalPages: Math.ceil(totalItems / limit),
-        totalItems,
-        itemsPerPage: limit,
+        limit,
+        hasMore: playlists.length === limit,
+        nextCursor: playlists.length === limit
+          ? {
+              lastDocId: lastDoc?.id,
+              lastDocCreatedAt: lastDoc?.data()?.createdAt,
+            }
+          : null,
       },
     });
   } catch (error) {

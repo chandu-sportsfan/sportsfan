@@ -681,11 +681,10 @@ export default function PlayerProfileForm({
                         });
 
                         // Step 3 — Create season stats
-                        // FIX: scoped all stat lookups to IPL season; "economy" → "econ" to match Excel column name
+                        
                         await axios.post("/api/player-profile/seasonstats", {
                             playerProfilesId: newProfileId,
                             season: {
-                                // FIX: no "Year" column exists in Collated_Data — hardcode or derive as needed
                                 year: findVal(lookup, "year") ?? "2026",
                                 runs: findVal(lookup, "runs_ipl26", "runs_ipl", "runs_overall", "runs"),
                                 strikeRate: findVal(lookup, "batting sr_ipl26", "batting sr_ipl", "batting sr_overall", "batting sr", "strike rate"),
@@ -699,7 +698,6 @@ export default function PlayerProfileForm({
                                 foursConceded: findVal(lookup, "_raw_bowl_fours_IPL26"),
                                 sixesConceded: findVal(lookup, "_raw_bowl_sixes_IPL26"),
                                 bestBowling: findVal(lookup, "BB_IPL26"),
-                                // FIX: column is "Econ_*" not "Economy_*"
                                 economy: findVal(lookup, "econ_ipl26", "econ_ipl", "econ_overall", "econ", "economy"),
                                 bowlingSR: findVal(lookup, "bowling sr_ipl26", "bowling sr_ipl", "bowling sr_overall", "bowling sr", "bowlingsr"),
                                 bowlingAvg: findVal(lookup, "bowling avg_ipl26", "bowling avg_ipl", "bowling avg_overall", "bowling avg", "bowlingavg"),
