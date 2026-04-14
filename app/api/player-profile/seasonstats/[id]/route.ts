@@ -54,35 +54,35 @@ export async function PUT(req: NextRequest) {
     const existingData = existing.data() as Record<string, unknown>;
     const existingSeason = existingData.season as Record<string, unknown>;
 
-    const updateData = {
-      season: {
-        year: season?.year ?? existingSeason.year,
-        runs: season?.runs ?? existingSeason.runs,
-        strikeRate: season?.strikeRate ?? existingSeason.strikeRate,
-        average: season?.average ?? existingSeason.average,
-        fifties: season?.fifties !== undefined ? Number(season.fifties) : existingSeason.fifties,
-        hundreds: season?.hundreds !== undefined ? Number(season.hundreds) : existingSeason.hundreds,
-        highestScore: season?.highestScore ?? existingSeason.highestScore,
-        fours: season?.fours !== undefined ? Number(season.fours) : existingSeason.fours,
-        sixes: season?.sixes !== undefined ? Number(season.sixes) : existingSeason.sixes,
-        award: season?.award ?? existingSeason.award,
-        awardSub: season?.awardSub ?? existingSeason.awardSub,
-        
-        // New Bowling Fields
-        wickets: season?.wickets !== undefined ? Number(season.wickets) : existingSeason.wickets,
-        deliveries: season?.deliveries !== undefined ? Number(season.deliveries) : existingSeason.deliveries,
-        bowlingAvg: season?.bowlingAvg ?? existingSeason.bowlingAvg,
-        bowlingSR: season?.bowlingSR ?? existingSeason.bowlingSR,
-        economy: season?.economy ?? existingSeason.economy,
-        bestBowling: season?.bestBowling ?? existingSeason.bestBowling,
-        threeWicketHauls: season?.threeWicketHauls !== undefined ? Number(season.threeWicketHauls) : existingSeason.threeWicketHauls,
-        fiveWicketHauls: season?.fiveWicketHauls !== undefined ? Number(season.fiveWicketHauls) : existingSeason.fiveWicketHauls,
-        foursConceded: season?.foursConceded !== undefined ? Number(season.foursConceded) : existingSeason.foursConceded,
-        sixesConceded: season?.sixesConceded !== undefined ? Number(season.sixesConceded) : existingSeason.sixesConceded,
-      },
-      updatedAt: Date.now(),
-    };
+   const updateData = {
+  season: {
+    year: season?.year ?? existingSeason.year,
+    runs: season?.runs ?? existingSeason.runs,
+    strikeRate: season?.strikeRate ?? existingSeason.strikeRate,
+    average: season?.average ?? existingSeason.average,
 
+    // ✅ NEW combined fields
+    fiftiesAndHundreds: season?.fiftiesAndHundreds ?? existingSeason.fiftiesAndHundreds ?? "",
+    highestScore: season?.highestScore ?? existingSeason.highestScore,
+    fours: season?.fours !== undefined ? Number(season.fours) : existingSeason.fours,
+    sixes: season?.sixes !== undefined ? Number(season.sixes) : existingSeason.sixes,
+    award: season?.award ?? existingSeason.award,
+    awardSub: season?.awardSub ?? existingSeason.awardSub,
+
+    wickets: season?.wickets !== undefined ? Number(season.wickets) : existingSeason.wickets,
+    deliveries: season?.deliveries !== undefined ? Number(season.deliveries) : existingSeason.deliveries,
+    bowlingAvg: season?.bowlingAvg ?? existingSeason.bowlingAvg,
+    bowlingSR: season?.bowlingSR ?? existingSeason.bowlingSR,
+    economy: season?.economy ?? existingSeason.economy,
+    bestBowling: season?.bestBowling ?? existingSeason.bestBowling,
+
+    //  NEW combined field
+    threeW_fiveW_Hauls: season?.threeW_fiveW_Hauls ?? existingSeason.threeW_fiveW_Hauls ?? "",
+    foursConceded: season?.foursConceded !== undefined ? Number(season.foursConceded) : existingSeason.foursConceded,
+    sixesConceded: season?.sixesConceded !== undefined ? Number(season.sixesConceded) : existingSeason.sixesConceded,
+  },
+  updatedAt: Date.now(),
+};
     await db.collection("playerSeasons").doc(id).update(updateData);
 
     return NextResponse.json({

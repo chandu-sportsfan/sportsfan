@@ -15,20 +15,52 @@ import { db } from "@/lib/firebaseAdmin";
 
 //     // If searching
 //     if (rawSearch) {
-//       // Convert search to lowercase for case-insensitive search
 //       const searchLower = rawSearch.toLowerCase();
       
-//       // Search using playerNameLower (case-insensitive)
-//       const searchSnap = await db
+//       // Search by full name (starts with)
+//       const fullNameSnap = await db
 //         .collection("playershome")
 //         .where("playerNameLower", ">=", searchLower)
 //         .where("playerNameLower", "<=", searchLower + "\uf8ff")
 //         .limit(limit)
 //         .get();
       
+//       if (!fullNameSnap.empty) {
+//         return NextResponse.json({
+//           success: true,
+//           posts: fullNameSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+//           pagination: { limit, hasMore: false, nextCursor: null },
+//         });
+//       }
+      
+//       // If no match, try searching for last name
+   
+//       const lastNameSnap = await db
+//         .collection("playershome")
+//         .where("playerNameLower", ">=", searchLower)
+//         .where("playerNameLower", "<=", searchLower + "\uf8ff")
+//         .limit(limit)
+//         .get();
+      
+//       // If still no match, do a contains search (more expensive but works)
+//       // Note: This requires all documents to be read (use sparingly)
+//       if (lastNameSnap.empty) {
+//         const allDocs = await db.collection("playershome").get();
+//         const matchedDocs = allDocs.docs.filter(doc => {
+//           const name = doc.data().playerNameLower;
+//           return name.includes(searchLower);
+//         }).slice(0, limit);
+        
+//         return NextResponse.json({
+//           success: true,
+//           posts: matchedDocs.map(d => ({ id: d.id, ...d.data() })),
+//           pagination: { limit, hasMore: false, nextCursor: null },
+//         });
+//       }
+      
 //       return NextResponse.json({
 //         success: true,
-//         posts: searchSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+//         posts: lastNameSnap.docs.map(d => ({ id: d.id, ...d.data() })),
 //         pagination: { limit, hasMore: false, nextCursor: null },
 //       });
 //     }
@@ -75,6 +107,33 @@ import { db } from "@/lib/firebaseAdmin";
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
+    const action = searchParams.get("action");
+    
+    // Handle count request - uses aggregate query (NO document reads)
+    if (action === "count") {
+      const collectionRef = db.collection("playershome");
+      
+      // Apply filters if needed
+      const playerProfilesId = searchParams.get("playerProfilesId");
+      let query: FirebaseFirestore.Query = collectionRef;
+      
+      if (playerProfilesId) {
+        query = query.where("playerProfilesId", "==", playerProfilesId);
+      }
+      
+      // Use count aggregation
+      const snapshot = await query.count().get();
+      const totalCount = snapshot.data().count;
+      
+      return NextResponse.json({
+        success: true,
+        totalCount,
+        filtered: !!playerProfilesId,
+        filter: playerProfilesId || null,
+      });
+    }
+    
+    // Original search/pagination logic
     const playerProfilesId = searchParams.get("playerProfilesId");
     const rawSearch = searchParams.get("search")?.trim() || "";
     const limit = parseInt(searchParams.get("limit") || "20");
@@ -102,7 +161,6 @@ export async function GET(req: NextRequest) {
       }
       
       // If no match, try searching for last name
-      // This finds "pant" in "Rishabh pant"
       const lastNameSnap = await db
         .collection("playershome")
         .where("playerNameLower", ">=", searchLower)
@@ -110,13 +168,14 @@ export async function GET(req: NextRequest) {
         .limit(limit)
         .get();
       
-      // If still no match, do a contains search (more expensive but works)
-      // Note: This requires all documents to be read (use sparingly)
+      // If still no match, do a contains search with limit
       if (lastNameSnap.empty) {
-        const allDocs = await db.collection("playershome").get();
+        // WARNING: This reads all documents - use sparingly or remove this feature
+        // Better to implement a search index using Algolia/Meilisearch
+        const allDocs = await db.collection("playershome").limit(100).get(); // Limit to 100 docs
         const matchedDocs = allDocs.docs.filter(doc => {
           const name = doc.data().playerNameLower;
-          return name.includes(searchLower);
+          return name && name.includes(searchLower);
         }).slice(0, limit);
         
         return NextResponse.json({

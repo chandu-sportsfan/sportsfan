@@ -79,54 +79,6 @@ export async function POST(req: NextRequest) {
     }
 }
 
-// // ─── GET: Fetch Media (paginated)    
-// export async function GET(req: NextRequest) {
-//     try {
-//         const { searchParams } = new URL(req.url);
-//         const playerProfileId = searchParams.get("playerProfilesId");
-//         const limit = parseInt(searchParams.get("limit") || "12"); // media uses smaller default pages
-//         const page = parseInt(searchParams.get("page") || "1");
-
-//         let query: FirebaseFirestore.Query = db.collection("playerMedia");
-
-//         if (playerProfileId) {
-//             query = query.where("playerProfilesId", "==", playerProfileId);
-//         }
-
-//         const countSnapshot = await query.count().get();
-//         const totalItems = countSnapshot.data().count;
-
-//         const startAt = (page - 1) * limit;
-//         const snapshot = await query
-//             .orderBy("createdAt", "desc")
-//             .limit(limit)
-//             .offset(startAt)
-//             .get();
-
-//         const mediaDocs = snapshot.docs.map((doc) => ({
-//             id: doc.id,
-//             ...doc.data(),
-//         }));
-
-//         return NextResponse.json({
-//             success: true,
-//             mediaDocs,
-//             pagination: {
-//                 currentPage: page,
-//                 totalPages: Math.ceil(totalItems / limit),
-//                 totalItems,
-//                 itemsPerPage: limit,
-//             },
-//         });
-//     } catch (error) {
-//         console.error("Fetch media error:", error);
-//         return NextResponse.json(
-//             { success: false, message: "Fetch failed" },
-//             { status: 500 }
-//         );
-//     }
-// }
-
 
 
 

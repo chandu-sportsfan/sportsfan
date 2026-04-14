@@ -61,50 +61,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// // GET - List all articles (with pagination)
-// export async function GET(req: NextRequest) {
-//   try {
-//     const { searchParams } = new URL(req.url);
-//     const limit = parseInt(searchParams.get("limit") || "10");
-//     const badge = searchParams.get("badge");
-//     const page = parseInt(searchParams.get("page") || "1");
-//     const skip = (page - 1) * limit;
-
-//     let query = db.collection("cricketArticles").orderBy("createdAt", "desc");
-
-//     // Filter by badge if provided
-//     if (badge && ["FEATURE", "ANALYSIS", "OPINION", "NEWS"].includes(badge)) {
-//       query = query.where("badge", "==", badge);
-//     }
-
-//     const snapshot = await query.limit(limit).offset(skip).get();
-    
-//     const articles = snapshot.docs.map(doc => ({
-//       id: doc.id,
-//       ...doc.data(),
-//     }));
-
-//     // Get total count for pagination
-//     const totalSnapshot = await db.collection("cricketArticles").get();
-//     const total = totalSnapshot.size;
-
-//     return NextResponse.json({
-//       success: true,
-//       articles,
-//       pagination: {
-//         currentPage: page,
-//         totalPages: Math.ceil(total / limit),
-//         totalItems: total,
-//         itemsPerPage: limit,
-//       },
-//     });
-
-//   } catch (error: unknown) {
-//     const msg = error instanceof Error ? error.message : "Unexpected error";
-//     console.error("Error fetching articles:", error);
-//     return NextResponse.json({ error: msg }, { status: 500 });
-//   }
-// }
 
 
 

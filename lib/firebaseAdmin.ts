@@ -2,57 +2,33 @@
 
 // let db: FirebaseFirestore.Firestore;
 
-// try {
-//   if (!admin.apps.length) {
-//     console.log("🔥 Initializing Firebase Admin...");
+// if (!admin.apps.length) {
+//   console.log(" Initializing Firebase Admin...");
 
-//     const projectId = process.env.FIREBASE_PROJECT_ID;
-//     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-//     const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+//   const app = admin.initializeApp({
+//     credential: admin.credential.cert({
+//       projectId: process.env.FIREBASE_PROJECT_ID,
+//       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+//       privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+//     }),
+//     //  Add this — explicitly point to your database
+//     databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}.firebaseio.com`,
+//   });
 
-//     console.log("📌 Project ID:", projectId);
-//     console.log("📌 Client Email:", clientEmail);
-//     console.log("📌 Private Key exists:", !!privateKey);
+//   db = admin.firestore(app);
+//   db.settings({
+//     ignoreUndefinedProperties: true,
+//     //  Add this — explicitly use the default database
+//     databaseId: "default",
+//   });
 
-//     if (!projectId || !clientEmail || !privateKey) {
-//       throw new Error("❌ Missing Firebase environment variables");
-//     }
+//   console.log(" Firebase initialized");
 
-//     const app = admin.initializeApp({
-//       credential: admin.credential.cert({
-//         projectId,
-//         clientEmail,
-//         privateKey: privateKey.replace(/\\n/g, "\n"),
-//       }),
-//     });
-
-//     console.log("✅ Firebase initialized successfully");
-
-//     db = admin.firestore(app);
-
-//     console.log("🔥 Firestore instance created");
-
-//     db.settings({
-//       ignoreUndefinedProperties: true,
-//     });
-
-//     console.log("✅ Firestore settings applied");
-
-//   } else {
-//     console.log("♻️ Firebase already initialized, reusing instance");
-
-//     db = admin.firestore();
-//   }
-
-// } catch (error: any) {
-//   console.error("❌ Firebase Init Error:", error.message);
-//   throw error;
+// } else {
+//   db = admin.firestore();
 // }
 
 // export { db };
-
-
-
 
 
 
@@ -62,7 +38,7 @@ import admin from "firebase-admin";
 let db: FirebaseFirestore.Firestore;
 
 if (!admin.apps.length) {
-  console.log(" Initializing Firebase Admin...");
+  console.log("Initializing Firebase Admin...");
 
   const app = admin.initializeApp({
     credential: admin.credential.cert({
@@ -70,21 +46,18 @@ if (!admin.apps.length) {
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
       privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
     }),
-    //  Add this — explicitly point to your database
-    databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}.firebaseio.com`,
   });
 
   db = admin.firestore(app);
   db.settings({
     ignoreUndefinedProperties: true,
-    //  Add this — explicitly use the default database
-    databaseId: "default",
+    databaseId: "(default)", // ✅ fix: parentheses required
   });
 
-  console.log(" Firebase initialized");
-
+  console.log("Firebase initialized, project:", process.env.FIREBASE_PROJECT_ID);
 } else {
-  db = admin.firestore();
+  console.log("Reusing existing Firebase app");
+  db = admin.firestore(admin.apps[0]!); // ✅ fix: reuse the specific app, not a new instance
 }
 
 export { db };

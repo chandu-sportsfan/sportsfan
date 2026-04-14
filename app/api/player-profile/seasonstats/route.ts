@@ -28,36 +28,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const seasonData = {
-      playerProfilesId,
-      season: {
-        year: season.year || "",
-        runs: season.runs || "0",
-        strikeRate: season.strikeRate || "0",
-        average: season.average || "0",
-        fifties: Number(season.fifties) || 0,
-        hundreds: Number(season.hundreds) || 0,
-        highestScore: season.highestScore || "",
-        fours: Number(season.fours) || 0,
-        sixes: Number(season.sixes) || 0,
-        award: season.award || "",
-        awardSub: season.awardSub || "",
-        
-        // New Bowling Fields
-        wickets: Number(season.wickets) || 0,
-        deliveries: Number(season.deliveries) || 0,
-        bowlingAvg: season.bowlingAvg || "0",
-        bowlingSR: season.bowlingSR || "0",
-        economy: season.economy || "0",
-        bestBowling: season.bestBowling || "",
-        threeWicketHauls: Number(season.threeWicketHauls) || 0,
-        fiveWicketHauls: Number(season.fiveWicketHauls) || 0,
-        foursConceded: Number(season.foursConceded) || 0,
-        sixesConceded: Number(season.sixesConceded) || 0,
-      },
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
+  const seasonData = {
+  playerProfilesId,
+  season: {
+    year: season.year || "",
+    runs: season.runs || "0",
+    strikeRate: season.strikeRate || "0",
+    average: season.average || "0",
+
+    // ✅ NEW combined fields
+    fiftiesAndHundreds: season.fiftiesAndHundreds || "",
+    highestScore: season.highestScore || "",
+    fours: Number(season.fours) || 0,
+    sixes: Number(season.sixes) || 0,
+    award: season.award || "",
+    awardSub: season.awardSub || "",
+
+    wickets: Number(season.wickets) || 0,
+    deliveries: Number(season.deliveries) || 0,
+    bowlingAvg: season.bowlingAvg || "0",
+    bowlingSR: season.bowlingSR || "0",
+    economy: season.economy || "0",
+    bestBowling: season.bestBowling || "",
+
+    // ✅ NEW combined field
+    threeW_fiveW_Hauls: season.threeW_fiveW_Hauls || "",
+    foursConceded: Number(season.foursConceded) || 0,
+    sixesConceded: Number(season.sixesConceded) || 0,
+  },
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+};
 
     const docRef = await db.collection("playerSeasons").add(seasonData);
 
@@ -137,7 +138,7 @@ export async function GET(req: NextRequest) {
     let query: FirebaseFirestore.Query = db.collection("playerSeasons");
 
     if (playerProfileId) {
-      query = query.where("playerProfileId", "==", playerProfileId);
+      query = query.where("playerProfilesId", "==", playerProfileId);
     }
     if (year) {
       query = query.where("season.year", "==", year);

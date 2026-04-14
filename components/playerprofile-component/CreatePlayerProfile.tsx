@@ -408,7 +408,7 @@ export default function CreateClubProfile({ profileIdToEdit }: Props) {
 
                 /* 3. SEASON */
                 const seasonRes = await axios.get(
-                    `/api/player-profile/seasonstats?playerProfileId=${profileIdToEdit}&limit=1`
+                    `/api/player-profile/seasonstats?playerProfilesId=${profileIdToEdit}&limit=1`
                 );
 
                 if (seasonRes.data.seasons?.length > 0) {
@@ -422,7 +422,7 @@ export default function CreateClubProfile({ profileIdToEdit }: Props) {
                         runs: sd.runs || "",
                         strikeRate: sd.strikeRate || "",
                         average: sd.average || "",
-                        fiftiesAndHundreds: String(sd.fifties ?? ""),
+                        // fiftiesAndHundreds: String(sd.fifties ?? ""),
                         highestScore: sd.highestScore || "",
                         fours: String(sd.fours ?? ""),
                         sixes: String(sd.sixes ?? ""),
@@ -434,7 +434,9 @@ export default function CreateClubProfile({ profileIdToEdit }: Props) {
                         bowlingSR: sd.bowlingSR || "",
                         economy: sd.economy || "",
                         bestBowling: sd.bestBowling || "",
-                        threeW_fiveW_Hauls: String(sd.threeWicketHauls ?? ""),
+                        fiftiesAndHundreds: sd.fiftiesAndHundreds || (sd.fifties != null && sd.hundreds != null ? `${sd.fifties}/${sd.hundreds}` : ""),
+                        threeW_fiveW_Hauls: sd.threeW_fiveW_Hauls || (sd.threeWicketHauls != null && sd.fiveWicketHauls != null ? `${sd.threeWicketHauls}/${sd.fiveWicketHauls}` : ""),
+                        // threeW_fiveW_Hauls: String(sd.threeWicketHauls ?? ""),
                         foursConceded: String(sd.foursConceded ?? ""),
                         sixesConceded: String(sd.sixesConceded ?? ""),
                     });
@@ -454,7 +456,7 @@ export default function CreateClubProfile({ profileIdToEdit }: Props) {
 
                 /* 5. MEDIA */
                 const mediaRes = await axios.get(
-                    `/api/player-profile/media?playerProfileId=${profileIdToEdit}&limit=1`
+                    `/api/player-profile/media?playerProfilesId=${profileIdToEdit}&limit=1`
                 );
 
                 if (mediaRes.data.mediaDocs?.length > 0) {
@@ -532,8 +534,8 @@ export default function CreateClubProfile({ profileIdToEdit }: Props) {
                         key={t.key}
                         onClick={() => handleTabClick(t.key)}
                         className={`px-4 py-2 rounded-md text-sm ${activeTab === t.key
-                                ? "bg-blue-600 text-white"
-                                : "text-gray-400"
+                            ? "bg-blue-600 text-white"
+                            : "text-gray-400"
                             }`}
                     >
                         {t.icon} {t.label}
@@ -571,7 +573,7 @@ export default function CreateClubProfile({ profileIdToEdit }: Props) {
             {activeTab === "home" && (
                 <PlayerHomeForm
                     playerProfilesId={savedProfileId}
-                    homeDocId={savedHomeId} 
+                    homeDocId={savedHomeId}
                     onSaved={(id) => {
                         setSavedHomeId(id); // optional if you need later
                         setActiveTab("season");
