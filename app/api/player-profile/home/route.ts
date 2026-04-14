@@ -109,11 +109,9 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const action = searchParams.get("action");
     
-    // Handle count request - uses aggregate query (NO document reads)
+    // Handle count request
     if (action === "count") {
       const collectionRef = db.collection("playershome");
-      
-      // Apply filters if needed
       const playerProfilesId = searchParams.get("playerProfilesId");
       let query: FirebaseFirestore.Query = collectionRef;
       
@@ -121,7 +119,6 @@ export async function GET(req: NextRequest) {
         query = query.where("playerProfilesId", "==", playerProfilesId);
       }
       
-      // Use count aggregation
       const snapshot = await query.count().get();
       const totalCount = snapshot.data().count;
       
@@ -133,7 +130,6 @@ export async function GET(req: NextRequest) {
       });
     }
     
-    // Original search/pagination logic
     const playerProfilesId = searchParams.get("playerProfilesId");
     const rawSearch = searchParams.get("search")?.trim() || "";
     const limit = parseInt(searchParams.get("limit") || "20");
@@ -144,51 +140,57 @@ export async function GET(req: NextRequest) {
     if (rawSearch) {
       const searchLower = rawSearch.toLowerCase();
       
-      // Search by full name (starts with)
-      const fullNameSnap = await db
+      // FIRST: Try prefix search (starts with) - FAST with index
+      const prefixSnap = await db
         .collection("playershome")
         .where("playerNameLower", ">=", searchLower)
         .where("playerNameLower", "<=", searchLower + "\uf8ff")
         .limit(limit)
         .get();
       
-      if (!fullNameSnap.empty) {
+      if (!prefixSnap.empty) {
         return NextResponse.json({
           success: true,
-          posts: fullNameSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          pagination: { limit, hasMore: false, nextCursor: null },
+          posts: prefixSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+          pagination: { limit, hasMore: prefixSnap.docs.length === limit, nextCursor: null },
         });
       }
       
-      // If no match, try searching for last name
-      const lastNameSnap = await db
-        .collection("playershome")
-        .where("playerNameLower", ">=", searchLower)
-        .where("playerNameLower", "<=", searchLower + "\uf8ff")
-        .limit(limit)
-        .get();
+      // SECOND: Try contains search - Get ALL documents for accurate search
+      console.log("Prefix search found no results, trying contains search for:", searchLower);
       
-      // If still no match, do a contains search with limit
-      if (lastNameSnap.empty) {
-        // WARNING: This reads all documents - use sparingly or remove this feature
-        // Better to implement a search index using Algolia/Meilisearch
-        const allDocs = await db.collection("playershome").limit(100).get(); // Limit to 100 docs
-        const matchedDocs = allDocs.docs.filter(doc => {
-          const name = doc.data().playerNameLower;
-          return name && name.includes(searchLower);
-        }).slice(0, limit);
+      // Get ALL documents (no limit) or increase limit significantly
+      const allDocs = await db.collection("playershome").get(); // Get ALL documents
+      console.log(`Total documents in collection: ${allDocs.size}`);
+      
+      const matchedDocs = allDocs.docs.filter(doc => {
+        const data = doc.data();
+        const playerNameLower = data.playerNameLower || "";
+        const playerName = data.playerName || "";
         
-        return NextResponse.json({
-          success: true,
-          posts: matchedDocs.map(d => ({ id: d.id, ...d.data() })),
-          pagination: { limit, hasMore: false, nextCursor: null },
-        });
-      }
+        // Check if search term exists in the name
+        const matches = playerNameLower.includes(searchLower) || 
+                       playerName.toLowerCase().includes(searchLower);
+        
+        if (matches) {
+          console.log(`Found match: ${playerName} (ID: ${doc.id})`);
+        }
+        
+        return matches;
+      }).slice(0, limit);
+      
+      console.log(`Found ${matchedDocs.length} matches for "${searchLower}"`);
       
       return NextResponse.json({
         success: true,
-        posts: lastNameSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+        posts: matchedDocs.map(d => ({ id: d.id, ...d.data() })),
         pagination: { limit, hasMore: false, nextCursor: null },
+        searchType: "contains",
+        debug: {
+          totalDocsScanned: allDocs.size,
+          matchesFound: matchedDocs.length,
+          searchTerm: searchLower
+        }
       });
     }
 
