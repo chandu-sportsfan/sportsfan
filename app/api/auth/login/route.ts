@@ -167,7 +167,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // ── 6. Set HTTP-only cookie ───────────────────
+    // ── 6. Set HTTP-only cookies ───────────────────
     response.cookies.set("token", token, {
       httpOnly: true,
       secure:   process.env.NODE_ENV === "production",

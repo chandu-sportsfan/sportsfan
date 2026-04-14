@@ -10,7 +10,7 @@ export async function GET() {
     ...d.data(),
     // default status/role if old users don't have it
     status: d.data().status ?? "active",
-    role:   d.data().role   ?? "user",
+    role: d.data().role ?? "user",
   }));
   return NextResponse.json({ users, total: users.length });
 }
@@ -21,7 +21,7 @@ export async function PATCH(req: NextRequest) {
 
   await db.collection("users").doc(email).update({
     ...(status !== undefined && { status }),
-    ...(role   !== undefined && { role   }),
+    ...(role !== undefined && { role }),
     updatedAt: Date.now(),
   });
 
@@ -53,7 +53,7 @@ export async function DELETE(req: NextRequest) {
 
     await userRef.delete();
 
-   
+
     await db.collection("otps").doc(email).delete();
 
     return NextResponse.json({
@@ -61,7 +61,7 @@ export async function DELETE(req: NextRequest) {
       message: "User deleted successfully",
     });
 
-  }catch (error: unknown) {
+  } catch (error: unknown) {
     console.error("❌ ERROR:", error);
     const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
     return NextResponse.json(

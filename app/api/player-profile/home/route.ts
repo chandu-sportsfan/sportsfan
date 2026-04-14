@@ -33,33 +33,116 @@ import { db } from "@/lib/firebaseAdmin";
 //     );
 //   }
 // }
+// export async function GET(req: NextRequest) {
+//   try {
+//     const { searchParams } = new URL(req.url);
+//     const playerProfilesId = searchParams.get("playerProfilesId");
+//     const rawSearch = searchParams.get("search")?.trim() || "";
+//     const limit = parseInt(searchParams.get("limit") || "20");
+//     const lastDocId = searchParams.get("lastDocId");
+//     const lastDocCreatedAt = searchParams.get("lastDocCreatedAt");
+
+//     // Normalize search term: lowercase and trim
+//     const search = rawSearch.toLowerCase().trim();
+
+//     // SEARCH PATH - Use playerName directly
+//     if (search) {
+//       let searchQuery = db
+//         .collection("playershome")
+//         .orderBy("playerName")                    // ← Changed from playerNameLower
+//         .where("playerName", ">=", search)        // ← Changed from playerNameLower
+//         .where("playerName", "<=", search + "\uf8ff")
+//         .limit(limit);
+
+//       if (playerProfilesId) {
+//         searchQuery = searchQuery.where("playerProfilesId", "==", playerProfilesId);
+//       }
+
+//       const snap = await searchQuery.get();
+//       const posts = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+//       return NextResponse.json({
+//         success: true,
+//         posts,
+//         pagination: { limit, hasMore: false, nextCursor: null },
+//       });
+//     }
+
+//     // NORMAL PAGINATED PATH (no search)
+//     let query = db.collection("playershome").orderBy("createdAt", "desc");
+
+//     if (playerProfilesId) {
+//       query = query.where("playerProfilesId", "==", playerProfilesId);
+//     }
+
+//     if (lastDocId && lastDocCreatedAt) {
+//       const lastDocRef = db.collection("playershome").doc(lastDocId);
+//       const lastDoc = await lastDocRef.get();
+//       if (lastDoc.exists) {
+//         query = query.startAfter(lastDoc);
+//       }
+//     }
+
+//     query = query.limit(limit);
+//     const snap = await query.get();
+//     const posts = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+//     const lastDoc = snap.docs[snap.docs.length - 1];
+
+//     return NextResponse.json({
+//       success: true,
+//       posts,
+//       pagination: {
+//         limit,
+//         hasMore: posts.length === limit,
+//         nextCursor: posts.length === limit
+//           ? { lastDocId: lastDoc?.id, lastDocCreatedAt: lastDoc?.data()?.createdAt }
+//           : null,
+//       },
+//     });
+//   } catch (error: unknown) {
+//     const msg = error instanceof Error ? error.message : "Unexpected error";
+//     console.error("Fetch error:", error);
+//     return NextResponse.json({ success: false, error: msg }, { status: 500 });
+//   }
+// }
+
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const playerProfilesId = searchParams.get("playerProfilesId");
-    const search = searchParams.get("search")?.trim().toLowerCase() || "";
+    const rawSearch = searchParams.get("search")?.trim() || "";
     const limit = parseInt(searchParams.get("limit") || "20");
     const lastDocId = searchParams.get("lastDocId");
     const lastDocCreatedAt = searchParams.get("lastDocCreatedAt");
 
+    // If searching
+    if (rawSearch) {
+      // Convert search to lowercase for case-insensitive search
+      const searchLower = rawSearch.toLowerCase();
+      
+      // Search using playerNameLower (case-insensitive)
+      const searchSnap = await db
+        .collection("playershome")
+        .where("playerNameLower", ">=", searchLower)
+        .where("playerNameLower", "<=", searchLower + "\uf8ff")
+        .limit(limit)
+        .get();
+      
+      return NextResponse.json({
+        success: true,
+        posts: searchSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+        pagination: { limit, hasMore: false, nextCursor: null },
+      });
+    }
+
+    // No search - normal paginated response
     let query = db.collection("playershome").orderBy("createdAt", "desc");
 
-    // Filter by player ID if provided
     if (playerProfilesId) {
       query = query.where("playerProfilesId", "==", playerProfilesId);
     }
 
-    // 🔍 ADD SEARCH FUNCTIONALITY
-    // Note: For text search, you need a 'title' or 'content' field to search on
-    // Option 1: Search by title (requires index on 'titleLower')
-    if (search) {
-      query = query.where("titleLower", ">=", search)
-                   .where("titleLower", "<=", search + "\uf8ff");
-    }
-
-    query = query.limit(limit);
-
-    // Cursor-based pagination
     if (lastDocId && lastDocCreatedAt) {
       const lastDocRef = db.collection("playershome").doc(lastDocId);
       const lastDoc = await lastDocRef.get();
@@ -68,13 +151,9 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    query = query.limit(limit);
     const snap = await query.get();
-
-    const posts = snap.docs.map((d) => ({
-      id: d.id,
-      ...d.data(),
-    }));
-
+    const posts = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     const lastDoc = snap.docs[snap.docs.length - 1];
 
     return NextResponse.json({
@@ -84,20 +163,14 @@ export async function GET(req: NextRequest) {
         limit,
         hasMore: posts.length === limit,
         nextCursor: posts.length === limit
-          ? {
-              lastDocId: lastDoc?.id,
-              lastDocCreatedAt: lastDoc?.data()?.createdAt,
-            }
+          ? { lastDocId: lastDoc?.id, lastDocCreatedAt: lastDoc?.data()?.createdAt }
           : null,
       },
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
-    console.error("Fetch playershome error:", error);
-    return NextResponse.json(
-      { success: false, error: msg },
-      { status: 500 }
-    );
+    console.error("Fetch error:", error);
+    return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
 }
 
@@ -136,6 +209,7 @@ export async function POST(req: NextRequest) {
     const newPost = {
       playerProfilesId,
       playerName,
+       playerNameLower: playerName?.trim().toLowerCase() || "",
       title,
       category: category ?? [],
       likes: Number(likes) || 0,

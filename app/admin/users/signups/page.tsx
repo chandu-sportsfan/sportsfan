@@ -11,18 +11,18 @@ type User = {
 };
 
 export default function SignupsPage() {
-  const [users, setUsers]       = useState<User[]>([]);
-  const [loading, setLoading]   = useState(true);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
-  const [search, setSearch]     = useState("");
+  const [search, setSearch] = useState("");
 
   useEffect(() => { fetchUsers(); }, []);
 
   async function fetchUsers() {
     setLoading(true);
     try {
-      const res  = await fetch("/api/users");
+      const res = await fetch("/api/users");
       const data = await res.json();
       setUsers(data.users ?? []);
     } catch {
@@ -93,7 +93,7 @@ export default function SignupsPage() {
       .includes(search.toLowerCase())
   );
 
-  const totalActive   = users.filter(u => u.status === "active").length;
+  const totalActive = users.filter(u => u.status === "active").length;
   const totalDisabled = users.filter(u => u.status === "disabled").length;
 
   return (
@@ -176,9 +176,9 @@ export default function SignupsPage() {
       {/* Stat Cards */}
       <div className="users-stats">
         {[
-          { label: "Total Users", value: users.length,   color: "#388bfd" },
-          { label: "Active",      value: totalActive,    color: "#2ea043" },
-          { label: "Disabled",    value: totalDisabled,  color: "#da3633" },
+          { label: "Total Users", value: users.length, color: "#388bfd" },
+          { label: "Active", value: totalActive, color: "#2ea043" },
+          { label: "Disabled", value: totalDisabled, color: "#da3633" },
         ].map(s => (
           <div key={s.label} style={{
             background: "#161b22", border: "1px solid #21282f",
@@ -221,7 +221,7 @@ export default function SignupsPage() {
           <table>
             <thead>
               <tr style={{ background: "#1c2330", borderBottom: "1px solid #21282f" }}>
-                {["#","Name","Email","Role","Signed Up","Status","Actions"].map(h => (
+                {["#", "Name", "Email", "Role", "Signed Up", "Status", "Actions"].map(h => (
                   <th key={h} style={{
                     textAlign: "left", padding: "8px 14px",
                     fontSize: 10, fontWeight: 600, letterSpacing: ".07em",
@@ -246,10 +246,10 @@ export default function SignupsPage() {
                 </tr>
               ) : (
                 filtered.map((u, i) => {
-                  const initials   = `${u.firstName?.[0] ?? ""}${u.lastName?.[0] ?? ""}`.toUpperCase() || "?";
+                  const initials = `${u.firstName?.[0] ?? ""}${u.lastName?.[0] ?? ""}`.toUpperCase() || "?";
                   const isDeleting = deleting === u.email;
                   const isUpdating = updating === u.email;
-                  const isActive   = u.status !== "disabled";
+                  const isActive = u.status !== "disabled";
 
                   return (
                     <tr key={u.email} style={{
@@ -308,8 +308,8 @@ export default function SignupsPage() {
                       <td style={{ padding: "9px 14px", fontFamily: "var(--font-mono)", fontSize: 12, color: "#7d8590", whiteSpace: "nowrap" }}>
                         {u.createdAt
                           ? new Date(u.createdAt).toLocaleString("en-IN", {
-                              dateStyle: "medium", timeStyle: "short",
-                            })
+                            dateStyle: "medium", timeStyle: "short",
+                          })
                           : "—"}
                       </td>
 

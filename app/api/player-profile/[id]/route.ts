@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url);
     console.log("Full URL:", req.url);
     console.log("Pathname:", url.pathname);
-    
+
     const id = getIdFromUrl(req);
     console.log("Extracted ID:", id);
 
@@ -51,20 +51,20 @@ export async function GET(req: NextRequest) {
     const doc = await db.collection("PlayerProfiles").doc(id).get();
     console.log("Document exists:", doc.exists);
     console.log("Document data:", doc.data());
-    
+
     if (!doc.exists) {
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           message: "Profile not found",
-          debug: { 
+          debug: {
             requestedId: id,
           }
         },
         { status: 404 }
       );
     }
-    
+
     return NextResponse.json({ success: true, profile: { id: doc.id, ...doc.data() } });
   } catch (error) {
     console.error("Error:", error);
@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const id   = getIdFromUrl(req);
+    const id = getIdFromUrl(req);
 
     if (!id) {
       return NextResponse.json({ error: "ID required" }, { status: 400 });
@@ -129,15 +129,15 @@ export async function PUT(req: NextRequest) {
       about: about ?? existingData.about,
       avatar: avatarUrl,
       stats: {
-        runs: statsRuns || (existingData.stats as Record<string,string>)?.runs || "0",
-        sr: statsSr || (existingData.stats as Record<string,string>)?.sr || "0",
-        avg: statsAvg || (existingData.stats as Record<string,string>)?.avg || "0",
+        runs: statsRuns || (existingData.stats as Record<string, string>)?.runs || "0",
+        sr: statsSr || (existingData.stats as Record<string, string>)?.sr || "0",
+        avg: statsAvg || (existingData.stats as Record<string, string>)?.avg || "0",
       },
       overview: {
-        iplDebut: iplDebut || (existingData.overview as Record<string,string>)?.iplDebut || "",
-        specialization: specialization || (existingData.overview as Record<string,string>)?.specialization || "",
-        dob: dob || (existingData.overview as Record<string,string>)?.dob || "",
-        matches: matches || (existingData.overview as Record<string,string>)?.matches || "",
+        iplDebut: iplDebut || (existingData.overview as Record<string, string>)?.iplDebut || "",
+        specialization: specialization || (existingData.overview as Record<string, string>)?.specialization || "",
+        dob: dob || (existingData.overview as Record<string, string>)?.dob || "",
+        matches: matches || (existingData.overview as Record<string, string>)?.matches || "",
       },
       updatedAt: Date.now(),
     };
@@ -160,7 +160,7 @@ export async function PUT(req: NextRequest) {
 //  DELETE: Remove Club Profile 
 export async function DELETE(req: NextRequest) {
   try {
-    const id   = getIdFromUrl(req);
+    const id = getIdFromUrl(req);
 
     if (!id) {
       return NextResponse.json({ error: "ID required" }, { status: 400 });
