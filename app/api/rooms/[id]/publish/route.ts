@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 
-// ─── Helper ───────────────────────────────────────────────────────────────────
+// ─── Helper 
 function getRoomIdFromUrl(req: NextRequest): string | null {
   // Path: /api/rooms/[id]/publish → parts[-2]
   const parts = new URL(req.url).pathname.split("/");
