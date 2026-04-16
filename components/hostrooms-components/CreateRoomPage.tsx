@@ -9,7 +9,7 @@ import CreateRoomStep4 from "./Step4form";
 // REMOVED: import { getAuth } from "firebase-admin/auth";
 
 interface Step1Data {
-  eventId: string;
+  eventId?: string;
   eventName: string;
   roomType: string;
 }
@@ -38,7 +38,7 @@ export default function CreateRoomFlow({ editId }: { editId?: string }) {
   const handleStep1Next = async (data: Step1Data) => {
     try {
       const formData = new FormData();
-      formData.append("eventId", data.eventId);
+      formData.append("eventId", data.eventId || `evt-${Date.now()}`);
       formData.append("eventName", data.eventName);
       formData.append("roomType", data.roomType);
 
