@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import cloudinary from "@/lib/cloudinary";
-import { getAuth } from "firebase-admin/auth";
+// import { getAuth } from "firebase-admin/auth";
+import jwt from "jsonwebtoken";
 import { db } from "@/lib/firebaseAdmin";
 
 
@@ -198,18 +199,39 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
 
     // Auth - Get user from token
-    const authHeader = req.headers.get("authorization");
+    // const authHeader = req.headers.get("authorization");
+    // if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    //   return NextResponse.json(
+    //     { success: false, error: "Unauthorized" },
+    //     { status: 401 }
+    //   );
+    // }
+
+    // const token = authHeader.split("Bearer ")[1];
+    // const decodedToken = await getAuth().verifyIdToken(token);
+    // const userEmail = decodedToken.email; // ✅ Get email from token
+    // const firebaseUid = decodedToken.uid;
+     const authHeader = req.headers.get("authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
     const token = authHeader.split("Bearer ")[1];
-    const decodedToken = await getAuth().verifyIdToken(token);
-    const userEmail = decodedToken.email; // ✅ Get email from token
-    const firebaseUid = decodedToken.uid;
+    let userEmail: string;
+    let firebaseUid: string;
+
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
+        email: string;
+        uid?: string;
+        id?: string;
+      };
+      userEmail = decoded.email;
+      firebaseUid = decoded.uid || decoded.id || userEmail;
+    } catch (err:unknown) {
+      console.log("rooms error:",err)
+      return NextResponse.json({ success: false, error: "Invalid or expired token" }, { status: 401 });
+    }
 
     // Step 1: Event & Room Type
     const eventId = formData.get("eventId") as string;
@@ -312,8 +334,9 @@ export async function POST(req: NextRequest) {
     }, { status: 201 });
 
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : "Unexpected error";
-    console.error("[rooms POST]", error);
-    return NextResponse.json({ success: false, error: msg }, { status: 500 });
-  }
+  const msg = error instanceof Error ? error.message : "Unexpected error";
+  console.error("[rooms POST] Full error:", error); // ← already there
+  console.error("[rooms POST] Message:", msg);       // see exact message
+  return NextResponse.json({ success: false, error: msg }, { status: 500 });
+}
 }
