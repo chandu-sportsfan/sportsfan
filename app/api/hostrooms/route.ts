@@ -198,25 +198,24 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
 
-    // Auth - Get user from token
-    // const authHeader = req.headers.get("authorization");
-    // if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    //   return NextResponse.json(
-    //     { success: false, error: "Unauthorized" },
-    //     { status: 401 }
-    //   );
-    // }
-
-    // const token = authHeader.split("Bearer ")[1];
-    // const decodedToken = await getAuth().verifyIdToken(token);
-    // const userEmail = decodedToken.email; // ✅ Get email from token
-    // const firebaseUid = decodedToken.uid;
-     const authHeader = req.headers.get("authorization");
+    // Option 1: Get token from Authorization header (if sent)
+    const authHeader = req.headers.get("authorization");
+    let token: string | null = null;
+    
+    // Option 2: Get token from cookie (fallback)
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+      const cookieToken = req.cookies.get("token")?.value;
+      if (cookieToken) {
+        token = cookieToken;
+      }
+    } else {
+      token = authHeader.split("Bearer ")[1];
+    }
+    
+    if (!token) {
+      return NextResponse.json({ success: false, error: "Unauthorized - No token provided" }, { status: 401 });
     }
 
-    const token = authHeader.split("Bearer ")[1];
     let userEmail: string;
     let firebaseUid: string;
 
@@ -228,8 +227,8 @@ export async function POST(req: NextRequest) {
       };
       userEmail = decoded.email;
       firebaseUid = decoded.uid || decoded.id || userEmail;
-    } catch (err:unknown) {
-      console.log("rooms error:",err)
+    } catch (err) {
+      console.log("Token verification error:", err);
       return NextResponse.json({ success: false, error: "Invalid or expired token" }, { status: 401 });
     }
 
