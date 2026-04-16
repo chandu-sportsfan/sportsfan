@@ -10,7 +10,7 @@ interface AddHostRoomProps {
 }
 
 const AddHostRoom = dynamic<AddHostRoomProps>(
-  () => import('@/components/hostroom-component/CreateRoomPage').then(mod => mod.default || mod),
+  () => import('@/components/hostrooms-components/CreateRoomPage').then(mod => mod.default || mod),
   { ssr: false }
 );
 
