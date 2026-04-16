@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Upload, Image, Video, FileText } from "lucide-react";
+import { X, Upload, FileText } from "lucide-react";
 import axios from "axios";
 
 interface Asset {
@@ -41,7 +41,7 @@ export default function CreateRoomStep3({ roomId, editId, onNext, onPrev, initia
       const response = await axios.get(`/api/rooms/${editId}`);
       if (response.data?.success && response.data.room) {
         const existingAssets = response.data.room.content?.assets || [];
-        const formattedAssets: Asset[] = existingAssets.map((asset: any, index: number) => ({
+        const formattedAssets: Asset[] = existingAssets.map((asset: { type: "video" | "image" | "slide"; url: string; name: string }, index: number) => ({
           id: `existing-${index}`,
           type: asset.type,
           url: asset.url,

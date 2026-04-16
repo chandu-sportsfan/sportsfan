@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Upload, Users, Globe, Tag, Clock, UserPlus } from "lucide-react";
+import { X, Users, Globe, Tag, Clock, UserPlus } from "lucide-react";
 import axios from "axios";
 
 interface Step2FormData {

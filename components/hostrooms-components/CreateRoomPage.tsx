@@ -18,7 +18,7 @@ export default function CreateRoomFlow({ editId }: { editId?: string }) {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [roomId, setRoomId] = useState<string | null>(editId || null);
-  const [isEditMode, setIsEditMode] = useState(!!editId);
+  // const [isEditMode, setIsEditMode] = useState(!!editId);
 
   // If in edit mode, fetch and populate data
   useEffect(() => {
