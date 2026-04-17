@@ -53,6 +53,7 @@ export type SeasonForm = {
   threeW_fiveW_Hauls: string;
   foursConceded: string;
   sixesConceded: string;
+  jerseryNo: string;
 };
 
 export type Insight = {

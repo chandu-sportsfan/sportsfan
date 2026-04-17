@@ -658,7 +658,7 @@ export default function PlayerProfileListPage() {
     );
     if (!confirmed) return;
     try {
-      await axios.delete(`/api/player-profile/${id}`);
+      await axios.delete(`/api/player-profile/search/${id}`);
       // Remove from local state
       setAllProfiles((prev) => prev.filter((p) => p.id !== id));
       setTotalItems((prev) => prev - 1);

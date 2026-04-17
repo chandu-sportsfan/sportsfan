@@ -319,7 +319,7 @@ export default function SignupsPage() {
                           display: "inline-flex", alignItems: "center", gap: 4,
                           padding: "2px 8px", borderRadius: 10,
                           fontSize: 10, fontWeight: 600,
-                          background: isActive ? "rgba(46,160,67,.15)" : "rgba(218,54,51,.15)",
+                          background: isActive ? "rgba(46,160,67,.15)" : "rgba(194, 74, 72, 0.15)",
                           color: isActive ? "#2ea043" : "#da3633",
                         }}>
                           <span style={{ width: 5, height: 5, borderRadius: "50%", background: "currentColor" }} />

@@ -249,6 +249,7 @@ export default function PlayerProfileForm({
                                 economy: findVal(lookup, "econ_ipl26", "econ_ipl", "econ_overall", "econ", "economy"),
                                 bowlingSR: findVal(lookup, "bowling sr_ipl26", "bowling sr_ipl", "bowling sr_overall", "bowling sr", "bowlingsr"),
                                 bowlingAvg: findVal(lookup, "bowling avg_ipl26", "bowling avg_ipl", "bowling avg_overall", "bowling avg", "bowlingavg"),
+                                jerseyNo: findVal(lookup, "Jersey No","jersey no"),
                             },
                         }));
 
