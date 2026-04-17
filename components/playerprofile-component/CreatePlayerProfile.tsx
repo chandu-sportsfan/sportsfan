@@ -347,7 +347,7 @@ export default function CreateClubProfile({ profileIdToEdit }: Props) {
     const [activeTab, setActiveTab] = useState<Tab>("profile");
 
     const [savedProfileId, setSavedProfileId] = useState(profileIdToEdit || "");
-    const [savedHomeId, setSavedHomeId] = useState(""); // ✅ NEW
+    const [savedHomeId, setSavedHomeId] = useState(""); 
     const [savedSeasonId, setSavedSeasonId] = useState("");
     const [savedInsightsId, setSavedInsightsId] = useState("");
     const [savedMediaId, setSavedMediaId] = useState("");
@@ -439,6 +439,7 @@ export default function CreateClubProfile({ profileIdToEdit }: Props) {
                         // threeW_fiveW_Hauls: String(sd.threeWicketHauls ?? ""),
                         foursConceded: String(sd.foursConceded ?? ""),
                         sixesConceded: String(sd.sixesConceded ?? ""),
+                        jerseryNo: String(sd.jerseyNo ?? ""),
                     });
                 }
 
