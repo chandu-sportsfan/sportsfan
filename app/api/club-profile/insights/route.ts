@@ -50,53 +50,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// // ─── GET: Fetch Insights (by clubProfileId) 
-// export async function GET(req: NextRequest) {
-//   try {
-//     const { searchParams } = new URL(req.url);
-//     const clubProfileId = searchParams.get("clubProfileId");
-//     const limit = parseInt(searchParams.get("limit") || "20");
-//     const page = parseInt(searchParams.get("page") || "1");
-
-//     let query: FirebaseFirestore.Query = db.collection("clubInsights");
-
-//     if (clubProfileId) {
-//       query = query.where("clubProfileId", "==", clubProfileId);
-//     }
-
-//     const countSnapshot = await query.count().get();
-//     const totalItems = countSnapshot.data().count;
-
-//     const startAt = (page - 1) * limit;
-//     const snapshot = await query
-//       .orderBy("createdAt", "desc")
-//       .limit(limit)
-//       .offset(startAt)
-//       .get();
-
-//     const insightsDocs = snapshot.docs.map((doc) => ({
-//       id: doc.id,
-//       ...doc.data(),
-//     }));
-
-//     return NextResponse.json({
-//       success: true,
-//       insightsDocs,
-//       pagination: {
-//         currentPage: page,
-//         totalPages: Math.ceil(totalItems / limit),
-//         totalItems,
-//         itemsPerPage: limit,
-//       },
-//     });
-//   } catch (error) {
-//     console.error("Fetch insights error:", error);
-//     return NextResponse.json(
-//       { success: false, message: "Fetch failed" },
-//       { status: 500 }
-//     );
-//   }
-// }
 
 
 

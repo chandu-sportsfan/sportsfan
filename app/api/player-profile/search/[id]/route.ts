@@ -123,3 +123,92 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+
+
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const id = getIdFromUrl(req);
+
+    if (!id) {
+      return NextResponse.json(
+        { success: false, message: "Player profile id required" },
+        { status: 400 }
+      );
+    }
+
+    // Check if profile exists
+    const profileRef = db.collection("PlayerProfiles").doc(id);
+    const profileSnap = await profileRef.get();
+
+    if (!profileSnap.exists) {
+      return NextResponse.json(
+        { success: false, message: "Player profile not found" },
+        { status: 404 }
+      );
+    }
+
+    // Get all related documents to delete
+    const [
+      homeSnap,
+      seasonSnap,
+      insightsSnap,
+      mediaSnap,
+    ] = await Promise.all([
+      db
+        .collection("playershome")
+        .where("playerProfilesId", "==", id)
+        .get(),
+      db
+        .collection("playerSeasons")
+        .where("playerProfilesId", "==", id)
+        .get(),
+      db
+        .collection("playerInsights")
+        .where("playerProfilesId", "==", id)
+        .get(),
+      db
+        .collection("playerMedia")
+        .where("playerProfileId", "==", id)
+        .get(),
+    ]);
+
+    // Delete all related documents in batches using Promise.all with proper typing
+    const deleteOperations = [
+      // Delete home documents
+      ...homeSnap.docs.map((doc) => db.collection("playershome").doc(doc.id).delete()),
+      // Delete season documents
+      ...seasonSnap.docs.map((doc) => db.collection("playerSeasons").doc(doc.id).delete()),
+      // Delete insights documents
+      ...insightsSnap.docs.map((doc) => db.collection("playerInsights").doc(doc.id).delete()),
+      // Delete media documents
+      ...mediaSnap.docs.map((doc) => db.collection("playerMedia").doc(doc.id).delete()),
+    ];
+
+    // Wait for all related documents to be deleted
+    await Promise.all(deleteOperations);
+
+    // Finally, delete the main profile
+    await profileRef.delete();
+
+    return NextResponse.json({
+      success: true,
+      message: "Player profile and all related data deleted successfully",
+      deleted: {
+        profile: 1,
+        home: homeSnap.size,
+        seasons: seasonSnap.size,
+        insights: insightsSnap.size,
+        media: mediaSnap.size,
+      },
+    });
+
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Unexpected error";
+    console.error("[DELETE Player Profile Error]:", error);
+    return NextResponse.json(
+      { success: false, message: msg },
+      { status: 500 }
+    );
+  }
+}

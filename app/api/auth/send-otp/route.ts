@@ -1,3 +1,5 @@
+//api/auth/send-otp/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { transporter } from "@/lib/mailer";
@@ -8,10 +10,10 @@ export async function POST(req: NextRequest) {
 
     const { firstName, lastName, email } = await req.json();
 
-    console.log("📧 Email:", email);
-    console.log("👤 Name:", firstName, lastName);
+    // console.log(" Email:", email);
+    // console.log(" Name:", firstName, lastName);
 
-    // ✅ Validation
+    //  Validation
     if (!email || !email.includes("@")) {
       return NextResponse.json({ error: "Valid email required" }, { status: 400 });
     }
@@ -20,16 +22,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
 
-    // =========================
-    // 🔍 CHECK USER EXISTS
-    // =========================
-    console.log("🔍 Checking if user exists...");
+    
+    //  CHECK USER EXISTS
+    
+    // console.log(" Checking if user exists...");
 
     const userRef = db.collection("users").doc(email);
     const userDoc = await userRef.get();
 
     if (userDoc.exists) {
-      console.log("⚠️ User already exists");
+      // console.log(" User already exists");
 
       return NextResponse.json(
         { error: "User already exists. Please login." },
@@ -38,9 +40,9 @@ export async function POST(req: NextRequest) {
     }
 
     // =========================
-    // ✅ CREATE USER
+    //  CREATE USER
     // =========================
-    console.log("🆕 Creating new user...");
+    console.log(" Creating new user...");
 
     await userRef.set({
       firstName,
@@ -52,16 +54,16 @@ export async function POST(req: NextRequest) {
       role: "user",
     });
 
-    console.log("✅ User created");
+    console.log(" User created");
 
     // =========================
-    // 🔢 GENERATE OTP
+    //  GENERATE OTP
     // =========================
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    console.log("🔢 OTP:", otp);
+    // console.log(" OTP:", otp);
 
     // =========================
-    // 💾 SAVE OTP
+    //  SAVE OTP
     // =========================
     await db.collection("otps").doc(email).set({
       otp,
@@ -69,10 +71,10 @@ export async function POST(req: NextRequest) {
       expiresAt: Date.now() + 5 * 60 * 1000,
     });
 
-    console.log("✅ OTP saved");
+    // console.log(" OTP saved");
 
     // =========================
-    // 📧 SEND EMAIL
+    //  SEND EMAIL
     // =========================
     await transporter.sendMail({
       from: `"SportsFan360" <${process.env.EMAIL}>`,
@@ -86,7 +88,7 @@ export async function POST(req: NextRequest) {
       `,
     });
 
-    console.log("✅ Email sent");
+    console.log(" Email sent");
 
     return NextResponse.json({
       success: true,
@@ -94,7 +96,7 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: unknown) {
-    console.error("❌ ERROR:", error);
+    // console.error(" ERROR:", error);
     const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
     return NextResponse.json(
       { error: errorMessage },

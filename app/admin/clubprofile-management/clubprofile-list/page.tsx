@@ -107,7 +107,7 @@ export default function ClubProfileListPage() {
         <div>
           <h1 className="text-xl font-semibold text-white">Club Profiles</h1>
           <p className="text-sm text-gray-400 mt-1">
-            {totalItems} profile{totalItems !== 1 ? "s" : ""} total
+            10 profile{totalItems !== 1 ? "s" : ""} total
           </p>
         </div>
         <Link href="/admin/club-profile-management/add-club-profile">

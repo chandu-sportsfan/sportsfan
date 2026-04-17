@@ -141,7 +141,7 @@ export async function GET(req: NextRequest) {
       .collection("clubSeasons")
       .where("clubProfileId", "==", profileId)
       .orderBy("season.year", "desc")
-      .limit(seasonsLimit) // ✅ Added limit!
+      .limit(seasonsLimit) // Added limit!
       .get();
     
     const seasons = seasonsSnapshot.docs.map(doc => ({

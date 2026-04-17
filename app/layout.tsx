@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Providers from "./providers";
 import { Team360PlaylistProvider } from "@/context/Team360PlaylistContext";
+import { RoomProvider } from "@/context/RoomContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,7 +32,9 @@ export default function RootLayout({
       >
         <Providers>
           <Team360PlaylistProvider>
+            <RoomProvider>
             {children}
+            </RoomProvider>
           </Team360PlaylistProvider>
         </Providers>
       </body>

@@ -2,37 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 
 // // ─── GET: Fetch posts by playerProfilesId ─────────────────────────────
-// export async function GET(req: NextRequest) {
-//   try {
-//     const { searchParams } = new URL(req.url);
-//     const playerProfilesId = searchParams.get("playerProfilesId");
 
-//     let query = db.collection("playershome").orderBy("createdAt", "desc");
 
-//     if (playerProfilesId) {
-//       query = query.where("playerProfilesId", "==", playerProfilesId);
-//     }
-
-//     const snap = await query.get();
-
-//     const posts = snap.docs.map((d) => ({
-//       id: d.id,
-//       ...d.data(),
-//     }));
-
-//     return NextResponse.json({
-//       success: true,
-//       posts,
-//       total: posts.length,
-//     });
-//   } catch (error: unknown) {
-//     const msg = error instanceof Error ? error.message : "Unexpected error";
-//     return NextResponse.json(
-//       { success: false, error: msg },
-//       { status: 500 }
-//     );
-//   }
-// }
 // export async function GET(req: NextRequest) {
 //   try {
 //     const { searchParams } = new URL(req.url);
@@ -42,33 +13,59 @@ import { db } from "@/lib/firebaseAdmin";
 //     const lastDocId = searchParams.get("lastDocId");
 //     const lastDocCreatedAt = searchParams.get("lastDocCreatedAt");
 
-//     // Normalize search term: lowercase and trim
-//     const search = rawSearch.toLowerCase().trim();
-
-//     // SEARCH PATH - Use playerName directly
-//     if (search) {
-//       let searchQuery = db
+//     // If searching
+//     if (rawSearch) {
+//       const searchLower = rawSearch.toLowerCase();
+      
+//       // Search by full name (starts with)
+//       const fullNameSnap = await db
 //         .collection("playershome")
-//         .orderBy("playerName")                    // ← Changed from playerNameLower
-//         .where("playerName", ">=", search)        // ← Changed from playerNameLower
-//         .where("playerName", "<=", search + "\uf8ff")
-//         .limit(limit);
-
-//       if (playerProfilesId) {
-//         searchQuery = searchQuery.where("playerProfilesId", "==", playerProfilesId);
+//         .where("playerNameLower", ">=", searchLower)
+//         .where("playerNameLower", "<=", searchLower + "\uf8ff")
+//         .limit(limit)
+//         .get();
+      
+//       if (!fullNameSnap.empty) {
+//         return NextResponse.json({
+//           success: true,
+//           posts: fullNameSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+//           pagination: { limit, hasMore: false, nextCursor: null },
+//         });
 //       }
-
-//       const snap = await searchQuery.get();
-//       const posts = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-
+      
+//       // If no match, try searching for last name
+   
+//       const lastNameSnap = await db
+//         .collection("playershome")
+//         .where("playerNameLower", ">=", searchLower)
+//         .where("playerNameLower", "<=", searchLower + "\uf8ff")
+//         .limit(limit)
+//         .get();
+      
+//       // If still no match, do a contains search (more expensive but works)
+//       // Note: This requires all documents to be read (use sparingly)
+//       if (lastNameSnap.empty) {
+//         const allDocs = await db.collection("playershome").get();
+//         const matchedDocs = allDocs.docs.filter(doc => {
+//           const name = doc.data().playerNameLower;
+//           return name.includes(searchLower);
+//         }).slice(0, limit);
+        
+//         return NextResponse.json({
+//           success: true,
+//           posts: matchedDocs.map(d => ({ id: d.id, ...d.data() })),
+//           pagination: { limit, hasMore: false, nextCursor: null },
+//         });
+//       }
+      
 //       return NextResponse.json({
 //         success: true,
-//         posts,
+//         posts: lastNameSnap.docs.map(d => ({ id: d.id, ...d.data() })),
 //         pagination: { limit, hasMore: false, nextCursor: null },
 //       });
 //     }
 
-//     // NORMAL PAGINATED PATH (no search)
+//     // No search - normal paginated response
 //     let query = db.collection("playershome").orderBy("createdAt", "desc");
 
 //     if (playerProfilesId) {
@@ -110,6 +107,29 @@ import { db } from "@/lib/firebaseAdmin";
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
+    const action = searchParams.get("action");
+    
+    // Handle count request
+    if (action === "count") {
+      const collectionRef = db.collection("playershome");
+      const playerProfilesId = searchParams.get("playerProfilesId");
+      let query: FirebaseFirestore.Query = collectionRef;
+      
+      if (playerProfilesId) {
+        query = query.where("playerProfilesId", "==", playerProfilesId);
+      }
+      
+      const snapshot = await query.count().get();
+      const totalCount = snapshot.data().count;
+      
+      return NextResponse.json({
+        success: true,
+        totalCount,
+        filtered: !!playerProfilesId,
+        filter: playerProfilesId || null,
+      });
+    }
+    
     const playerProfilesId = searchParams.get("playerProfilesId");
     const rawSearch = searchParams.get("search")?.trim() || "";
     const limit = parseInt(searchParams.get("limit") || "20");
@@ -118,21 +138,59 @@ export async function GET(req: NextRequest) {
 
     // If searching
     if (rawSearch) {
-      // Convert search to lowercase for case-insensitive search
       const searchLower = rawSearch.toLowerCase();
       
-      // Search using playerNameLower (case-insensitive)
-      const searchSnap = await db
+      // FIRST: Try prefix search (starts with) - FAST with index
+      const prefixSnap = await db
         .collection("playershome")
         .where("playerNameLower", ">=", searchLower)
         .where("playerNameLower", "<=", searchLower + "\uf8ff")
         .limit(limit)
         .get();
       
+      if (!prefixSnap.empty) {
+        return NextResponse.json({
+          success: true,
+          posts: prefixSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+          pagination: { limit, hasMore: prefixSnap.docs.length === limit, nextCursor: null },
+        });
+      }
+      
+      // SECOND: Try contains search - Get ALL documents for accurate search
+      console.log("Prefix search found no results, trying contains search for:", searchLower);
+      
+      // Get ALL documents (no limit) or increase limit significantly
+      const allDocs = await db.collection("playershome").get(); // Get ALL documents
+      console.log(`Total documents in collection: ${allDocs.size}`);
+      
+      const matchedDocs = allDocs.docs.filter(doc => {
+        const data = doc.data();
+        const playerNameLower = data.playerNameLower || "";
+        const playerName = data.playerName || "";
+        
+        // Check if search term exists in the name
+        const matches = playerNameLower.includes(searchLower) || 
+                       playerName.toLowerCase().includes(searchLower);
+        
+        if (matches) {
+          console.log(`Found match: ${playerName} (ID: ${doc.id})`);
+        }
+        
+        return matches;
+      }).slice(0, limit);
+      
+      console.log(`Found ${matchedDocs.length} matches for "${searchLower}"`);
+      
       return NextResponse.json({
         success: true,
-        posts: searchSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+        posts: matchedDocs.map(d => ({ id: d.id, ...d.data() })),
         pagination: { limit, hasMore: false, nextCursor: null },
+        searchType: "contains",
+        debug: {
+          totalDocsScanned: allDocs.size,
+          matchesFound: matchedDocs.length,
+          searchTerm: searchLower
+        }
       });
     }
 

@@ -236,7 +236,7 @@ export async function PUT(req: NextRequest) {
 }
 
 
-// ✅ DELETE single post using query param
+//  DELETE single post using query param
 export async function DELETE(req: NextRequest) {
   try {
     const url = new URL(req.url);

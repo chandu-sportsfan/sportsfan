@@ -96,7 +96,8 @@ export async function DELETE(req: NextRequest) {
       "PlayerProfiles",
       "playershome",
       "playerMedia",
-      "playerInsights"
+      "playerInsights",
+      "playerSeasons"
     ];
 
     // Delete all documents from each collection

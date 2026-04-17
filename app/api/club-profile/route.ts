@@ -85,48 +85,6 @@ export async function POST(req: NextRequest) {
 }
 
 
-// export async function GET(req: NextRequest) {
-//   try {
-//     const { searchParams } = new URL(req.url);
-//     const limit = parseInt(searchParams.get("limit") || "20");
-//     const page = parseInt(searchParams.get("page") || "1");
-
-//     const collectionRef = db.collection("clubProfiles");
-//     const countSnapshot = await collectionRef.count().get();
-//     const totalItems = countSnapshot.data().count;
-
-//     const startAt = (page - 1) * limit;
-//     const snapshot = await collectionRef
-//       .orderBy("createdAt", "desc")
-//       .limit(limit)
-//       .offset(startAt)
-//       .get();
-
-//     const profiles = snapshot.docs.map((doc) => ({
-//       id: doc.id,
-//       ...doc.data(),
-//     }));
-
-//     return NextResponse.json({
-//       success: true,
-//       profiles,
-//       pagination: {
-//         currentPage: page,
-//         totalPages: Math.ceil(totalItems / limit),
-//         totalItems,
-//         itemsPerPage: limit,
-//       },
-//     });
-//   } catch (error) {
-//     console.error("Fetch club profiles error:", error);
-//     return NextResponse.json(
-//       { success: false, message: "Fetch failed" },
-//       { status: 500 }
-//     );
-//   }
-// }
-
-
 
 
 export async function GET(req: NextRequest) {
