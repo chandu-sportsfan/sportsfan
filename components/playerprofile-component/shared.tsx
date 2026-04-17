@@ -19,6 +19,7 @@ export type ProfileForm = {
   specialization: string;
   dob: string;
   matches: string;
+  avatarPreview: string;
 };
 
 export type SeasonForm = {
@@ -53,7 +54,7 @@ export type SeasonForm = {
   threeW_fiveW_Hauls: string;
   foursConceded: string;
   sixesConceded: string;
-  jerseryNo: string;
+  jerseyNo: string;
 };
 
 export type Insight = {
