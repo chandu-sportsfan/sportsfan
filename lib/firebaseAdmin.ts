@@ -77,8 +77,6 @@ if (!admin.apps.length) {
   db = admin.firestore(app);
   db.settings({
     ignoreUndefinedProperties: true,
-    //  Add this — explicitly use the default database
-    databaseId: "default",
   });
 
   console.log(" Firebase initialized");

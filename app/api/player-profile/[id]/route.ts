@@ -107,10 +107,13 @@ export async function PUT(req: NextRequest) {
     const dob = formData.get("dob") as string;
     const matches = formData.get("matches") as string;
     const avatarFile = formData.get("avatar") as File | null;
+    const avatarUrl = formData.get("avatarUrl") as string;
 
     // Upload new avatar only if provided
-    let avatarUrl = (existingData.avatar as string) || "";
-    if (avatarFile && avatarFile.size > 0) {
+    let resolvedAvatarUrl = (existingData.avatar as string) || "";
+    if (avatarUrl) {
+      resolvedAvatarUrl = avatarUrl;
+    } else if (avatarFile && avatarFile.size > 0) {
       const bytes = await avatarFile.arrayBuffer();
       const buffer = Buffer.from(bytes);
       const base64 = `data:${avatarFile.type};base64,${buffer.toString("base64")}`;
@@ -118,7 +121,7 @@ export async function PUT(req: NextRequest) {
         folder: "club-profiles/avatars",
         public_id: `${Date.now()}-${avatarFile.name.replace(/\s/g, "_")}`,
       });
-      avatarUrl = uploadRes.secure_url;
+      resolvedAvatarUrl = uploadRes.secure_url;
     }
 
     const updateData = {
@@ -127,7 +130,7 @@ export async function PUT(req: NextRequest) {
       battingStyle: battingStyle ?? existingData.battingStyle,
       bowlingStyle: bowlingStyle ?? existingData.bowlingStyle,
       about: about ?? existingData.about,
-      avatar: avatarUrl,
+      avatar: resolvedAvatarUrl,
       stats: {
         runs: statsRuns || (existingData.stats as Record<string, string>)?.runs || "0",
         sr: statsSr || (existingData.stats as Record<string, string>)?.sr || "0",

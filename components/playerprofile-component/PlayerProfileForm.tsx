@@ -635,29 +635,104 @@ export default function PlayerProfileForm({
                 async (row, idx) => {
                     const lookup = buildLookup(row);
 
-                    const playerForm = {
-                        name: findVal(lookup, "player", "name", "player name"),
-                        team: findVal(lookup, "team"),
-                        battingStyle: findVal(lookup, "bat hand", "batting style", "batting"),
-                        bowlingStyle: findVal(lookup, "bowling type", "bowl type", "bowling style", "bowl"),
-                        age: findVal(lookup, "age in yrs", "age"),
-                        dob: findVal(lookup, "age") ? `${findVal(lookup, "age")} yrs` : "",
-                        // FIX: scoped to IPL stats to avoid ambiguity across _Overall/_IPL/_2025 variants
-                        statsSr: findVal(lookup, "batting sr_ipl", "batting sr_overall", "batting sr", "strike rate"),
-                        statsAvg: findVal(lookup, "batting avg_ipl", "batting avg_overall", "batting avg", "average"),
-                        statsRuns: findVal(lookup, "runs_ipl", "runs_overall", "total runs", "runs"),
-                        // FIX: "innings" is the correct column name; there is no "matches" column
-                        matches: findVal(lookup, "innings_ipl", "innings_overall", "innings", "matches"),
-                        specialization: findVal(lookup, "role", "specialization"),
-                        // FIX: "ipl debut" and "about" columns do not exist in the sheet — removed fallback
-                        // Add these columns to the Excel sheet if needed, otherwise they will be empty
-                        iplDebut: findVal(lookup, "ipl debut", "debut") ?? "",
-                        about: findVal(lookup, "about", "description") ?? "",
+                    const profileForm = {
+                        name: findVal(lookup, "player name", "name", "player"),
+                        team: findVal(lookup, "team", "team code"),
+                        battingStyle: findVal(lookup, "batting style", "bat hand", "batting"),
+                        bowlingStyle: findVal(lookup, "bowling style", "bowl type", "bowling type", "bowl"),
+                        about: findVal(lookup, "about"),
+                        statsRuns: findVal(lookup, "runs", "total runs"),
+                        statsSr: findVal(lookup, "strike rate", "batting sr", "sr"),
+                        statsAvg: findVal(lookup, "average", "batting avg", "avg"),
+                        iplDebut: findVal(lookup, "ipl debut year", "ipl debut", "debut year", "debut"),
+                        specialization: findVal(lookup, "specialization", "role"),
+                        dob: findVal(lookup, "dob", "date of birth"),
+                        matches: findVal(lookup, "matches", "innings"),
                     };
 
-                    if (!playerForm.name || !playerForm.team) {
+                    const playerImage = findVal(lookup, "player image", "player avatar", "player photo", "headshot");
+                    const teamImage = findVal(lookup, "team image", "team logo", "logo");
+
+                    const homePayload = {
+                        playerName: profileForm.name,
+                        title: findVal(lookup, "player title", "title"),
+                        likes: findVal(lookup, "likes"),
+                        comments: findVal(lookup, "comments"),
+                        live: findVal(lookup, "live"),
+                        shares: findVal(lookup, "shares"),
+                        image: teamImage,
+                        logo: playerImage,
+                        hasVideo: false,
+                    };
+
+                    const insightTitle = findVal(lookup, "insight title");
+                    const insightDescription = findVal(lookup, "insight description");
+                    const strength1 = findVal(lookup, "strength 1", "strength one");
+                    const strength2 = findVal(lookup, "strength 2", "strength two");
+                    const mediaImage = findVal(lookup, "media image", "image url", "thumbnail", "photo");
+                    const photoTitle = findVal(lookup, "photo title", "media title");
+
+                    const insightsPayload = {
+                        insights: insightTitle || insightDescription ? [{ title: insightTitle, description: insightDescription }] : [],
+                        strengths: [strength1, strength2].filter((strength) => strength.trim().length > 0),
+                    };
+
+                    const mediaPayload = {
+                        titles: photoTitle ? [photoTitle] : [],
+                        views: [findVal(lookup, "views") || "0"],
+                        times: [findVal(lookup, "time")],
+                        existingThumbnails: [mediaImage],
+                    };
+
+                    const combinedFiftiesHundreds = findVal(
+                        lookup,
+                        "50s_100s",
+                        "50s and 100s",
+                        "fifties and hundreds",
+                        "fifties_hundreds"
+                    );
+                    const [fiftiesValue = "", hundredsValue = ""] = combinedFiftiesHundreds
+                        .split(/[\/|\-]/)
+                        .map((value) => value.trim());
+
+                    const combinedThreeWFiveW = findVal(
+                        lookup,
+                        "3w_5w",
+                        "3w and 5w",
+                        "three wicket hauls",
+                        "five wicket hauls"
+                    );
+                    const [threeWicketHauls = "", fiveWicketHauls = ""] = combinedThreeWFiveW
+                        .split(/[\/|\-]/)
+                        .map((value) => value.trim());
+
+                    const seasonPayload = {
+                        year: findVal(lookup, "year", "ipl year", "season year") || "2026",
+                        runs: findVal(lookup, "runs", "total runs"),
+                        strikeRate: findVal(lookup, "strike rate", "batting sr", "sr"),
+                        average: findVal(lookup, "average", "batting avg", "avg"),
+                        fifties: fiftiesValue,
+                        hundreds: hundredsValue,
+                        highestScore: findVal(lookup, "hs", "highest score"),
+                        fours: findVal(lookup, "fours", "bat fours"),
+                        sixes: findVal(lookup, "sixes", "bat sixes"),
+                        award: findVal(lookup, "award", "player award"),
+                        awardSub: findVal(lookup, "award sub", "award subtitle"),
+                        wickets: findVal(lookup, "wickets"),
+                        deliveries: findVal(lookup, "deliveries"),
+                        bowlingAvg: findVal(lookup, "bowling avg", "bowl avg"),
+                        bowlingSR: findVal(lookup, "bowling sr", "bowl sr"),
+                        economy: findVal(lookup, "economy", "econ"),
+                        bestBowling: findVal(lookup, "best bowling", "bb"),
+                        threeWicketHauls,
+                        fiveWicketHauls,
+                        foursConceded: findVal(lookup, "fours conceded", "bowl fours"),
+                        sixesConceded: findVal(lookup, "sixes conceded", "bowl sixes"),
+                    };
+
+                    if (!profileForm.name || !profileForm.team) {
                         failedRows.push(
-                            `Row ${idx + 2}: Missing name ("${playerForm.name}") or team ("${playerForm.team}")`
+                            `Row ${idx + 2}: Missing name ("${profileForm.name}") or team ("${profileForm.team}")`
                         );
                         return;
                     }
@@ -665,44 +740,42 @@ export default function PlayerProfileForm({
                     try {
                         // Step 1 — Create player profile
                         const fd = new FormData();
-                        Object.entries(playerForm).forEach(([k, v]) => fd.append(k, v));
+                        Object.entries(profileForm).forEach(([k, v]) => fd.append(k, v));
+                        if (playerImage) fd.append("avatarUrl", playerImage);
                         const profileRes = await axios.post("/api/player-profile", fd);
                         const newProfileId: string = profileRes.data.profile.id;
 
                         // Step 2 — Create home post
                         await axios.post("/api/player-profile/home", {
-                            playerName: playerForm.name,
-                            title: findVal(lookup, "title"),
-                            likes: findVal(lookup, "likes"),
-                            comments: findVal(lookup, "comments"),
-                            live: findVal(lookup, "live"),
-                            shares: findVal(lookup, "shares"),
+                            ...homePayload,
                             playerProfilesId: newProfileId,
                         });
 
                         // Step 3 — Create season stats
-                        
                         await axios.post("/api/player-profile/seasonstats", {
                             playerProfilesId: newProfileId,
-                            season: {
-                                year: findVal(lookup, "year") ?? "2026",
-                                runs: findVal(lookup, "runs_ipl26", "runs_ipl", "runs_overall", "runs"),
-                                strikeRate: findVal(lookup, "batting sr_ipl26", "batting sr_ipl", "batting sr_overall", "batting sr", "strike rate"),
-                                average: findVal(lookup, "batting avg_ipl26", "batting avg_ipl", "batting avg_overall", "batting avg", "average"),
-                                wickets: findVal(lookup, "wickets_ipl26", "wickets_ipl", "wickets_overall", "wickets"),
-                                fiftiesAndHundreds: findVal(lookup, "50s_100s_IPL26"),
-                                highestScore: findVal(lookup, "HS_IPL26"),
-                                fours: findVal(lookup, "_raw_bat_fours_IPL26"),
-                                sixes: findVal(lookup, "_raw_bat_sixes_IPL26"),
-                                threeW_fiveW_Hauls: findVal(lookup, "3W_5W_IPL26"),
-                                foursConceded: findVal(lookup, "_raw_bowl_fours_IPL26"),
-                                sixesConceded: findVal(lookup, "_raw_bowl_sixes_IPL26"),
-                                bestBowling: findVal(lookup, "BB_IPL26"),
-                                economy: findVal(lookup, "econ_ipl26", "econ_ipl", "econ_overall", "econ", "economy"),
-                                bowlingSR: findVal(lookup, "bowling sr_ipl26", "bowling sr_ipl", "bowling sr_overall", "bowling sr", "bowlingsr"),
-                                bowlingAvg: findVal(lookup, "bowling avg_ipl26", "bowling avg_ipl", "bowling avg_overall", "bowling avg", "bowlingavg"),
-                            },
+                            season: seasonPayload,
                         });
+
+                        // Step 4 — Create insights
+                        if (insightsPayload.insights.length || insightsPayload.strengths.length) {
+                            await axios.post("/api/player-profile/insights", {
+                                playerProfilesId: newProfileId,
+                                insights: insightsPayload.insights,
+                                strengths: insightsPayload.strengths,
+                            });
+                        }
+
+                        // Step 5 — Create media entry
+                        if (mediaPayload.titles.length || mediaPayload.existingThumbnails[0]) {
+                            await axios.post("/api/player-profile/media", {
+                                playerProfilesId: newProfileId,
+                                titles: mediaPayload.titles.length ? mediaPayload.titles : [profileForm.name],
+                                views: mediaPayload.views,
+                                times: mediaPayload.times,
+                                existingThumbnails: mediaPayload.existingThumbnails,
+                            });
+                        }
 
                         successCount++;
                     } catch (err: unknown) {
@@ -710,7 +783,7 @@ export default function PlayerProfileForm({
                             axios.isAxiosError(err)
                                 ? `${err.response?.status ?? ""} ${JSON.stringify(err.response?.data ?? err.message)}`
                                 : String(err);
-                        failedRows.push(`Row ${idx + 2} (${playerForm.name}): ${msg}`);
+                        failedRows.push(`Row ${idx + 2} (${profileForm.name}): ${msg}`);
                     }
                 },
                 (done) => setProgress((p) => ({ ...p, current: done }))
