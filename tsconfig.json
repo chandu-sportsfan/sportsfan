@@ -63,6 +63,6 @@
       "@/*": ["./*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "components/clubprofile-component/CreateClubProfile"],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "components/clubprofile-component/CreateClubProfile", "app/api/playersprofile-playlist/[id]/ro"],
   "exclude": ["node_modules"]
 }
