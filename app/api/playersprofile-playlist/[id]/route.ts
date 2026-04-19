@@ -116,10 +116,10 @@ export async function PUT(req: NextRequest) {
       // Handle FormData with file uploads
       const formData = await req.formData();
       
-      // Update team360PostId if provided
-      const newTeam360PostId = formData.get("playerProfilesId") as string;
-      if (newTeam360PostId) {
-        playerProfilesId = newTeam360PostId;
+      // Update playerProfilesId if provided
+      const newplayerProfilesId = formData.get("playerProfilesId") as string;
+      if (newplayerProfilesId) {
+        playerProfilesId = newplayerProfilesId;
       }
       
       // Handle existing drops (passed as JSON strings)
@@ -298,8 +298,8 @@ export async function PUT(req: NextRequest) {
         updatedAt: Date.now(),
       };
       
-      if (body.team360PostId !== undefined) {
-        updateData.team360PostId = body.team360PostId;
+      if (body.playerProfilesId !== undefined) {
+        updateData.playerProfilesId = body.playerProfilesId;
       }
       if (body.audioDrops !== undefined) {
         updateData.audioDrops = body.audioDrops;

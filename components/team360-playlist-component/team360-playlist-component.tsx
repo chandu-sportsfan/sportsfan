@@ -458,7 +458,7 @@ export default function CreatePlaylistForm({
                 onClick={() => addDrop(type)}
                 className="bg-blue-600 px-4 py-2 rounded text-white hover:bg-blue-700"
             >
-                + Add {label}
+              Add {label}
             </button>
         </div>
     );

@@ -2,29 +2,39 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { DropItem, useTeam360Playlist } from "@/context/Team360PlaylistContext";
+import { DropItem, usePlayersProfiePlaylist } from "@/context/PlayersProfilePlaylistContext";
 import axios from "axios";
 
 type FormState = {
-    team360PostId: string;
+    playerProfilesId: string;
+    playerName: string;
     teamName: string;
     audioDrops: DropItem[];
     videoDrops: DropItem[];
 };
 
-interface Team360Post {
+interface PlayerProfile {
     id: string;
-    teamName: string;
+    playerProfilesId: string;  // Add this field
+    playerName: string;
+    playerNameLower: string;
     title: string;
+    category: Array<{ title: string; image: string }>;
+    likes: number;
+    comments: number;
+    live: number;
+    shares: number;
+    image: string;
     logo: string;
+    createdAt: number;
 }
 
 export default function CreatePlaylistForm({
     playlistIdToEdit,
-    team360playlistPostId,
+    playerProfilesplaylistPostId,
 }: {
     playlistIdToEdit?: string;
-    team360playlistPostId?: string;
+    playerProfilesplaylistPostId?: string;
 }) {
     const router = useRouter();
 
@@ -32,17 +42,21 @@ export default function CreatePlaylistForm({
         singlePlaylist,
         loading,
         fetchSinglePlaylist,
-    } = useTeam360Playlist();
+    } = usePlayersProfiePlaylist();
 
     const [form, setForm] = useState<FormState>({
-        team360PostId: team360playlistPostId || "",
+        playerProfilesId: playerProfilesplaylistPostId || "",
+        playerName: "",
         teamName: "",
         audioDrops: [],
         videoDrops: [],
     });
 
-    const [team360Posts, setTeam360Posts] = useState<Team360Post[]>([]);
-    const [fetchingPosts, setFetchingPosts] = useState(false);
+    const [playerProfiles, setPlayerProfiles] = useState<PlayerProfile[]>([]);
+    const [fetchingPlayers, setFetchingPlayers] = useState(false);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [showDropdown, setShowDropdown] = useState(false);
+    const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
 
     // Store the actual File objects for upload
     const [audioFiles, setAudioFiles] = useState<Record<string, File>>({});
@@ -50,23 +64,61 @@ export default function CreatePlaylistForm({
     const [audioThumbnails, setAudioThumbnails] = useState<Record<string, File>>({});
     const [videoThumbnails, setVideoThumbnails] = useState<Record<string, File>>({});
 
-    // Fetch Team360 posts for dropdown
-    useEffect(() => {
-        fetchTeam360Posts();
-    }, []);
+    // Search players function (without debounce)
+    const searchPlayers = async (searchQuery: string) => {
+        if (!searchQuery.trim()) {
+            setPlayerProfiles([]);
+            setShowDropdown(false);
+            return;
+        }
 
-    const fetchTeam360Posts = async () => {
         try {
-            setFetchingPosts(true);
-            const response = await axios.get("/api/team360");
-            if (response.data?.posts) {
-                setTeam360Posts(response.data.posts);
+            setFetchingPlayers(true);
+            const response = await axios.get(`/api/player-profile/home?search=${encodeURIComponent(searchQuery)}`);
+            
+            if (response.data?.success && response.data?.posts) {
+                setPlayerProfiles(response.data.posts);
+                setShowDropdown(true);
+            } else {
+                setPlayerProfiles([]);
+                setShowDropdown(false);
             }
         } catch (error) {
-            console.error("Failed to fetch Team360 posts:", error);
+            console.error("Failed to fetch player profiles:", error);
+            setPlayerProfiles([]);
+            setShowDropdown(false);
         } finally {
-            setFetchingPosts(false);
+            setFetchingPlayers(false);
         }
+    };
+
+    // Handle search input change with simple timeout debounce
+    const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        setSearchTerm(value);
+        
+        // Clear previous timeout
+        if (searchTimeout) {
+            clearTimeout(searchTimeout);
+        }
+        
+        // Set new timeout
+        const timeout = setTimeout(() => {
+            searchPlayers(value);
+        }, 300);
+        
+        setSearchTimeout(timeout);
+    };
+
+    // Handle player selection - FIXED: Use playerProfilesId instead of id
+    const handlePlayerSelect = (player: PlayerProfile) => {
+        setForm((prev) => ({
+            ...prev,
+            playerProfilesId: player.playerProfilesId, // Use playerProfilesId, not id
+            teamName: player.playerName,
+        }));
+        setSearchTerm(player.playerName);
+        setShowDropdown(false);
     };
 
     /* EDIT MODE FETCH */
@@ -79,26 +131,39 @@ export default function CreatePlaylistForm({
     /* PREFILL FORM */
     useEffect(() => {
         if (singlePlaylist && playlistIdToEdit) {
-            // Find the team name from the posts list
-            const matchedPost = team360Posts.find(post => post.id === singlePlaylist.team360PostId);
+            // If we have the player name from the playlist, set it in search
+            if (singlePlaylist.name) {
+                setSearchTerm(singlePlaylist.name);
+            }
+            
             setForm({
-                team360PostId: singlePlaylist.team360PostId,
-                teamName: matchedPost?.teamName || "",
+                playerProfilesId: singlePlaylist.playerProfilesId,
+                playerName: singlePlaylist.playerName,
+                teamName: singlePlaylist.name || "",
                 audioDrops: singlePlaylist.audioDrops || [],
                 videoDrops: singlePlaylist.videoDrops || [],
             });
         }
-    }, [singlePlaylist, playlistIdToEdit, team360Posts]);
+    }, [singlePlaylist, playlistIdToEdit]);
 
-    /* Handle Team Selection */
-    const handleTeamSelect = (postId: string) => {
-        const selectedPost = team360Posts.find(post => post.id === postId);
-        setForm((prev) => ({
-            ...prev,
-            team360PostId: postId,
-            teamName: selectedPost?.teamName || "",
-        }));
-    };
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            if (!target.closest('.player-search-container')) {
+                setShowDropdown(false);
+            }
+        };
+        
+        document.addEventListener('click', handleClickOutside);
+        return () => {
+            document.removeEventListener('click', handleClickOutside);
+            // Cleanup timeout on unmount
+            if (searchTimeout) {
+                clearTimeout(searchTimeout);
+            }
+        };
+    }, [searchTimeout]);
 
     /* UPDATE DROP */
     const updateDrop = (
@@ -187,7 +252,7 @@ export default function CreatePlaylistForm({
             alert("Please select a video file");
             return;
         }
-        if (fileType === "image" && !file.type.startsWith("image/")) {
+        if (fileType === "image" && !file.type.startsWith("image/")) { 
             alert("Please select an image file for thumbnail");
             return;
         }
@@ -215,11 +280,12 @@ export default function CreatePlaylistForm({
 
     /* SUBMIT WITH FORM DATA */
     const handleSubmit = async () => {
-        if (!form.team360PostId) {
-            alert("Please select a Team");
+        if (!form.playerProfilesId) {
+            alert("Please select a player");
             return;
         }
-
+        console.log("playerprofileId :", form.playerProfilesId);
+        
         const allDrops = [...form.audioDrops, ...form.videoDrops];
         for (const drop of allDrops) {
             if (!drop.title) {
@@ -229,7 +295,8 @@ export default function CreatePlaylistForm({
         }
 
         const formData = new FormData();
-        formData.append("team360PostId", form.team360PostId);
+        formData.append("playerProfilesId", form.playerProfilesId);
+        //  formData.append("playerName", form.playerName);
 
         // Add audio drops
         form.audioDrops.forEach((drop, index) => {
@@ -287,8 +354,8 @@ export default function CreatePlaylistForm({
         try {
             const response = await fetch(
                 playlistIdToEdit
-                    ? `/api/team360-playlist/${playlistIdToEdit}`
-                    : "/api/team360-playlist",
+                    ? `/api/playersprofile-playlist/${playlistIdToEdit}`
+                    : "/api/playersprofile-playlist",
                 {
                     method: playlistIdToEdit ? "PUT" : "POST",
                     body: formData,
@@ -299,7 +366,7 @@ export default function CreatePlaylistForm({
 
             if (result.success) {
                 alert(playlistIdToEdit ? "Playlist updated successfully!" : "Playlist created successfully!");
-                router.push("/admin/team360playlist-management/team360playlist-list");
+                router.push("/admin/playerprofileplaylist-management/playerprofileplaylist-list");
             } else {
                 alert(`Failed to ${playlistIdToEdit ? "update" : "create"} playlist: ${result.message}`);
             }
@@ -458,7 +525,7 @@ export default function CreatePlaylistForm({
                 onClick={() => addDrop(type)}
                 className="bg-blue-600 px-4 py-2 rounded text-white hover:bg-blue-700"
             >
-                + Add {label}
+                 Add {label}
             </button>
         </div>
     );
@@ -472,25 +539,75 @@ export default function CreatePlaylistForm({
                         : "Create Full Playlist"}
                 </h1>
 
-                {/* Team Selection Dropdown */}
-                <div>
-                    <label className="block text-sm text-gray-400 mb-1">Select Team *</label>
-                    <select
-                        value={form.team360PostId}
-                        onChange={(e) => handleTeamSelect(e.target.value)}
-                        className="w-full bg-[#0d1117] border border-gray-700 px-3 py-2 rounded text-white focus:outline-none focus:border-blue-500"
-                        disabled={fetchingPosts}
-                    >
-                        <option value="">-- Select a Team --</option>
-                        {team360Posts.map((post) => (
-                            <option key={post.id} value={post.id}>
-                                {post.teamName}
-                            </option>
-                        ))}
-                    </select>
+                {/* Player Search with Autocomplete */}
+                <div className="player-search-container relative">
+                    <label className="block text-sm text-gray-400 mb-1">Search Player *</label>
+                    <div className="relative">
+                        <input
+                            type="text"
+                            value={searchTerm}
+                            onChange={handleSearchChange}
+                            onFocus={() => searchTerm && playerProfiles.length > 0 && setShowDropdown(true)}
+                            placeholder="Type player name to search..."
+                            className="w-full bg-[#0d1117] border border-gray-700 px-3 py-2 rounded text-white focus:outline-none focus:border-blue-500"
+                            autoComplete="off"
+                        />
+                        {fetchingPlayers && (
+                            <div className="absolute right-3 top-2.5">
+                                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+                            </div>
+                        )}
+                    </div>
+                    
+                    {/* Dropdown Results */}
+                    {showDropdown && (
+                        <div className="absolute z-10 w-full mt-1 bg-[#0d1117] border border-gray-700 rounded-lg shadow-lg max-h-96 overflow-y-auto">
+                            {playerProfiles.length > 0 ? (
+                                playerProfiles.map((player) => (
+                                    <button
+                                        key={player.id}
+                                        onClick={() => handlePlayerSelect(player)}
+                                        className="w-full text-left px-4 py-3 hover:bg-[#1a1f2e] transition-colors border-b border-gray-700 last:border-b-0"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            {player.image && (
+                                                <img 
+                                                    src={player.image} 
+                                                    alt={player.playerName}
+                                                    className="w-10 h-10 rounded-full object-cover"
+                                                />
+                                            )}
+                                            <div className="flex-1">
+                                                <div className="font-medium text-white">
+                                                    {player.playerName}
+                                                </div>
+                                                {player.title && (
+                                                    <div className="text-sm text-gray-400">
+                                                        {player.title}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {player.logo && (
+                                                <img 
+                                                    src={player.logo} 
+                                                    alt="Team logo"
+                                                    className="w-8 h-8 object-contain"
+                                                />
+                                            )}
+                                        </div>
+                                    </button>
+                                ))
+                            ) : (
+                                <div className="px-4 py-3 text-gray-400 text-center">
+                                    No players found
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    
                     {form.teamName && (
                         <p className="text-xs text-green-500 mt-1">
-                            Selected: {form.teamName}
+                            Selected Player: {form.teamName}
                         </p>
                     )}
                 </div>

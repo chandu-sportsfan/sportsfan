@@ -86,6 +86,13 @@ const NAV: NavGroup[] = [
           { href: "/admin/playerprofile-management/playerprofile-list", label: "Player Profiles List" },
         ],
       },
+       {
+        label: "Player Profiles Playlist", icon: "◉",
+        children: [
+          { href: "/admin/playerprofileplaylist-management/add-playerprofileplaylist", label: "Add Player Profiles Playlist" },
+          { href: "/admin/playerprofileplaylist-management/playerprofileplaylist-list", label: "Player Profiles Palylist" },
+        ],
+      },
       {
         label: "Watch Along", icon: "◉",
         children: [

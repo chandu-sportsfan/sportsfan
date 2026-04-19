@@ -151,7 +151,7 @@ export function AddButton({
       onClick={onClick}
       className="text-blue-400 hover:text-blue-300 text-sm bg-[#0d1117] hover:bg-blue-900/20 border border-[#21262d] hover:border-blue-800 px-3 py-2 rounded transition-all"
     >
-      + {label}
+       {label}
     </button>
   );
 }
