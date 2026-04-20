@@ -61,7 +61,7 @@ async function backfill() {
 
         if (batchCount === BATCH_SIZE) {
             await batch.commit();
-            console.log(`✅ Committed batch of ${BATCH_SIZE}`);
+            console.log(` Committed batch of ${BATCH_SIZE}`);
             batch = db.batch();
             batchCount = 0;
         }
@@ -69,10 +69,10 @@ async function backfill() {
 
     if (batchCount > 0) {
         await batch.commit();
-        console.log(`✅ Committed final batch of ${batchCount}`);
+        console.log(`Committed final batch of ${batchCount}`);
     }
 
-    console.log(`\n✅ Backfill complete! Updated ${count} documents.`);
+    console.log(`\n Backfill complete! Updated ${count} documents.`);
 }
 
 backfill().catch(console.error);
