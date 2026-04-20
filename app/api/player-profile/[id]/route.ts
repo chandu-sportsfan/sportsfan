@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "ID required" }, { status: 400 });
     }
 
-    // ✅ FIX: Use "PlayerProfiles" (capital P) instead of "playerProfiles"
+    //  FIX: Use "PlayerProfiles" (capital P) instead of "playerProfiles"
     console.log("Checking collection: PlayerProfiles");
     const doc = await db.collection("PlayerProfiles").doc(id).get();
     console.log("Document exists:", doc.exists);

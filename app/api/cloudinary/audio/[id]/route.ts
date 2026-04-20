@@ -2,27 +2,38 @@
 import { NextRequest, NextResponse } from "next/server";
 import cloudinary from "@/lib/cloudinary";
 
-export async function GET(
-    req: NextRequest,
-    { params }: { params: { id: string } }
-) {
+
+function getIdFromUrl(req: NextRequest): string | null {
+    const url = new URL(req.url);
+    const pathParts = url.pathname.split('/');
+    return pathParts[pathParts.length - 1] || null;
+}
+
+export async function GET(req: NextRequest) {
     try {
-        const { id } = params;
-        
-        // Decode the ID (it might be URL encoded)
+        const url = new URL(req.url);
+        console.log("Full URL:", req.url);
+        console.log("Pathname:", url.pathname);
+        const id = getIdFromUrl(req);
+
+        if (!id) {
+            return NextResponse.json({ error: "ID required" }, { status: 400 });
+        }
+
+
         const publicId = decodeURIComponent(id);
-        
-        // Get specific resource from Cloudinary
+
+
         const result = await cloudinary.api.resource(publicId, {
             resource_type: "video"
         });
-        
+
         const formatDuration = (seconds: number): string => {
             const minutes = Math.floor(seconds / 60);
             const secs = Math.floor(seconds % 60);
             return `${minutes}:${secs.toString().padStart(2, '0')}`;
         };
-        
+
         const audioData = {
             id: result.public_id,
             title: result.public_id.split('/').pop()?.replace(/_/g, ' ').replace(/\.mp3$/, ''),
@@ -34,12 +45,12 @@ export async function GET(
             createdAt: result.created_at,
             folder: result.public_id.split('/').slice(0, -1).join('/')
         };
-        
+
         return NextResponse.json({
             success: true,
             audio: audioData
         });
-        
+
     } catch (error) {
         console.error("Error fetching audio:", error);
         return NextResponse.json(
