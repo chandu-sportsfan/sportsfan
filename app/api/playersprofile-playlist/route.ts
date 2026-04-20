@@ -7,7 +7,8 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     
     // Extract fields from FormData
-    const team360PostId = formData.get("playerProfilesId") as string;
+    const playerProfilesId = formData.get("playerProfilesId") as string;
+    // const playerName = formData.get("playerName") as string;
     
     // Handle multiple audio files
     const audioFiles = formData.getAll("audioFiles") as File[];
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
     const audioThumbnails = formData.getAll("audioThumbnails") as File[];
     const videoThumbnails = formData.getAll("videoThumbnails") as File[];
 
-    if (!team360PostId) {
+    if (!playerProfilesId) {
       return NextResponse.json(
         { success: false, message: "playerProfilesId is required" },
         { status: 400 }
@@ -54,7 +55,7 @@ export async function POST(req: NextRequest) {
       const base64 = `data:${file.type};base64,${buffer.toString("base64")}`;
       
       const uploadRes = await cloudinary.uploader.upload(base64, {
-        folder: `team360/playlists/${team360PostId}/audio`,
+        folder: `playersprofile/playlists/${playerProfilesId}/audio`,
         resource_type: 'video', // Cloudinary uses 'video' for audio too
         public_id: `${Date.now()}-${file.name.replace(/\s/g, "_")}`,
       });
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
         const thumbBase64 = `data:${audioThumbnails[i].type};base64,${thumbBuffer.toString("base64")}`;
         
         const thumbUpload = await cloudinary.uploader.upload(thumbBase64, {
-          folder: `playerProfiles/playlists/${team360PostId}/audio/thumbnails`,
+          folder: `playerProfiles/playlists/${playerProfilesId}/audio/thumbnails`,
           public_id: `${Date.now()}-thumbnail-${audioThumbnails[i].name.replace(/\s/g, "_")}`,
         });
         thumbnailUrl = thumbUpload.secure_url;
@@ -113,7 +114,7 @@ export async function POST(req: NextRequest) {
       const base64 = `data:${file.type};base64,${buffer.toString("base64")}`;
       
       const uploadRes = await cloudinary.uploader.upload(base64, {
-        folder: `playerProfiles/playlists/${team360PostId}/video`,
+        folder: `playerProfiles/playlists/${playerProfilesId}/video`,
         resource_type: 'video',
         public_id: `${Date.now()}-${file.name.replace(/\s/g, "_")}`,
       });
@@ -126,7 +127,7 @@ export async function POST(req: NextRequest) {
         const thumbBase64 = `data:${videoThumbnails[i].type};base64,${thumbBuffer.toString("base64")}`;
         
         const thumbUpload = await cloudinary.uploader.upload(thumbBase64, {
-          folder: `playerProfiles/playlists/${team360PostId}/video/thumbnails`,
+          folder: `playerProfiles/playlists/${playerProfilesId}/video/thumbnails`,
           public_id: `${Date.now()}-thumbnail-${videoThumbnails[i].name.replace(/\s/g, "_")}`,
         });
         thumbnailUrl = thumbUpload.secure_url;
@@ -159,7 +160,8 @@ export async function POST(req: NextRequest) {
     
     // Create the playlist document
     const playlistData = {
-      team360PostId,
+      playerProfilesId,
+      // playerName,
       audioDrops,
       videoDrops,
       createdAt: Date.now(),
@@ -190,7 +192,7 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const team360PostId = searchParams.get("playerProfilesId");
+    const playerProfilesId = searchParams.get("playerProfilesId");
     const limit = parseInt(searchParams.get("limit") || "50");
     const lastDocId = searchParams.get("lastDocId");
     const lastDocCreatedAt = searchParams.get("lastDocCreatedAt");
@@ -200,8 +202,8 @@ export async function GET(req: NextRequest) {
     let query: FirebaseFirestore.Query = collectionRef;
 
     // Apply filter if team360PostId is provided
-    if (team360PostId) {
-      query = query.where("playerProfilesId", "==", team360PostId);
+    if (playerProfilesId) {
+      query = query.where("playerProfilesId", "==", playerProfilesId);
     }
 
     query = query.orderBy("createdAt", "desc").limit(limit);

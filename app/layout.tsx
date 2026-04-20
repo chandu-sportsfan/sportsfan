@@ -4,6 +4,7 @@ import "./globals.css";
 import Providers from "./providers";
 import { Team360PlaylistProvider } from "@/context/Team360PlaylistContext";
 import { RoomProvider } from "@/context/RoomContext";
+import { PlayersProfiePlaylistProvider } from "@/context/PlayersProfilePlaylistContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,7 +34,9 @@ export default function RootLayout({
         <Providers>
           <Team360PlaylistProvider>
             <RoomProvider>
-            {children}
+              <PlayersProfiePlaylistProvider>
+                {children}
+              </PlayersProfiePlaylistProvider>
             </RoomProvider>
           </Team360PlaylistProvider>
         </Providers>

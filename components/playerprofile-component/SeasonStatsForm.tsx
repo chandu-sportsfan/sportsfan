@@ -54,7 +54,7 @@ export const defaultSeasonForm: SeasonForm = {
     threeW_fiveW_Hauls: "",
     foursConceded: "",
     sixesConceded: "",
-    jerseryNo: "",
+    jerseyNo: "",
 };
 
 // ─── COMPONENT ─────────────────────────────────────────────────────────────────
@@ -114,9 +114,9 @@ export default function SeasonStatsForm({
                     placeholder="e.g. 2025"
                 />
                  <Input
-                    label="Jersery NO *"
+                    label="Jersey NO *"
                     name="jerseyNo"
-                    value={form.jerseryNo}
+                    value={form.jerseyNo}
                     onChange={handleChange}
                     placeholder="e.g. 45"
                 />

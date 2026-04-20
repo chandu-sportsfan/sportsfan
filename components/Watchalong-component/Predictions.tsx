@@ -166,7 +166,7 @@ export default function PredictionsAdminPanel({ matchId }: { matchId: string }) 
                         onClick={addOption}
                         className="text-[10px] text-blue-400 hover:text-blue-300 font-semibold uppercase tracking-wide"
                       >
-                        + Add Option
+                         Add Option
                       </button>
                     )}
                   </div>

@@ -19,6 +19,7 @@ export type ProfileForm = {
   specialization: string;
   dob: string;
   matches: string;
+  avatarPreview: string;
 };
 
 export type SeasonForm = {
@@ -53,7 +54,7 @@ export type SeasonForm = {
   threeW_fiveW_Hauls: string;
   foursConceded: string;
   sixesConceded: string;
-  jerseryNo: string;
+  jerseyNo: string;
 };
 
 export type Insight = {
@@ -150,7 +151,7 @@ export function AddButton({
       onClick={onClick}
       className="text-blue-400 hover:text-blue-300 text-sm bg-[#0d1117] hover:bg-blue-900/20 border border-[#21262d] hover:border-blue-800 px-3 py-2 rounded transition-all"
     >
-      + {label}
+       {label}
     </button>
   );
 }

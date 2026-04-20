@@ -1,12 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 
-// // ─── GET: Fetch posts by playerProfilesId ─────────────────────────────
+
 
 
 // export async function GET(req: NextRequest) {
 //   try {
 //     const { searchParams } = new URL(req.url);
+//     const action = searchParams.get("action");
+    
+//     // Handle count request
+//     if (action === "count") {
+//       const collectionRef = db.collection("playershome");
+//       const playerProfilesId = searchParams.get("playerProfilesId");
+//       let query: FirebaseFirestore.Query = collectionRef;
+      
+//       if (playerProfilesId) {
+//         query = query.where("playerProfilesId", "==", playerProfilesId);
+//       }
+      
+//       const snapshot = await query.count().get();
+//       const totalCount = snapshot.data().count;
+      
+//       return NextResponse.json({
+//         success: true,
+//         totalCount,
+//         filtered: !!playerProfilesId,
+//         filter: playerProfilesId || null,
+//       });
+//     }
+    
 //     const playerProfilesId = searchParams.get("playerProfilesId");
 //     const rawSearch = searchParams.get("search")?.trim() || "";
 //     const limit = parseInt(searchParams.get("limit") || "20");
@@ -17,51 +40,57 @@ import { db } from "@/lib/firebaseAdmin";
 //     if (rawSearch) {
 //       const searchLower = rawSearch.toLowerCase();
       
-//       // Search by full name (starts with)
-//       const fullNameSnap = await db
+//       // FIRST: Try prefix search (starts with) - FAST with index
+//       const prefixSnap = await db
 //         .collection("playershome")
 //         .where("playerNameLower", ">=", searchLower)
 //         .where("playerNameLower", "<=", searchLower + "\uf8ff")
 //         .limit(limit)
 //         .get();
       
-//       if (!fullNameSnap.empty) {
+//       if (!prefixSnap.empty) {
 //         return NextResponse.json({
 //           success: true,
-//           posts: fullNameSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-//           pagination: { limit, hasMore: false, nextCursor: null },
+//           posts: prefixSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+//           pagination: { limit, hasMore: prefixSnap.docs.length === limit, nextCursor: null },
 //         });
 //       }
       
-//       // If no match, try searching for last name
-   
-//       const lastNameSnap = await db
-//         .collection("playershome")
-//         .where("playerNameLower", ">=", searchLower)
-//         .where("playerNameLower", "<=", searchLower + "\uf8ff")
-//         .limit(limit)
-//         .get();
+//       // SECOND: Try contains search - Get ALL documents for accurate search
+//       console.log("Prefix search found no results, trying contains search for:", searchLower);
       
-//       // If still no match, do a contains search (more expensive but works)
-//       // Note: This requires all documents to be read (use sparingly)
-//       if (lastNameSnap.empty) {
-//         const allDocs = await db.collection("playershome").get();
-//         const matchedDocs = allDocs.docs.filter(doc => {
-//           const name = doc.data().playerNameLower;
-//           return name.includes(searchLower);
-//         }).slice(0, limit);
+//       // Get ALL documents (no limit) or increase limit significantly
+//       const allDocs = await db.collection("playershome").get(); // Get ALL documents
+//       console.log(`Total documents in collection: ${allDocs.size}`);
+      
+//       const matchedDocs = allDocs.docs.filter(doc => {
+//         const data = doc.data();
+//         const playerNameLower = data.playerNameLower || "";
+//         const playerName = data.playerName || "";
         
-//         return NextResponse.json({
-//           success: true,
-//           posts: matchedDocs.map(d => ({ id: d.id, ...d.data() })),
-//           pagination: { limit, hasMore: false, nextCursor: null },
-//         });
-//       }
+//         // Check if search term exists in the name
+//         const matches = playerNameLower.includes(searchLower) || 
+//                        playerName.toLowerCase().includes(searchLower);
+        
+//         if (matches) {
+//           console.log(`Found match: ${playerName} (ID: ${doc.id})`);
+//         }
+        
+//         return matches;
+//       }).slice(0, limit);
+      
+//       console.log(`Found ${matchedDocs.length} matches for "${searchLower}"`);
       
 //       return NextResponse.json({
 //         success: true,
-//         posts: lastNameSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+//         posts: matchedDocs.map(d => ({ id: d.id, ...d.data() })),
 //         pagination: { limit, hasMore: false, nextCursor: null },
+//         searchType: "contains",
+//         debug: {
+//           totalDocsScanned: allDocs.size,
+//           matchesFound: matchedDocs.length,
+//           searchTerm: searchLower
+//         }
 //       });
 //     }
 
@@ -140,6 +169,57 @@ export async function GET(req: NextRequest) {
     if (rawSearch) {
       const searchLower = rawSearch.toLowerCase();
       
+      // 🔴 NEW: Check if search term is a number (jersey number)
+      const isJerseyNumber = /^\d+$/.test(rawSearch);
+      
+      if (isJerseyNumber) {
+        console.log(`Searching by jersey number: ${rawSearch}`);
+        
+        // Find playerProfilesId by jersey number from playerSeasons
+        const seasonQuery = await db
+          .collection("playerSeasons")
+          .where("season.jerseyNo", "==", rawSearch)
+          .get();
+        
+        if (!seasonQuery.empty) {
+          // Get unique player IDs
+          const playerIds = [...new Set(seasonQuery.docs.map(doc => doc.data().playerProfilesId))];
+          console.log(`Found player IDs for jersey ${rawSearch}:`, playerIds);
+          
+          // Fetch home posts for these players
+          if (playerIds.length > 0) {
+            // Use 'in' query (max 10 values)
+            const limitedPlayerIds = playerIds.slice(0, 10);
+            const postsQuery = await db
+              .collection("playershome")
+              .where("playerProfilesId", "in", limitedPlayerIds)
+              .orderBy("createdAt", "desc")
+              .limit(limit)
+              .get();
+            
+            const posts = postsQuery.docs.map(d => ({ id: d.id, ...d.data() }));
+            
+            return NextResponse.json({
+              success: true,
+              posts,
+              searchType: "jersey",
+              jerseyNumber: rawSearch,
+              pagination: { limit, hasMore: false, nextCursor: null },
+            });
+          }
+        }
+        
+        // If no player found with that jersey number, return empty
+        return NextResponse.json({
+          success: true,
+          posts: [],
+          searchType: "jersey",
+          jerseyNumber: rawSearch,
+          message: "No player found with this jersey number",
+          pagination: { limit, hasMore: false, nextCursor: null },
+        });
+      }
+      
       // FIRST: Try prefix search (starts with) - FAST with index
       const prefixSnap = await db
         .collection("playershome")
@@ -152,6 +232,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({
           success: true,
           posts: prefixSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+          searchType: "prefix",
           pagination: { limit, hasMore: prefixSnap.docs.length === limit, nextCursor: null },
         });
       }

@@ -38,6 +38,7 @@ export const defaultProfileForm: ProfileForm = {
     specialization: "",
     dob: "",
     matches: "",
+    avatarPreview: ""
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -183,24 +184,45 @@ export default function PlayerProfileForm({
                 async (row, idx) => {
                     const lookup = buildLookup(row);
 
+                    // const playerForm = {
+                    //     name: findVal(lookup, "player", "name", "player name"),
+                    //     team: findVal(lookup, "team"),
+                    //     battingStyle: findVal(lookup, "bat hand", "batting style", "batting"),
+                    //     bowlingStyle: findVal(lookup, "bowling type", "bowl type", "bowling style", "bowl"),
+                    //     age: findVal(lookup, "age in yrs", "age"),
+                    //     dob: findVal(lookup, "age") ? `${findVal(lookup, "age")} yrs` : "",
+
+
+                    //     statsSr: findVal(lookup, "batting sr_ipl", "batting sr_overall", "batting sr", "strike rate"),
+                    //     statsAvg: findVal(lookup, "batting avg_ipl", "batting avg_overall", "batting avg", "average"),
+                    //     statsRuns: findVal(lookup, "runs_ipl", "runs_overall", "total runs", "runs"),
+
+                    //     matches: findVal(lookup, "innings_ipl", "innings_overall", "innings", "matches"),
+                    //     specialization: findVal(lookup, "role", "specialization"),
+                    //     // FIX: "ipl debut" and "about" columns do not exist in the sheet — removed fallback
+                    //     // Add these columns to the Excel sheet if needed, otherwise they will be empty
+                    //     iplDebut: findVal(lookup, "ipl debut", "debut") ?? "",
+                    //     about: findVal(lookup, "about", "description") ?? "",
+                    // };
+
+
                     const playerForm = {
                         name: findVal(lookup, "player", "name", "player name"),
                         team: findVal(lookup, "team"),
                         battingStyle: findVal(lookup, "bat hand", "batting style", "batting"),
                         bowlingStyle: findVal(lookup, "bowling type", "bowl type", "bowling style", "bowl"),
                         age: findVal(lookup, "age in yrs", "age"),
-                        dob: findVal(lookup, "age") ? `${findVal(lookup, "age")} yrs` : "",
-                        // FIX: scoped to IPL stats to avoid ambiguity across _Overall/_IPL/_2025 variants
+                        dob: findVal(lookup, "dob") || (findVal(lookup, "age in yrs", "age") ? `${findVal(lookup, "age in yrs", "age")} yrs` : ""),
+
                         statsSr: findVal(lookup, "batting sr_ipl", "batting sr_overall", "batting sr", "strike rate"),
                         statsAvg: findVal(lookup, "batting avg_ipl", "batting avg_overall", "batting avg", "average"),
                         statsRuns: findVal(lookup, "runs_ipl", "runs_overall", "total runs", "runs"),
-                        // FIX: "innings" is the correct column name; there is no "matches" column
+
                         matches: findVal(lookup, "innings_ipl", "innings_overall", "innings", "matches"),
                         specialization: findVal(lookup, "role", "specialization"),
-                        // FIX: "ipl debut" and "about" columns do not exist in the sheet — removed fallback
-                        // Add these columns to the Excel sheet if needed, otherwise they will be empty
-                        iplDebut: findVal(lookup, "ipl debut", "debut") ?? "",
-                        about: findVal(lookup, "about", "description") ?? "",
+                        iplDebut: findVal(lookup, "ipl debut year", "ipl debut", "debut"),
+                        about: findVal(lookup, "about", "description"),
+                        avatarPreview: findVal(lookup, "Player avatar"),
                     };
 
                     if (!playerForm.name || !playerForm.team) {
@@ -210,27 +232,82 @@ export default function PlayerProfileForm({
                         return;
                     }
 
+                    // try {
+                    //     // Step 1 — Create player profile
+                    //     const fd = new FormData();
+                    //     Object.entries(playerForm).forEach(([k, v]) => fd.append(k, v));
+                    //     const profileRes = await axios.post("/api/player-profile", fd);
+                    //     const newProfileId: string = profileRes.data.profile.id;
+
+                    //     // Step 2 — Create home post
+                    //     await withRetry(() => axios.post("/api/player-profile/home", {
+                    //         playerName: playerForm.name,
+                    //         title: findVal(lookup, "title"),
+                    //         likes: findVal(lookup, "likes"),
+                    //         comments: findVal(lookup, "comments"),
+                    //         live: findVal(lookup, "live"),
+                    //         shares: findVal(lookup, "shares"),
+                    //         playerProfilesId: newProfileId,
+                    //     }));
+
+                    //     // Step 3 — Create season stats
+
+                    //     await withRetry(() => axios.post("/api/player-profile/seasonstats", {
+                    //         playerProfilesId: newProfileId,
+                    //         season: {
+                    //             year: findVal(lookup, "year") ?? "2026",
+                    //             runs: findVal(lookup, "runs_ipl26", "runs_ipl", "runs_overall", "runs"),
+                    //             strikeRate: findVal(lookup, "batting sr_ipl26", "batting sr_ipl", "batting sr_overall", "batting sr", "strike rate"),
+                    //             average: findVal(lookup, "batting avg_ipl26", "batting avg_ipl", "batting avg_overall", "batting avg", "average"),
+                    //             wickets: findVal(lookup, "wickets_ipl26", "wickets_ipl", "wickets_overall", "wickets"),
+                    //             fiftiesAndHundreds: findVal(lookup, "50s_100s_IPL26"),
+                    //             highestScore: findVal(lookup, "HS_IPL26"),
+                    //             fours: findVal(lookup, "_raw_bat_fours_IPL26"),
+                    //             sixes: findVal(lookup, "_raw_bat_sixes_IPL26"),
+                    //             threeW_fiveW_Hauls: findVal(lookup, "3W_5W_IPL26"),
+                    //             foursConceded: findVal(lookup, "_raw_bowl_fours_IPL26"),
+                    //             sixesConceded: findVal(lookup, "_raw_bowl_sixes_IPL26"),
+                    //             bestBowling: findVal(lookup, "BB_IPL26"),
+                    //             economy: findVal(lookup, "econ_ipl26", "econ_ipl", "econ_overall", "econ", "economy"),
+                    //             bowlingSR: findVal(lookup, "bowling sr_ipl26", "bowling sr_ipl", "bowling sr_overall", "bowling sr", "bowlingsr"),
+                    //             bowlingAvg: findVal(lookup, "bowling avg_ipl26", "bowling avg_ipl", "bowling avg_overall", "bowling avg", "bowlingavg"),
+                    //             jerseyNo: findVal(lookup, "Jersey No.", "jersey no"),
+                    //         },
+                    //     }));
+
+                    //     successCount++;
+                    // }
                     try {
-                        // Step 1 — Create player profile
+                        // Step 1 — Create player profile (with avatar URL if present)
                         const fd = new FormData();
                         Object.entries(playerForm).forEach(([k, v]) => fd.append(k, v));
+                        const avatarUrl = findVal(lookup, "player avatar", "avatar");
+                        if (avatarUrl) fd.append("avatarPreview", avatarUrl);
                         const profileRes = await axios.post("/api/player-profile", fd);
                         const newProfileId: string = profileRes.data.profile.id;
 
-                        // Step 2 — Create home post
-                        await  withRetry(() =>axios.post("/api/player-profile/home", {
+                        // Step 2 — Create home post (with Player Image + Team Image as categories)
+                        const playerImageUrl = findVal(lookup, "player image");
+                        const teamImageUrl = findVal(lookup, "team image");
+                        const homeCategories: { title: string; image: string }[] = [];
+                        if (playerImageUrl) homeCategories.push({ title: "Player", image: playerImageUrl });
+                        if (teamImageUrl) homeCategories.push({ title: "Team", image: teamImageUrl });
+
+                        await withRetry(() => axios.post("/api/player-profile/home", {
                             playerName: playerForm.name,
-                            title: findVal(lookup, "title"),
+                            title: findVal(lookup, "player title", "title"),
                             likes: findVal(lookup, "likes"),
                             comments: findVal(lookup, "comments"),
                             live: findVal(lookup, "live"),
                             shares: findVal(lookup, "shares"),
+                            image: playerImageUrl,
+                            logo: teamImageUrl,
+                            category: homeCategories,
                             playerProfilesId: newProfileId,
                         }));
 
                         // Step 3 — Create season stats
-                        
-                        await  withRetry(() =>axios.post("/api/player-profile/seasonstats", {
+                        await withRetry(() => axios.post("/api/player-profile/seasonstats", {
                             playerProfilesId: newProfileId,
                             season: {
                                 year: findVal(lookup, "year") ?? "2026",
@@ -238,23 +315,58 @@ export default function PlayerProfileForm({
                                 strikeRate: findVal(lookup, "batting sr_ipl26", "batting sr_ipl", "batting sr_overall", "batting sr", "strike rate"),
                                 average: findVal(lookup, "batting avg_ipl26", "batting avg_ipl", "batting avg_overall", "batting avg", "average"),
                                 wickets: findVal(lookup, "wickets_ipl26", "wickets_ipl", "wickets_overall", "wickets"),
-                                fiftiesAndHundreds: findVal(lookup, "50s_100s_IPL26"),
-                                highestScore: findVal(lookup, "HS_IPL26"),
-                                fours: findVal(lookup, "_raw_bat_fours_IPL26"),
-                                sixes: findVal(lookup, "_raw_bat_sixes_IPL26"),
-                                threeW_fiveW_Hauls: findVal(lookup, "3W_5W_IPL26"),
-                                foursConceded: findVal(lookup, "_raw_bowl_fours_IPL26"),
-                                sixesConceded: findVal(lookup, "_raw_bowl_sixes_IPL26"),
-                                bestBowling: findVal(lookup, "BB_IPL26"),
+                                fiftiesAndHundreds: findVal(lookup, "50s_100s_ipl26"),
+                                highestScore: findVal(lookup, "hs_ipl26"),
+                                fours: findVal(lookup, "_raw_bat_fours_ipl26"),
+                                sixes: findVal(lookup, "_raw_bat_sixes_ipl26"),
+                                threeW_fiveW_Hauls: findVal(lookup, "3w_5w_ipl26"),
+                                foursConceded: findVal(lookup, "_raw_bowl_fours_ipl26"),
+                                sixesConceded: findVal(lookup, "_raw_bowl_sixes_ipl26"),
+                                bestBowling: findVal(lookup, "bb_ipl26"),
                                 economy: findVal(lookup, "econ_ipl26", "econ_ipl", "econ_overall", "econ", "economy"),
                                 bowlingSR: findVal(lookup, "bowling sr_ipl26", "bowling sr_ipl", "bowling sr_overall", "bowling sr", "bowlingsr"),
                                 bowlingAvg: findVal(lookup, "bowling avg_ipl26", "bowling avg_ipl", "bowling avg_overall", "bowling avg", "bowlingavg"),
-                                jerseyNo: findVal(lookup, "Jersey No","jersey no"),
+                                jerseyNo: findVal(lookup, "Jersey", "jersey", "Jersey No.", "jersey no.", "Jersey No", "jersey No"),
                             },
                         }));
+                        console.log("Available columns:", Object.keys(lookup));
+                        console.log("Jersey value:", findVal(lookup, "Jersey", "jersey", "Jersey No.", "jersey no."));
+                        // Step 4 — Create insights (NEW)
+                        const insightTitle = findVal(lookup, "insight title");
+                        const insightDescription = findVal(lookup, "insight description");
+                        const strength1 = findVal(lookup, "strength 1");
+                        const strength2 = findVal(lookup, "strength 2");
+                        const insights = insightTitle
+                            ? [{ title: insightTitle, description: insightDescription }]
+                            : [];
+                        const strengths = [strength1, strength2].filter(Boolean);
 
+                        await withRetry(() => axios.post("/api/player-profile/insights", {
+                            playerProfilesId: newProfileId,
+                            insights,
+                            strengths,
+                        }));
+
+                        // Step 5 — Create media
+                        const mediaImageUrl = findVal(lookup, "media image");
+                        const photoTitle = findVal(lookup, "photo title");
+                        const views = findVal(lookup, "views");
+                        const time = findVal(lookup, "time");
+
+                        if (mediaImageUrl || photoTitle) {
+                            const mediaFd = new FormData();
+                            mediaFd.append("playerProfilesId", newProfileId);
+                            mediaFd.append("titles", photoTitle || `${playerForm.name} Photo`);
+                            mediaFd.append("views", views || "0");
+                            mediaFd.append("times", time || "");
+                            mediaFd.append("existingThumbnails", mediaImageUrl || "");
+                            // Don't append an empty blob — only append if there's an actual file
+                            // The API uses existingThumbnails when no new file is uploaded
+                            await withRetry(() => axios.post("/api/player-profile/media", mediaFd));
+                        }
                         successCount++;
-                    } catch (err: unknown) {
+                    }
+                    catch (err: unknown) {
                         const msg =
                             axios.isAxiosError(err)
                                 ? `${err.response?.status ?? ""} ${JSON.stringify(err.response?.data ?? err.message)}`

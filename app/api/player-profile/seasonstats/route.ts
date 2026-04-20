@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
     threeW_fiveW_Hauls: season.threeW_fiveW_Hauls || "",
     foursConceded: Number(season.foursConceded) || 0,
     sixesConceded: Number(season.sixesConceded) || 0,
+   jerseyNo: season.jerseyNo || "", 
   },
   createdAt: Date.now(),
   updatedAt: Date.now(),

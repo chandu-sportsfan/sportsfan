@@ -18,14 +18,16 @@ type DropItem = {
 
 type Playlist = {
     id: string;
-    team360PostId: string;
+    name?: string;
+    playerName?: string; // Add playerName field
+    playerProfilesId: string;
     audioDrops: DropItem[];
     videoDrops: DropItem[];
     createdAt: number;
     updatedAt: number;
 };
 
-export default function Team360PlaylistListPage() {
+export default function PlayerProfilesPlaylistListPage() {
     const [playlists, setPlaylists] = useState<Playlist[]>([]);
     const [loading, setLoading] = useState(true);
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -37,8 +39,35 @@ export default function Team360PlaylistListPage() {
     const fetchPlaylists = async () => {
         try {
             setLoading(true);
-            const res = await axios.get("/api/team360-playlist");
-            setPlaylists(res.data.playlists || []);
+            const res = await axios.get("/api/playersprofile-playlist");
+            const playlistsData = res.data.playlists || [];
+            
+            // Fetch player names for each playlist
+            const playlistsWithPlayerNames = await Promise.all(
+                playlistsData.map(async (playlist: Playlist) => {
+                    try {
+                        const playerRes = await axios.get(`/api/player-profile/search/${playlist.playerProfilesId}`);
+                        if (playerRes.data?.success && playerRes.data?.data?.profile) {
+                            return {
+                                ...playlist,
+                                playerName: playerRes.data.data.profile.name
+                            };
+                        }
+                        return {
+                            ...playlist,
+                            playerName: "Unknown Player"
+                        };
+                    } catch (error) {
+                        console.error(`Failed to fetch player for ID ${playlist.playerProfilesId}:`, error);
+                        return {
+                            ...playlist,
+                            playerName: "Unknown Player"
+                        };
+                    }
+                })
+            );
+            
+            setPlaylists(playlistsWithPlayerNames);
         } catch (error) {
             console.error("Failed to fetch playlists", error);
             setPlaylists([]);
@@ -52,7 +81,7 @@ export default function Team360PlaylistListPage() {
         if (!confirmDelete) return;
 
         try {
-            await axios.delete(`/api/team360-playlist/${id}`);
+            await axios.delete(`/api/playersprofile-playlist/${id}`);
             setPlaylists((prev) => prev.filter((playlist) => playlist.id !== id));
         } catch (error) {
             console.error("Delete failed", error);
@@ -62,12 +91,10 @@ export default function Team360PlaylistListPage() {
 
     const handleEdit = (id: string) => {
         console.log("Edit", id);
-        // router.push(`/admin/team360-management/playlist-edit/${id}`)
     };
 
     const handleView = (id: string) => {
         console.log("View", id);
-        // router.push(`/admin/team360-management/playlist-view/${id}`)
     };
 
     const toggleRow = (id: string) => {
@@ -79,18 +106,6 @@ export default function Team360PlaylistListPage() {
         }
         setExpandedRows(newExpanded);
     };
-
-    // const formatDate = (timestamp: number) => {
-    //     const date = new Date(timestamp);
-    //     return date.toLocaleString('en-IN', {
-    //         timeZone: 'Asia/Kolkata',
-    //         year: 'numeric',
-    //         month: 'short',
-    //         day: 'numeric',
-    //         hour: '2-digit',
-    //         minute: '2-digit'
-    //     });
-    // };
 
     const getTotalDrops = (playlist: Playlist) => {
         return (playlist.audioDrops?.length || 0) + (playlist.videoDrops?.length || 0);
@@ -166,13 +181,13 @@ export default function Team360PlaylistListPage() {
             <div className="mb-6 flex justify-between items-center">
                 <div>
                     <h1 className="text-xl font-semibold text-white">
-                        Team360 Playlists
+                        Players Profile Playlists
                     </h1>
                     <p className="text-sm text-gray-400">
-                        Manage all audio and video drops for Team360 posts
+                        Manage all audio and video drops for Player profiles
                     </p>
                 </div>
-                <Link href="/admin/team360-management/create-playlist">
+                <Link href="/admin/playerprofileplaylist-management/add-playerprofileplaylist">
                     <button className="bg-blue-600 px-4 py-2 rounded text-white hover:bg-blue-700 transition">
                          Create New Playlist
                     </button>
@@ -187,7 +202,7 @@ export default function Team360PlaylistListPage() {
                             <tr>
                                 {[
                                     "#",
-                                    "Team360 Post ID",
+                                    "Player Name",
                                     "Audio Drops",
                                     "Video Drops",
                                     "Total Drops",
@@ -208,13 +223,13 @@ export default function Team360PlaylistListPage() {
                         <tbody>
                             {loading ? (
                                 <tr>
-                                    <td colSpan={9} className="text-center py-8 text-gray-400">
+                                    <td colSpan={8} className="text-center py-8 text-gray-400">
                                         Loading playlists...
                                     </td>
                                 </tr>
                             ) : playlists.length === 0 ? (
                                 <tr>
-                                    <td colSpan={9} className="text-center py-8 text-gray-400">
+                                    <td colSpan={8} className="text-center py-8 text-gray-400">
                                         No playlists found
                                     </td>
                                 </tr>
@@ -231,9 +246,9 @@ export default function Team360PlaylistListPage() {
                                                 {index + 1}
                                             </td>
 
-                                            {/* Team360 Post ID */}
+                                            {/* Player Name - Fixed */}
                                             <td className="px-4 py-3 text-sm text-white font-mono">
-                                                {playlist.team360PostId}
+                                                {playlist.playerName || "Loading..."}
                                             </td>
 
                                             {/* Audio Drops */}
@@ -267,11 +282,6 @@ export default function Team360PlaylistListPage() {
                                                 {getTotalEngagement(playlist).toLocaleString()}
                                             </td>
 
-                                            {/* Created At */}
-                                            {/* <td className="px-4 py-3 text-sm text-gray-400">
-                                                {formatDate(playlist.createdAt)}
-                                            </td> */}
-
                                             {/* Actions */}
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2">
@@ -285,7 +295,7 @@ export default function Team360PlaylistListPage() {
                                                     >
                                                         {expandedRows.has(playlist.id) ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                                                     </button>
-                                                    <Link href={`/admin/team360playlist-management/team360playlist-list/${playlist.id}`}>
+                                                    <Link href={`/admin/playerprofileplaylist-management/playerprofile-list/${playlist.id}`}>
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
@@ -297,7 +307,7 @@ export default function Team360PlaylistListPage() {
                                                             <Eye size={16} />
                                                         </button>
                                                     </Link>
-                                                    <Link href={`/admin/team360playlist-management/add-team360playlist?id=${playlist.id}`}>
+                                                    <Link href={`/admin/playerprofileplaylist-management/add-playerprofileplaylist?id=${playlist.id}`}>
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
@@ -326,7 +336,7 @@ export default function Team360PlaylistListPage() {
                                         {/* Expanded Row - Shows Audio and Video Drops */}
                                         {expandedRows.has(playlist.id) && (
                                             <tr className="bg-[#0d1117] border-b border-[#21262d]">
-                                                <td colSpan={9} className="px-4 py-4">
+                                                <td colSpan={8} className="px-4 py-4">
                                                     <div className="space-y-4">
                                                         {renderDropSection(playlist.audioDrops, "audio")}
                                                         {renderDropSection(playlist.videoDrops, "video")}

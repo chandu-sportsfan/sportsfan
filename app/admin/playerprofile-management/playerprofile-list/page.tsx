@@ -653,10 +653,6 @@ export default function PlayerProfileListPage() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmed = window.confirm(
-      "Delete this player profile? This action cannot be undone."
-    );
-    if (!confirmed) return;
     try {
       await axios.delete(`/api/player-profile/search/${id}`);
       // Remove from local state

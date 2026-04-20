@@ -112,7 +112,7 @@ export default function ClubProfileListPage() {
         </div>
         <Link href="/admin/club-profile-management/add-club-profile">
           <button className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-white text-sm transition">
-            + Create Club Profile
+             Create Club Profile
           </button>
         </Link>
       </div>
