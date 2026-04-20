@@ -86,18 +86,26 @@ export default function ClubProfileViewPage() {
       setLoading(true);
       setError(null);
 
-      const [profileRes, seasonRes, insightsRes, mediaRes] = await Promise.all([
-        axios.get(`/api/club-profile/${id}`),
+      const profileRes = await axios.get(`/api/club-profile/${id}`);
+
+      if (!profileRes.data.success) { setError("Club profile not found"); return; }
+      setProfile(profileRes.data.profile);
+
+      const [seasonRes, insightsRes, mediaRes] = await Promise.allSettled([
         axios.get(`/api/club-profile/season?clubProfileId=${id}&limit=1`),
         axios.get(`/api/club-profile/insights?clubProfileId=${id}&limit=1`),
         axios.get(`/api/club-profile/media?clubProfileId=${id}&limit=1`),
       ]);
 
-      if (!profileRes.data.success) { setError("Club profile not found"); return; }
-      setProfile(profileRes.data.profile);
-      if (seasonRes.data.seasons?.length > 0) setSeasonDoc(seasonRes.data.seasons[0]);
-      if (insightsRes.data.insightsDocs?.length > 0) setInsightsDoc(insightsRes.data.insightsDocs[0]);
-      if (mediaRes.data.mediaDocs?.length > 0) setMediaDoc(mediaRes.data.mediaDocs[0]);
+      if (seasonRes.status === "fulfilled" && seasonRes.value.data?.seasons?.length > 0) {
+        setSeasonDoc(seasonRes.value.data.seasons[0]);
+      }
+      if (insightsRes.status === "fulfilled" && insightsRes.value.data?.insightsDocs?.length > 0) {
+        setInsightsDoc(insightsRes.value.data.insightsDocs[0]);
+      }
+      if (mediaRes.status === "fulfilled" && mediaRes.value.data?.mediaDocs?.length > 0) {
+        setMediaDoc(mediaRes.value.data.mediaDocs[0]);
+      }
     } catch (err) {
       console.error("Fetch error:", err);
       setError("Failed to load club profile");
