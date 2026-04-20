@@ -159,31 +159,49 @@ export async function GET(req: NextRequest) {
 
 // Helper function to parse filename and extract match information
 function parseFileName(fileName: string): AudioMetadata['matchInfo'] {
-    // Remove extension
     const nameWithoutExt = fileName.replace(/\.(mp3|wav|m4a|ogg)$/i, '');
-
-    // Split by underscore
     const parts = nameWithoutExt.split('_');
 
-    // Try to detect pattern: TEAM1_vs_TEAM2_type_speaker_date
-    if (parts.length >= 4) {
-        const vsIndex = parts.findIndex(p => p.toLowerCase() === 'vs');
-        if (vsIndex !== -1 && vsIndex + 1 < parts.length) {
-            const team1 = parts[vsIndex - 1];
-            const team2 = parts[vsIndex + 1];
-            const type = parts[vsIndex + 2] || 'unknown';
-            const speaker = parts[vsIndex + 3] || 'unknown';
-            const date = parts[vsIndex + 4] || '';
+    if (parts.length < 4) return undefined;
 
-            return {
-                team1: team1,
-                team2: team2,
-                type: type,
-                speaker: speaker,
-                date: date
-            };
+    const vsIndex = parts.findIndex(p => p.toLowerCase() === 'vs');
+    if (vsIndex === -1 || vsIndex + 1 >= parts.length) return undefined;
+
+    const team1 = parts[vsIndex - 1];
+    const team2 = parts[vsIndex + 1];
+
+    // Everything after team2, excluding trailing 8-digit date
+    const remainder = parts.slice(vsIndex + 2);
+
+    // Detect trailing date like "20042026" (8 digits)
+    const datePattern = /^\d{8}$/;
+    const dateIndex = remainder.findIndex(p => datePattern.test(p));
+    
+    const date = dateIndex !== -1 ? remainder[dateIndex] : '';
+    const nonDateParts = dateIndex !== -1 ? remainder.slice(0, dateIndex) : remainder;
+
+    // Known match type keywords
+    const typeKeywords = ['post', 'pre', 'mid', 'match', 'fan', 'highlights'];
+    
+    // Separate type words from speaker name words
+    const typeParts: string[] = [];
+    const speakerParts: string[] = [];
+    let speakerStarted = false;
+
+    for (const part of nonDateParts) {
+        if (!speakerStarted && typeKeywords.includes(part.toLowerCase())) {
+            typeParts.push(part);
+        } else {
+            speakerStarted = true;
+            speakerParts.push(part);
         }
     }
 
-    return undefined;
+    return {
+        team1,
+        team2,
+        type: typeParts.join(' ') || 'unknown',       // "post match"
+        speaker: speakerParts.join(' ') || 'unknown',  // "Kabir Sharma"
+        date,
+    };
 }
