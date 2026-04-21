@@ -43,13 +43,12 @@ export async function GET(req: NextRequest) {
 // PUT - Update article by ID
 export async function PUT(req: NextRequest) {
   try {
-    const id   = getIdFromUrl(req);
+    const id = getIdFromUrl(req);
     const body = await req.json();
 
     if (!id) {
       return NextResponse.json({ error: "Article ID is required" }, { status: 400 });
     }
-
 
     const docRef = db.collection("cricketArticles").doc(id);
     const doc = await docRef.get();
@@ -70,8 +69,8 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    // Fields that can be updated
-    const allowedFields = ["badge", "title", "readTime", "views", "image"];
+    // ✅ ADDED 'description' to allowed fields
+    const allowedFields = ["badge", "title", "description", "readTime", "views", "image"];
     
     const updates: Record<string, unknown> = {
       updatedAt: Date.now(),
@@ -82,6 +81,14 @@ export async function PUT(req: NextRequest) {
         updates[field] = body[field];
       }
     });
+
+    // Validate description is an array if provided
+    if (body.description !== undefined && !Array.isArray(body.description)) {
+      return NextResponse.json(
+        { error: "Description must be an array of strings" },
+        { status: 400 }
+      );
+    }
 
     // Validate numeric conversions for views (if provided as string with "K")
     if (body.views !== undefined) {

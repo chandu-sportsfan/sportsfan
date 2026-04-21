@@ -11,6 +11,7 @@ export async function POST(req: NextRequest) {
     const {
       badge,
       title,
+      description,
       readTime,
       views,
       image,
@@ -36,6 +37,7 @@ export async function POST(req: NextRequest) {
     const newArticle = {
       badge: badge || "NEWS",
       title,
+      description,
       readTime: readTime || "5 min read",
       views: views || "0 views",
       image,
