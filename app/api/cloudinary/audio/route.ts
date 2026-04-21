@@ -64,7 +64,12 @@ export async function GET(req: NextRequest) {
         }
 
         // Fetch resources from Cloudinary
-        const result = await cloudinary.api.resources(params);
+        const result = await cloudinary.search
+            .expression("folder:sf360/audio resource_type:video")
+            .with_field("duration")
+            .sort_by("created_at", "desc")
+            .max_results(limit)
+            .execute();
 
         // Transform and enrich audio data
         let audioFiles: AudioMetadata[] = result.resources.map((resource: CloudinaryResource) => {
@@ -74,7 +79,7 @@ export async function GET(req: NextRequest) {
 
             // Parse filename to extract match info (based on your naming convention)
 
-           const matchInfo = parseFileName(resource.display_name || fileName);
+            const matchInfo = parseFileName(resource.display_name || fileName);
 
             // Format duration
             const formatDuration = (seconds: number): string => {
@@ -130,7 +135,9 @@ export async function GET(req: NextRequest) {
         }
 
         // Sort by newest first
-        audioFiles.sort((a, b) => b.durationSeconds - a.durationSeconds);
+        audioFiles.sort((a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
 
         return NextResponse.json({
             success: true,
@@ -176,13 +183,13 @@ function parseFileName(fileName: string): AudioMetadata['matchInfo'] {
     // Detect trailing date like "20042026" (8 digits)
     const datePattern = /^\d{8}$/;
     const dateIndex = remainder.findIndex(p => datePattern.test(p));
-    
+
     const date = dateIndex !== -1 ? remainder[dateIndex] : '';
     const nonDateParts = dateIndex !== -1 ? remainder.slice(0, dateIndex) : remainder;
 
     // Known match type keywords
     const typeKeywords = ['post', 'pre', 'mid', 'match', 'fan', 'highlights'];
-    
+
     // Separate type words from speaker name words
     const typeParts: string[] = [];
     const speakerParts: string[] = [];
