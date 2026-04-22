@@ -119,6 +119,9 @@ const NAV: NavGroup[] = [
         children: [
           // { href: "/admin/hostloginscreen-management/add-hostroomlogin", label: "Add Host Login Form" },
           { href: "/admin/audiomessages-management", label: "Audio Messages List" },
+          { href: "/admin/audiodrops-management/", label: "Audio Request Drops List" },
+           { href: "/admin/audioplaylist-management/", label: "Audio List" },
+
         ],
       },
       // { href: "/admin/content", icon: "◧", label: "Content / Posts"   },
