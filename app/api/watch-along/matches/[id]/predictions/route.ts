@@ -272,25 +272,24 @@
 
 
 
-
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 
-// Use matchId consistently with your context
+// Use 'id' to match your folder name [id]
 interface RouteContext {
-    params: Promise<{ matchId: string }>;
+    params: Promise<{ id: string }>;
 }
 
 export async function GET(req: NextRequest, { params }: RouteContext) {
     try {
-        const { matchId } = await params;
+        const { id } = await params;  // Just use 'id' directly
         
         const { searchParams } = new URL(req.url);
         const openOnly = searchParams.get("open") === "true";
 
         // Check if the match exists
-        const matchRef = db.collection("watchAlongMatches").doc(matchId);
+        const matchRef = db.collection("watchAlongMatches").doc(id);
         const matchDoc = await matchRef.get();
         
         if (!matchDoc.exists) {
@@ -336,11 +335,11 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
 
 export async function POST(req: NextRequest, { params }: RouteContext) {
     try {
-        const { matchId } = await params;
+        const { id } = await params;  // Just use 'id' directly
         const body = await req.json();
         const { action } = body;
 
-        const matchRef = db.collection("watchAlongMatches").doc(matchId);
+        const matchRef = db.collection("watchAlongMatches").doc(id);
         const matchDoc = await matchRef.get();
         
         if (!matchDoc.exists) {
@@ -437,7 +436,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
 export async function PATCH(req: NextRequest, { params }: RouteContext) {
     try {
-        const { matchId } = await params;
+        const { id } = await params;  // Just use 'id' directly
         const { predictionId, isOpen } = await req.json();
 
         if (!predictionId || typeof isOpen !== "boolean") {
@@ -447,7 +446,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
             );
         }
 
-        const matchRef = db.collection("watchAlongMatches").doc(matchId);
+        const matchRef = db.collection("watchAlongMatches").doc(id);
         const predRef = matchRef.collection("predictions").doc(predictionId);
         const predDoc = await predRef.get();
 
