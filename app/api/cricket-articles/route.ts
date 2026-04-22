@@ -13,6 +13,7 @@ export async function POST(req: NextRequest) {
       title,
       description,
       readTime,
+      author,
       views,
       image,
     } = body;
@@ -38,6 +39,7 @@ export async function POST(req: NextRequest) {
       badge: badge || "NEWS",
       title,
       description,
+      author,
       readTime: readTime || "5 min read",
       views: views || "0 views",
       image,

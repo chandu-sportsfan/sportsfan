@@ -69,8 +69,8 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    // ✅ ADDED 'description' to allowed fields
-    const allowedFields = ["badge", "title", "description", "readTime", "views", "image"];
+    //  ADDED 'description' to allowed fields
+    const allowedFields = ["badge", "title", "description", "readTime", "author", "views", "image"];
     
     const updates: Record<string, unknown> = {
       updatedAt: Date.now(),
