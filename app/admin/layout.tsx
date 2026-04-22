@@ -114,6 +114,13 @@ const NAV: NavGroup[] = [
           { href: "/admin/hostloginscreen-management/hostroomlogin-list", label: "Host Members List" },
         ],
       },
+       {
+        label: "Audio Messages Screen", icon: "◉",
+        children: [
+          // { href: "/admin/hostloginscreen-management/add-hostroomlogin", label: "Add Host Login Form" },
+          { href: "/admin/audiomessages-management", label: "Audio Messages List" },
+        ],
+      },
       // { href: "/admin/content", icon: "◧", label: "Content / Posts"   },
       // { href: "/admin/orders",  icon: "◫", label: "Orders & Payments", badge: "8" },
     ],

@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 
-// POST - User sends message (called from main frontend)
+// POST - User sends message
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
@@ -26,8 +26,8 @@ export async function POST(req: NextRequest) {
             success: true,
             message: { id: docRef.id, ...messageData }
         });
-    } catch (error : unknown) {
-        console.log("audio-message :",error)
+    } catch (error: unknown) {
+        console.log("audio-message POST error:", error);
         return NextResponse.json(
             { success: false, message: "Failed to save message" },
             { status: 500 }
@@ -35,26 +35,55 @@ export async function POST(req: NextRequest) {
     }
 }
 
-// GET - Fetch messages for an audio (called from main frontend)
+// GET - Fetch messages with filters
 export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
-        const audioId = searchParams.get("audioId");
+        const status = searchParams.get("status"); // 'unread', 'flagged', or null for all
+        const limit = parseInt(searchParams.get("limit") || "100");
 
-        const snapshot = await db.collection("audioMessages")
-            .where("audioId", "==", audioId)
-            .where("isFlagged", "==", false)
+        // Always fetch all messages ordered by createdAt
+        // Then filter in JS to avoid Firestore composite index requirement
+        const snapshot = await db
+            .collection("audioMessages")
             .orderBy("createdAt", "desc")
+            .limit(limit)
             .get();
 
-        const messages = snapshot.docs.map(doc => ({
+        let messages = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
-        }));
+        })) as Array<{
+            id: string;
+            isRead: boolean;
+            isFlagged: boolean;
+            audioId: string;
+            [key: string]: unknown;
+        }>;
 
-        return NextResponse.json({ success: true, messages });
-    } catch (error : unknown) {
-        console.log("audio-message :",error)
+        // Compute stats BEFORE filtering
+        const stats = {
+            total: messages.length,
+            unread: messages.filter(m => !m.isRead).length,
+            flagged: messages.filter(m => m.isFlagged).length,
+            totalAudios: new Set(messages.map(m => m.audioId)).size
+        };
+
+        // Apply filter AFTER computing stats
+        if (status === "unread") {
+            messages = messages.filter(m => !m.isRead);
+        } else if (status === "flagged") {
+            messages = messages.filter(m => m.isFlagged);
+        }
+
+        return NextResponse.json({
+            success: true,
+            messages,
+            stats,
+            count: messages.length
+        });
+    } catch (error: unknown) {
+        console.log("audio-message GET error:", error);
         return NextResponse.json(
             { success: false, message: "Failed to fetch messages" },
             { status: 500 }
@@ -62,3 +91,70 @@ export async function GET(req: NextRequest) {
     }
 }
 
+// PATCH - Update message status (mark as read/unread, flag/unflag)
+export async function PATCH(req: NextRequest) {
+    try {
+        const body = await req.json();
+        const { messageId, isRead, isFlagged } = body;
+
+        console.log("PATCH request:", { messageId, isRead, isFlagged });
+
+        if (!messageId) {
+            return NextResponse.json(
+                { success: false, message: "messageId is required" },
+                { status: 400 }
+            );
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const updateData: any = { updatedAt: Date.now() };
+        if (isRead !== undefined) updateData.isRead = isRead;
+        if (isFlagged !== undefined) updateData.isFlagged = isFlagged;
+
+        await db.collection("audioMessages").doc(messageId).update(updateData);
+
+        // Return the updated document so frontend can sync state
+        const updatedDoc = await db.collection("audioMessages").doc(messageId).get();
+        const updatedMessage = { id: updatedDoc.id, ...updatedDoc.data() };
+
+        return NextResponse.json({
+            success: true,
+            message: "Message updated successfully",
+            updatedMessage
+        });
+    } catch (error: unknown) {
+        console.log("audio-message PATCH error:", error);
+        return NextResponse.json(
+            { success: false, message: "Failed to update message" },
+            { status: 500 }
+        );
+    }
+}
+
+// DELETE - Delete a message
+export async function DELETE(req: NextRequest) {
+    try {
+        const { searchParams } = new URL(req.url);
+        const messageId = searchParams.get("messageId");
+
+        if (!messageId) {
+            return NextResponse.json(
+                { success: false, message: "messageId is required" },
+                { status: 400 }
+            );
+        }
+
+        await db.collection("audioMessages").doc(messageId).delete();
+
+        return NextResponse.json({
+            success: true,
+            message: "Message deleted successfully"
+        });
+    } catch (error: unknown) {
+        console.log("audio-message DELETE error:", error);
+        return NextResponse.json(
+            { success: false, message: "Failed to delete message" },
+            { status: 500 }
+        );
+    }
+}
