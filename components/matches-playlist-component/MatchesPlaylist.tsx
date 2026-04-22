@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { DropItem, usePlayersProfiePlaylist } from "@/context/MatchesPlaylistContext";
+import { DropItem, useMatchPlaylist } from "@/context/MatchPlaylistContext";
 import axios from "axios";
 
 type FormState = {
@@ -42,7 +42,7 @@ export default function CreatePlaylistForm({
         singlePlaylist,
         loading,
         fetchSinglePlaylist,
-    } = usePlayersProfiePlaylist();
+    } = useMatchPlaylist();
 
     const [form, setForm] = useState<FormState>({
         playerProfilesId: playerProfilesplaylistPostId || "",
