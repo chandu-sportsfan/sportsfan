@@ -7,6 +7,7 @@ import { db } from "@/lib/firebaseAdmin";
 interface PlayerHomeData {
     playerName: string;
     playerNameLower?: string;
+    playerNameTokens?: string[];
     playerProfilesId?: string;
     title?: string;
     image?: string;
@@ -67,23 +68,35 @@ export async function GET(req: NextRequest) {
 
         // Check if query is a number (for jersey number search)
         const isJerseyNumber = !isNaN(parseInt(query));
-        
+
         const playersMap = new Map<string, SearchResult>(); // Use Map to avoid duplicates
         const teams: SearchResult[] = [];
 
-        // 1️⃣ SEARCH PLAYERS BY NAME from playershome collection
+        // 1️ SEARCH PLAYERS BY NAME from playershome collection
         try {
+            // Primary: prefix match on full name ("rohit sharma" → works for "rohit")
             const playersByNameSnapshot = await db.collection("playershome")
                 .where("playerNameLower", ">=", query)
                 .where("playerNameLower", "<=", query + "\uf8ff")
                 .limit(15)
                 .get();
-            
-            for (const doc of playersByNameSnapshot.docs) {
+
+            // Secondary: token match (works for last names, middle names, any prefix)
+            const playersByTokenSnapshot = await db.collection("playershome")
+                .where("playerNameTokens", "array-contains", query)
+                .limit(15)
+                .get();
+
+            // Merge both, deduplicate by doc id
+            const seenDocIds = new Set<string>();
+
+            for (const doc of [...playersByNameSnapshot.docs, ...playersByTokenSnapshot.docs]) {
+                if (seenDocIds.has(doc.id)) continue;
+                seenDocIds.add(doc.id);
+
                 const data = doc.data() as PlayerHomeData;
                 const playerProfilesId = data.playerProfilesId || doc.id;
-                
-                // Fetch full player profile to get additional details
+
                 let playerProfile: PlayerProfileData | null = null;
                 try {
                     const profileDoc = await db.collection("playerProfiles").doc(playerProfilesId).get();
@@ -93,24 +106,24 @@ export async function GET(req: NextRequest) {
                 } catch (err) {
                     console.error(`Failed to fetch profile for ${playerProfilesId}:`, err);
                 }
-                
+
                 playersMap.set(playerProfilesId, {
                     type: 'player',
                     id: doc.id,
-                    playerProfilesId: playerProfilesId,
+                    playerProfilesId,
                     name: data.playerName,
                     image: data.image || playerProfile?.avatar || null,
-                    jerseyNumber: null, // Will be updated from season data
+                    jerseyNumber: null,
                     team: playerProfile?.team || null,
                     category: [],
-                    stats: playerProfile?.stats || undefined
+                    stats: playerProfile?.stats || undefined,
                 });
             }
         } catch (error) {
             console.error("Error searching players by name:", error);
         }
 
-        // 2️⃣ SEARCH BY JERSEY NUMBER from playerSeasons collection
+        // 2️ SEARCH BY JERSEY NUMBER from playerSeasons collection
         if (isJerseyNumber) {
             const jerseyNumber = query;
             try {
@@ -118,29 +131,29 @@ export async function GET(req: NextRequest) {
                     .where("season.jerseyNo", "==", jerseyNumber)
                     .limit(10)
                     .get();
-                
+
                 for (const doc of playersByJerseySnapshot.docs) {
                     const data = doc.data() as PlayerSeasonData;
                     const playerProfilesId = data.playerProfilesId;
-                    
+
                     if (!playersMap.has(playerProfilesId)) {
                         // Fetch player details from playershome
                         let playerName = "";
                         let playerImage = null;
                         let playerTeam = null;
-                        
+
                         try {
                             const playerHomeQuery = await db.collection("playershome")
                                 .where("playerProfilesId", "==", playerProfilesId)
                                 .limit(1)
                                 .get();
-                            
+
                             if (!playerHomeQuery.empty) {
                                 const playerData = playerHomeQuery.docs[0].data() as PlayerHomeData;
                                 playerName = playerData.playerName;
                                 playerImage = playerData.image || null;
                             }
-                            
+
                             // Fetch profile for team info
                             const profileDoc = await db.collection("playerProfiles").doc(playerProfilesId).get();
                             if (profileDoc.exists) {
@@ -151,7 +164,7 @@ export async function GET(req: NextRequest) {
                         } catch (err) {
                             console.error(`Failed to fetch player details for ${playerProfilesId}:`, err);
                         }
-                        
+
                         if (playerName) {
                             playersMap.set(playerProfilesId, {
                                 type: 'player',
@@ -185,21 +198,21 @@ export async function GET(req: NextRequest) {
                     .where("jerseyNumber", "==", parseInt(query))
                     .limit(5)
                     .get();
-                
+
                 for (const doc of playersByJerseyAltSnapshot.docs) {
                     const data = doc.data() as PlayerSeasonData & { jerseyNumber?: number };
                     const playerProfilesId = data.playerProfilesId;
-                    
+
                     if (!playersMap.has(playerProfilesId)) {
                         let playerName = "";
                         let playerImage = null;
-                        
+
                         try {
                             const playerHomeQuery = await db.collection("playershome")
                                 .where("playerProfilesId", "==", playerProfilesId)
                                 .limit(1)
                                 .get();
-                            
+
                             if (!playerHomeQuery.empty) {
                                 const playerData = playerHomeQuery.docs[0].data() as PlayerHomeData;
                                 playerName = playerData.playerName;
@@ -208,7 +221,7 @@ export async function GET(req: NextRequest) {
                         } catch (err) {
                             console.error(err);
                         }
-                        
+
                         if (playerName) {
                             playersMap.set(playerProfilesId, {
                                 type: 'player',
@@ -235,7 +248,7 @@ export async function GET(req: NextRequest) {
                 .where("teamNameLower", "<=", query + "\uf8ff")
                 .limit(10)
                 .get();
-            
+
             for (const doc of teamsSnapshot.docs) {
                 const data = doc.data() as TeamData;
                 teams.push({
@@ -278,8 +291,8 @@ export async function GET(req: NextRequest) {
         // Combine results (players first, then teams)
         const results = [...players.slice(0, 10), ...teams.slice(0, 10)];
 
-        return NextResponse.json({ 
-            success: true, 
+        return NextResponse.json({
+            success: true,
             results,
             totalCount: results.length,
             searchInfo: {
@@ -289,7 +302,7 @@ export async function GET(req: NextRequest) {
                 teamsFound: teams.length
             }
         });
-        
+
     } catch (error) {
         console.error("Global search error:", error);
         return NextResponse.json(

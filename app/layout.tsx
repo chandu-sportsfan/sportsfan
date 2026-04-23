@@ -5,6 +5,7 @@ import Providers from "./providers";
 import { Team360PlaylistProvider } from "@/context/Team360PlaylistContext";
 import { RoomProvider } from "@/context/RoomContext";
 import { PlayersProfiePlaylistProvider } from "@/context/PlayersProfilePlaylistContext";
+import { MatchPlaylistProvider } from "@/context/MatchPlaylistContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,7 +36,9 @@ export default function RootLayout({
           <Team360PlaylistProvider>
             <RoomProvider>
               <PlayersProfiePlaylistProvider>
-                {children}
+                <MatchPlaylistProvider>
+                  {children}
+                </MatchPlaylistProvider>
               </PlayersProfiePlaylistProvider>
             </RoomProvider>
           </Team360PlaylistProvider>
