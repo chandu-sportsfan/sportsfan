@@ -35,20 +35,82 @@ export async function POST(req: NextRequest) {
     }
 }
 
+// // GET - Fetch messages with filters
+// export async function GET(req: NextRequest) {
+//     try {
+//         const { searchParams } = new URL(req.url);
+//         const status = searchParams.get("status"); // 'unread', 'flagged', or null for all
+//         const limit = parseInt(searchParams.get("limit") || "100");
+
+//         // Always fetch all messages ordered by createdAt
+//         // Then filter in JS to avoid Firestore composite index requirement
+//         const snapshot = await db
+//             .collection("audioMessages")
+//             .orderBy("createdAt", "desc")
+//             .limit(limit)
+//             .get();
+
+//         let messages = snapshot.docs.map(doc => ({
+//             id: doc.id,
+//             ...doc.data()
+//         })) as Array<{
+//             id: string;
+//             isRead: boolean;
+//             isFlagged: boolean;
+//             audioId: string;
+//             [key: string]: unknown;
+//         }>;
+
+//         // Compute stats BEFORE filtering
+//         const stats = {
+//             total: messages.length,
+//             unread: messages.filter(m => !m.isRead).length,
+//             flagged: messages.filter(m => m.isFlagged).length,
+//             totalAudios: new Set(messages.map(m => m.audioId)).size
+//         };
+
+//         // Apply filter AFTER computing stats
+//         if (status === "unread") {
+//             messages = messages.filter(m => !m.isRead);
+//         } else if (status === "flagged") {
+//             messages = messages.filter(m => m.isFlagged);
+//         }
+
+//         return NextResponse.json({
+//             success: true,
+//             messages,
+//             stats,
+//             count: messages.length
+//         });
+//     } catch (error: unknown) {
+//         console.log("audio-message GET error:", error);
+//         return NextResponse.json(
+//             { success: false, message: "Failed to fetch messages" },
+//             { status: 500 }
+//         );
+//     }
+// }
+
+
+
+
 // GET - Fetch messages with filters
 export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
-        const status = searchParams.get("status"); // 'unread', 'flagged', or null for all
+        const status = searchParams.get("status");
+        const audioId = searchParams.get("audioId");        // ← ADD THIS
+        const countOnly = searchParams.get("count") === "true"; // ← ADD THIS
         const limit = parseInt(searchParams.get("limit") || "100");
 
-        // Always fetch all messages ordered by createdAt
-        // Then filter in JS to avoid Firestore composite index requirement
-        const snapshot = await db
-            .collection("audioMessages")
-            .orderBy("createdAt", "desc")
-            .limit(limit)
-            .get();
+        let query = db.collection("audioMessages").orderBy("createdAt", "desc");
+
+        // ← ADD THIS BLOCK: filter by audioId when provided
+        if (audioId) {
+            query = query.where("audioId", "==", audioId) as typeof query;
+        }
+
+        const snapshot = await query.limit(limit).get();
 
         let messages = snapshot.docs.map(doc => ({
             id: doc.id,
@@ -61,7 +123,6 @@ export async function GET(req: NextRequest) {
             [key: string]: unknown;
         }>;
 
-        // Compute stats BEFORE filtering
         const stats = {
             total: messages.length,
             unread: messages.filter(m => !m.isRead).length,
@@ -69,15 +130,23 @@ export async function GET(req: NextRequest) {
             totalAudios: new Set(messages.map(m => m.audioId)).size
         };
 
-        // Apply filter AFTER computing stats
         if (status === "unread") {
             messages = messages.filter(m => !m.isRead);
         } else if (status === "flagged") {
             messages = messages.filter(m => m.isFlagged);
         }
 
+        // ← ADD THIS: return just the count when count=true is passed
+        if (countOnly) {
+            return NextResponse.json({
+                success: true,
+                count: messages.length
+            });
+        }
+
         return NextResponse.json({
             success: true,
+            signals: messages, // ← also expose as "signals" for AudioDrop.tsx
             messages,
             stats,
             count: messages.length
