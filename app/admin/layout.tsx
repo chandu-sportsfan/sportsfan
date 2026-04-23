@@ -124,6 +124,14 @@ const NAV: NavGroup[] = [
 
         ],
       },
+       {
+        label: "Sportsfan360 Profile", icon: "◉",
+        children: [
+          { href: "/admin/sportsfan360profile-management/add-sportsfan360", label: "Add Sportsfan360 Profile" },
+           { href: "/admin/sportsfan360profile-management/sportsfan360profile-list", label: "Sportsfan360 Profile List" },
+
+        ],
+      },
       // { href: "/admin/content", icon: "◧", label: "Content / Posts"   },
       // { href: "/admin/orders",  icon: "◫", label: "Orders & Payments", badge: "8" },
     ],
