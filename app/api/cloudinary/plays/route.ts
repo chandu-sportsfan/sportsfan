@@ -19,13 +19,13 @@ function writePlays(data: Record<string, number>) {
     fs.writeFileSync(PLAYS_FILE, JSON.stringify(data, null, 2));
 }
 
-// GET /api/plays — returns all play counts
+// GET /api/cloudinary/plays — returns all play counts
 export async function GET() {
     const plays = readPlays();
     return NextResponse.json({ success: true, plays });
 }
 
-// POST /api/plays — increment play count for an id
+// POST /api/cloudinary/plays — increment play count for an id
 export async function POST(req: NextRequest) {
     const { id } = await req.json();
     if (!id) return NextResponse.json({ success: false }, { status: 400 });

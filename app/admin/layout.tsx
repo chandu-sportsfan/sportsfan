@@ -132,6 +132,15 @@ const NAV: NavGroup[] = [
 
         ],
       },
+
+       {
+        label: "User Feedback", icon: "◉",
+        children: [
+          { href: "/admin/userfeedback-management/FeedbackQuestionsManager", label: "Add Feedback" },
+          //  { href: "/admin/userfeedback-management/feedback-list", label: "Feedback List" },
+
+        ],
+      },
       // { href: "/admin/content", icon: "◧", label: "Content / Posts"   },
       // { href: "/admin/orders",  icon: "◫", label: "Orders & Payments", badge: "8" },
     ],
