@@ -60,6 +60,7 @@ export async function PUT(req: NextRequest) {
     runs: season?.runs ?? existingSeason.runs,
     strikeRate: season?.strikeRate ?? existingSeason.strikeRate,
     average: season?.average ?? existingSeason.average,
+    jerseyNo: season?.jerseyNo ?? existingSeason.jerseyNo ?? "", 
 
     // ✅ NEW combined fields
     fiftiesAndHundreds: season?.fiftiesAndHundreds ?? existingSeason.fiftiesAndHundreds ?? "",

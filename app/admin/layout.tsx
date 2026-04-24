@@ -136,7 +136,7 @@ const NAV: NavGroup[] = [
        {
         label: "User Feedback", icon: "◉",
         children: [
-          { href: "/admin/userfeedback-management/FeedbackQuestionsManager", label: "Add Feedback" },
+          { href: "/admin/userfeedback-management/feedback", label: "Add Feedback" },
           //  { href: "/admin/userfeedback-management/feedback-list", label: "Feedback List" },
 
         ],
