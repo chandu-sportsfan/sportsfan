@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
+import { Query, DocumentData, CollectionReference } from "firebase-admin/firestore";
 
 interface FeedbackAnswer {
     questionId: string;
-    answer: string | string[] | number;
+    question: string;
+    type: string;
+    answer: string | string[] | number | null;
+    fileUrls?: string[];
 }
 
 interface FeedbackSubmission {
@@ -12,26 +16,16 @@ interface FeedbackSubmission {
     userEmail?: string;
     answers: FeedbackAnswer[];
     textFeedback?: string;
+    rating?: number;
     attachments?: string[];
-    pageUrl?: string;
-    userAgent?: string;
-    status: 'pending' | 'reviewed' | 'resolved';
+    status: "pending" | "reviewed" | "resolved";
     createdAt: number;
     reviewedAt?: number;
     reviewedBy?: string;
     notes?: string;
 }
 
-interface EnrichedSubmission extends FeedbackSubmission {
-    id: string;
-    enrichedAnswers: {
-        questionId: string;
-        answer: string | string[] | number;
-        questionDetails: Record<string, unknown> | null;
-    }[];
-}
-
-// GET - Fetch feedback submissions (admin only)
+// GET — fetch submissions
 export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
@@ -40,215 +34,129 @@ export async function GET(req: NextRequest) {
         const startDate = searchParams.get("startDate");
         const endDate = searchParams.get("endDate");
         const lastDocId = searchParams.get("lastDocId");
-        const lastDocCreatedAt = searchParams.get("lastDocCreatedAt");
 
-        let query = db.collection("feedbackSubmissions")
-            .orderBy("createdAt", "desc")
-            .limit(limit);
+        let query: Query<DocumentData> | CollectionReference<DocumentData> =
+            db.collection("feedbackSubmissions").orderBy("createdAt", "desc").limit(limit);
 
-        if (status && ['pending', 'reviewed', 'resolved'].includes(status)) {
+        if (status && ["pending", "reviewed", "resolved"].includes(status)) {
             query = query.where("status", "==", status);
         }
 
         if (startDate && endDate) {
-            const start = parseInt(startDate);
-            const end = parseInt(endDate);
-            query = query.where("createdAt", ">=", start)
-                       .where("createdAt", "<=", end);
+            query = query
+                .where("createdAt", ">=", parseInt(startDate))
+                .where("createdAt", "<=", parseInt(endDate));
         }
 
-        if (lastDocId && lastDocCreatedAt) {
-            const lastDocRef = db.collection("feedbackSubmissions").doc(lastDocId);
-            const lastDoc = await lastDocRef.get();
-            if (lastDoc.exists) {
-                query = query.startAfter(lastDoc);
-            }
+        if (lastDocId) {
+            const lastDoc = await db.collection("feedbackSubmissions").doc(lastDocId).get();
+            if (lastDoc.exists) query = query.startAfter(lastDoc);
         }
 
         const snapshot = await query.get();
-
-        // ← Cast doc.data() to FeedbackSubmission so TypeScript knows the shape
-        const submissions: (FeedbackSubmission & { id: string })[] = snapshot.docs.map((doc) => ({
+        const submissions = snapshot.docs.map((doc) => ({
             id: doc.id,
             ...(doc.data() as FeedbackSubmission),
         }));
 
         const lastDoc = snapshot.docs[snapshot.docs.length - 1];
 
-        const questionsSnapshot = await db.collection("feedbackQuestions")
-            .where("isActive", "==", true)
-            .orderBy("order", "asc")
-            .get();
-
-        const questionsMap = new Map<string, Record<string, unknown>>();
-        questionsSnapshot.docs.forEach((doc) => {
-            questionsMap.set(doc.id, doc.data() as Record<string, unknown>);
-        });
-
-        // ← Now TypeScript knows submission.answers exists
-        const enrichedSubmissions: EnrichedSubmission[] = submissions.map((submission) => ({
-            ...submission,
-            enrichedAnswers: submission.answers.map((answer: FeedbackAnswer) => ({
-                ...answer,
-                questionDetails: questionsMap.get(answer.questionId) ?? null,
-            })),
-        }));
-
         return NextResponse.json({
             success: true,
-            submissions: enrichedSubmissions,
+            submissions,
             pagination: {
-                limit,
                 hasMore: submissions.length === limit,
-                nextCursor: submissions.length === limit
-                    ? {
-                        lastDocId: lastDoc?.id,
-                        lastDocCreatedAt: (lastDoc?.data() as FeedbackSubmission)?.createdAt,
-                    }
-                    : null,
+                nextCursor: submissions.length === limit ? { lastDocId: lastDoc?.id } : null,
             },
         });
     } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : "Unexpected error";
-        console.error("Error fetching feedback submissions:", error);
         return NextResponse.json({ error: msg }, { status: 500 });
     }
 }
 
-// POST - Submit feedback (public)
+// POST — submit feedback (called from main frontend via proxy)
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const {
-            userId,
-            userName,
-            userEmail,
-            answers,
-            textFeedback,
-            attachments,
-            pageUrl,
-            userAgent,
-        } = body;
+        const { userId, userName, userEmail, answers, textFeedback, rating, attachments } = body;
 
         if (!answers || !Array.isArray(answers) || answers.length === 0) {
-            return NextResponse.json(
-                { error: "Answers are required" },
-                { status: 400 }
-            );
+            return NextResponse.json({ error: "Answers are required" }, { status: 400 });
         }
 
         const submission: FeedbackSubmission = {
-            userId: userId || 'anonymous',
-            userName: userName || 'Anonymous User',
-            userEmail: userEmail || '',
+            userId: userId || "anonymous",
+            userName: userName || "Anonymous User",
+            userEmail: userEmail || "",
             answers,
-            textFeedback: textFeedback || '',
+            textFeedback: textFeedback || "",
+            rating: rating ?? null,
             attachments: attachments || [],
-            pageUrl: pageUrl || '',
-            userAgent: userAgent || '',
-            status: 'pending',
+            status: "pending",
             createdAt: Date.now(),
         };
 
         const docRef = await db.collection("feedbackSubmissions").add(submission);
 
         return NextResponse.json(
-            {
-                success: true,
-                message: "Feedback submitted successfully",
-                submissionId: docRef.id,
-            },
+            { success: true, message: "Feedback submitted successfully", submissionId: docRef.id },
             { status: 201 }
         );
     } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : "Unexpected error";
-        console.error("Error submitting feedback:", error);
         return NextResponse.json({ error: msg }, { status: 500 });
     }
 }
 
-// PUT - Update submission status (admin only)
+// PUT — update submission status
 export async function PUT(req: NextRequest) {
     try {
         const body = await req.json();
         const { id, status, reviewedBy, notes } = body;
 
-        if (!id) {
-            return NextResponse.json(
-                { error: "Submission ID is required" },
-                { status: 400 }
-            );
+        if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 });
+
+        const ref = db.collection("feedbackSubmissions").doc(id);
+        if (!(await ref.get()).exists) {
+            return NextResponse.json({ error: "Submission not found" }, { status: 404 });
         }
 
-        const submissionRef = db.collection("feedbackSubmissions").doc(id);
-        const submissionDoc = await submissionRef.get();
-
-        if (!submissionDoc.exists) {
-            return NextResponse.json(
-                { error: "Submission not found" },
-                { status: 404 }
-            );
-        }
-
-        const updateData: Partial<FeedbackSubmission> = {
+        await ref.update({
             status,
             reviewedAt: Date.now(),
             reviewedBy,
             notes,
-        };
+        } as Partial<FeedbackSubmission>);
 
-        await submissionRef.update(updateData);
-
-        const updatedDoc = await submissionRef.get();
-        const updatedSubmission = {
-            id: updatedDoc.id,
-            ...(updatedDoc.data() as FeedbackSubmission),
-        };
-
+        const updated = await ref.get();
         return NextResponse.json({
             success: true,
-            message: "Submission updated successfully",
-            submission: updatedSubmission,
+            submission: { id: updated.id, ...(updated.data() as FeedbackSubmission) },
         });
     } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : "Unexpected error";
-        console.error("Error updating submission:", error);
         return NextResponse.json({ error: msg }, { status: 500 });
     }
 }
 
-// DELETE - Delete submission (admin only)
+// DELETE — delete submission
 export async function DELETE(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
         const id = searchParams.get("id");
 
-        if (!id) {
-            return NextResponse.json(
-                { error: "Submission ID is required" },
-                { status: 400 }
-            );
+        if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 });
+
+        const ref = db.collection("feedbackSubmissions").doc(id);
+        if (!(await ref.get()).exists) {
+            return NextResponse.json({ error: "Submission not found" }, { status: 404 });
         }
 
-        const submissionRef = db.collection("feedbackSubmissions").doc(id);
-        const submissionDoc = await submissionRef.get();
-
-        if (!submissionDoc.exists) {
-            return NextResponse.json(
-                { error: "Submission not found" },
-                { status: 404 }
-            );
-        }
-
-        await submissionRef.delete();
-
-        return NextResponse.json({
-            success: true,
-            message: "Submission deleted successfully",
-        });
+        await ref.delete();
+        return NextResponse.json({ success: true, message: "Deleted successfully" });
     } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : "Unexpected error";
-        console.error("Error deleting submission:", error);
         return NextResponse.json({ error: msg }, { status: 500 });
     }
 }

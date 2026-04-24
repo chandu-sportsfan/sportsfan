@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 
-type QuestionType = 'rating' | 'radio' | 'checkbox' | 'text';
+
+interface QuestionOption {
+    id: string;
+    label: string;
+    value: string;
+}
 
 interface FeedbackQuestion {
-    id: string;
+    id?: string;
     question: string;
-    type: QuestionType;
-    options?: string[];
+    type: "multiple_choice" | "text" | "rating" | "file_upload";
+    options?: QuestionOption[];
     required: boolean;
     order: number;
     isActive: boolean;
@@ -15,109 +20,63 @@ interface FeedbackQuestion {
     updatedAt: number;
 }
 
-// GET - Fetch all questions (with optional filtering)
-export async function GET(req: NextRequest) {
+// GET — fetch all questions
+export async function GET() {
     try {
-        const { searchParams } = new URL(req.url);
-        const isActive = searchParams.get("isActive");
-        const limit = parseInt(searchParams.get("limit") || "50");
-
-        let query = db.collection("feedbackQuestions")
+        const snapshot = await db
+            .collection("feedbackQuestions")
             .orderBy("order", "asc")
-            .limit(limit);
+            .get();
 
-        if (isActive === "true") {
-            query = query.where("isActive", "==", true);
-        }
-
-        const snapshot = await query.get();
-        
         const questions = snapshot.docs.map((doc) => ({
             id: doc.id,
-            ...doc.data(),
+            ...(doc.data() as FeedbackQuestion),
         }));
 
-        return NextResponse.json({
-            success: true,
-            questions,
-        });
+        return NextResponse.json({ success: true, questions });
     } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : "Unexpected error";
-        console.error("Error fetching feedback questions:", error);
         return NextResponse.json({ error: msg }, { status: 500 });
     }
 }
 
-// POST - Create a new question
+// POST — create a new question
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const {
-            question,
-            type,
-            options,
-            required,
-            order,
-            isActive,
-        } = body;
+        const { question, type, options, required, order } = body;
 
-        // Validation
-        const validTypes: QuestionType[] = ['rating', 'radio', 'checkbox', 'text'];
-        
         if (!question || !type) {
             return NextResponse.json(
-                { error: "question and type are required" },
+                { error: "Question and type are required" },
                 { status: 400 }
             );
         }
-
-        if (!validTypes.includes(type)) {
-            return NextResponse.json(
-                { error: "Invalid type. Must be rating, radio, checkbox, or text" },
-                { status: 400 }
-            );
-        }
-
-        // For rating type, provide default options if not provided
-        let finalOptions = options;
-        if (type === 'rating' && (!options || options.length === 0)) {
-            finalOptions = ['1', '2', '3', '4', '5'];
-        }
-
-        // Generate unique ID
-        const questionId = `q_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
         const newQuestion: FeedbackQuestion = {
-            id: questionId,
             question,
             type,
-            options: finalOptions || [],
-            required: required !== undefined ? required : true,
-            order: order || 0,
-            isActive: isActive !== undefined ? isActive : true,
+            options: options || [],
+            required: required ?? true,
+            order: order ?? 0,
+            isActive: true,
             createdAt: Date.now(),
             updatedAt: Date.now(),
         };
 
-        await db.collection("feedbackQuestions").doc(questionId).set(newQuestion);
+        const docRef = await db.collection("feedbackQuestions").add(newQuestion);
 
         return NextResponse.json(
-            {
-                success: true,
-                message: "Question created successfully",
-                question: newQuestion,
-            },
+            { success: true, id: docRef.id, question: newQuestion },
             { status: 201 }
         );
-
     } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : "Unexpected error";
-        console.error("Error creating feedback question:", error);
         return NextResponse.json({ error: msg }, { status: 500 });
     }
 }
 
-// PUT - Update a question
+// PUT — update a question
 export async function PUT(req: NextRequest) {
     try {
         const body = await req.json();
@@ -130,11 +89,10 @@ export async function PUT(req: NextRequest) {
             );
         }
 
-        // Check if question exists
-        const questionRef = db.collection("feedbackQuestions").doc(id);
-        const questionDoc = await questionRef.get();
+        const ref = db.collection("feedbackQuestions").doc(id);
+        const doc = await ref.get();
 
-        if (!questionDoc.exists) {
+        if (!doc.exists) {
             return NextResponse.json(
                 { error: "Question not found" },
                 { status: 404 }
@@ -142,35 +100,29 @@ export async function PUT(req: NextRequest) {
         }
 
         const updateData: Partial<FeedbackQuestion> = {
+            ...(question !== undefined && { question }),
+            ...(type !== undefined && { type }),
+            ...(options !== undefined && { options }),
+            ...(required !== undefined && { required }),
+            ...(order !== undefined && { order }),
+            ...(isActive !== undefined && { isActive }),
             updatedAt: Date.now(),
         };
 
-        if (question !== undefined) updateData.question = question;
-        if (type !== undefined) updateData.type = type;
-        if (options !== undefined) updateData.options = options;
-        if (required !== undefined) updateData.required = required;
-        if (order !== undefined) updateData.order = order;
-        if (isActive !== undefined) updateData.isActive = isActive;
-
-        await questionRef.update(updateData);
-
-        const updatedDoc = await questionRef.get();
-        const updatedQuestion = { id: updatedDoc.id, ...updatedDoc.data() };
+        await ref.update(updateData);
+        const updated = await ref.get();
 
         return NextResponse.json({
             success: true,
-            message: "Question updated successfully",
-            question: updatedQuestion,
+            question: { id: updated.id, ...(updated.data() as FeedbackQuestion) },
         });
-
     } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : "Unexpected error";
-        console.error("Error updating feedback question:", error);
         return NextResponse.json({ error: msg }, { status: 500 });
     }
 }
 
-// DELETE - Delete a question
+// DELETE — delete a question
 export async function DELETE(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
@@ -183,26 +135,24 @@ export async function DELETE(req: NextRequest) {
             );
         }
 
-        const questionRef = db.collection("feedbackQuestions").doc(id);
-        const questionDoc = await questionRef.get();
+        const ref = db.collection("feedbackQuestions").doc(id);
+        const doc = await ref.get();
 
-        if (!questionDoc.exists) {
+        if (!doc.exists) {
             return NextResponse.json(
                 { error: "Question not found" },
                 { status: 404 }
             );
         }
 
-        await questionRef.delete();
+        await ref.delete();
 
         return NextResponse.json({
             success: true,
             message: "Question deleted successfully",
         });
-
     } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : "Unexpected error";
-        console.error("Error deleting feedback question:", error);
         return NextResponse.json({ error: msg }, { status: 500 });
     }
 }
