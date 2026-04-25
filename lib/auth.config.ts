@@ -24,6 +24,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             email,
             firstName:  nameParts[0]  ?? "",
             lastName:   nameParts.slice(1).join(" ") ?? "",
+            userId: `google_${email.replace(/[^a-zA-Z0-9]/g, "_")}_${Date.now()}`,
             avatar:     user.image    ?? "",
             provider:   "google",
             isVerified: true,
