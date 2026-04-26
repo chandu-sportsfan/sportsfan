@@ -62,6 +62,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               lastName:  data.lastName,
               role:      data.role   ?? "user",
               status:    data.status ?? "active",
+               userId:    data.userId,
             };
           }
         } catch (error) {
