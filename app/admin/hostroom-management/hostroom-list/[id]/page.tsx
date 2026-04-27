@@ -66,13 +66,14 @@ type RoomRecord = {
     publishedAt?: number;
 };
 
+/*
 const STATUS_COLORS: Record<RoomStatus, string> = {
     draft: "bg-gray-500/10 text-gray-400 border-gray-500/20",
     published: "bg-green-500/10 text-green-400 border-green-500/20",
     live: "bg-blue-500/10 text-blue-400 border-blue-500/20",
     ended: "bg-red-500/10 text-red-400 border-red-500/20",
 };
-
+*/
 const ROOM_TYPE_LABELS: Record<RoomType, string> = {
     open: "Open",
     inner: "Inner",
