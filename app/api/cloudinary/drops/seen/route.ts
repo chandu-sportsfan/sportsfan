@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 
+
+
 // POST — mark a drop as seen
 export async function POST(req: NextRequest) {
     try {
@@ -13,9 +15,12 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        // ← sanitize dropId — replace / with _ for Firestore doc ID
+        const safeDocId = `${userId}_${dropId.replace(/\//g, "_")}`;
+
         await db
             .collection("seen_drops")
-            .doc(`${userId}_${dropId}`)
+            .doc(safeDocId)
             .set({ dropId, userId, seenAt: new Date().toISOString() });
 
         return NextResponse.json({ success: true });
@@ -44,6 +49,7 @@ export async function GET(req: NextRequest) {
             .where("userId", "==", userId)
             .get();
 
+        // ← return the original dropId (not the sanitized doc ID)
         const seenDropIds = snap.docs.map((d) => d.data().dropId as string);
 
         return NextResponse.json({ success: true, seenDropIds });
