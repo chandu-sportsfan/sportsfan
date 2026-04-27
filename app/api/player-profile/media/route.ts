@@ -14,6 +14,7 @@ export async function POST(req: NextRequest) {
         const viewsCounts = formData.getAll("views") as string[];
         const times = formData.getAll("times") as string[];
         const thumbnailFiles = formData.getAll("thumbnails") as File[];
+        const existingThumbnails = formData.getAll("existingThumbnails") as string[];
 
         if (!playerProfileId) {
             return NextResponse.json(
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
             const time = times[i] || "";
 
             // Upload thumbnail to Cloudinary
-            let thumbnailUrl = "";
+            let thumbnailUrl = existingThumbnails[i] || "";
             if (thumbnailFiles[i] && thumbnailFiles[i].size > 0) {
                 const bytes = await thumbnailFiles[i].arrayBuffer();
                 const buffer = Buffer.from(bytes);

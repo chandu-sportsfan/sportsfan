@@ -79,6 +79,13 @@ const NAV: NavGroup[] = [
           { href: "/admin/clubprofile-management/clubprofile-list", label: "Club Profiles List" },
         ],
       },
+      {
+        label: "User Feedback", icon: "◉",
+        children: [
+          { href: "/admin/userfeedback-management/add-userfeedback", label: "Add User Feedback" },
+          { href: "/admin/userfeedback-management/userfeedback-list", label: "User Feedback List" },
+        ],
+      },
        {
         label: "Player Profiles", icon: "◉",
         children: [

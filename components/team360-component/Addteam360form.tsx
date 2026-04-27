@@ -196,6 +196,10 @@ export default function CreateTeam360Post({ team360IdToEdit }: { team360IdToEdit
             headers: { "Content-Type": "multipart/form-data" },
         });
 
+        if (!response.data?.success || !response.data?.url) {
+            throw new Error(response.data?.message || "File upload failed");
+        }
+
         return response.data.url;
     };
 
@@ -203,6 +207,11 @@ export default function CreateTeam360Post({ team360IdToEdit }: { team360IdToEdit
     const handleSubmit = async () => {
         if (!form.teamName || !form.title) {
             alert("Required fields missing");
+            return;
+        }
+
+        if (!team360IdToEdit && (!image || !logo)) {
+            alert("Main Image and Logo are required for new posts");
             return;
         }
 
@@ -290,9 +299,14 @@ export default function CreateTeam360Post({ team360IdToEdit }: { team360IdToEdit
                     handleCancel();
                 }
             }
-        } catch (error) {
+        } catch (error: unknown) {
             console.error("Error:", error);
-            alert("Error saving post");
+            const serverMessage = axios.isAxiosError(error)
+                ? (error.response?.data?.error || error.response?.data?.message || error.message)
+                : error instanceof Error
+                    ? error.message
+                    : "Error saving post";
+            alert(serverMessage);
         } finally {
             setLoading(false);
         }

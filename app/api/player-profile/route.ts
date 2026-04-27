@@ -108,6 +108,7 @@ export async function POST(req: NextRequest) {
 
     // Files
     const avatarFile = formData.get("avatar") as File | null;
+    const avatarUrl = formData.get("avatarUrl") as string;
 
     if (!name || !team) {
       return NextResponse.json(
@@ -117,8 +118,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Upload avatar
-    let avatarUrl = "";
-    if (avatarFile) {
+    let resolvedAvatarUrl = "";
+    if (avatarUrl) {
+      resolvedAvatarUrl = avatarUrl;
+    } else if (avatarFile) {
       const bytes = await avatarFile.arrayBuffer();
       const buffer = Buffer.from(bytes);
       const base64 = `data:${avatarFile.type};base64,${buffer.toString("base64")}`;
@@ -126,7 +129,7 @@ export async function POST(req: NextRequest) {
         folder: "club-profiles/avatars",
         public_id: `${Date.now()}-${avatarFile.name.replace(/\s/g, "_")}`,
       });
-      avatarUrl = uploadRes.secure_url;
+      resolvedAvatarUrl = uploadRes.secure_url;
     }
 
     const profileData = {
@@ -135,7 +138,7 @@ export async function POST(req: NextRequest) {
       battingStyle: battingStyle || "",
       bowlingStyle: bowlingStyle || "",
       about: about || "",
-      avatar: avatarUrl,
+      avatar: resolvedAvatarUrl,
       stats: {
         runs: statsRuns || "0",
         sr: statsSr || "0",

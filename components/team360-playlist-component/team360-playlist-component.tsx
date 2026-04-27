@@ -43,6 +43,8 @@ export default function CreatePlaylistForm({
 
     const [team360Posts, setTeam360Posts] = useState<Team360Post[]>([]);
     const [fetchingPosts, setFetchingPosts] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submitNotice, setSubmitNotice] = useState<string | null>(null);
 
     // Store the actual File objects for upload
     const [audioFiles, setAudioFiles] = useState<Record<string, File>>({});
@@ -215,6 +217,8 @@ export default function CreatePlaylistForm({
 
     /* SUBMIT WITH FORM DATA */
     const handleSubmit = async () => {
+        if (isSubmitting) return;
+
         if (!form.team360PostId) {
             alert("Please select a Team");
             return;
@@ -285,6 +289,13 @@ export default function CreatePlaylistForm({
         ));
 
         try {
+            setIsSubmitting(true);
+            setSubmitNotice(
+                playlistIdToEdit
+                    ? "Updating playlist, please wait..."
+                    : "Creating playlist, please wait..."
+            );
+
             const response = await fetch(
                 playlistIdToEdit
                     ? `/api/team360-playlist/${playlistIdToEdit}`
@@ -301,11 +312,15 @@ export default function CreatePlaylistForm({
                 alert(playlistIdToEdit ? "Playlist updated successfully!" : "Playlist created successfully!");
                 router.push("/admin/team360playlist-management/team360playlist-list");
             } else {
+                setSubmitNotice(null);
                 alert(`Failed to ${playlistIdToEdit ? "update" : "create"} playlist: ${result.message}`);
             }
         } catch (error) {
+            setSubmitNotice(null);
             console.error("Submit error:", error);
             alert(`Failed to ${playlistIdToEdit ? "update" : "create"} playlist`);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -498,13 +513,19 @@ export default function CreatePlaylistForm({
                 {renderDropSection("audioDrops", "Audio Drops", "audio")}
                 {renderDropSection("videoDrops", "Video Drops", "video")}
 
+                {submitNotice && (
+                    <div className="rounded border border-blue-700 bg-blue-900/20 px-4 py-3 text-sm text-blue-300">
+                        {submitNotice}
+                    </div>
+                )}
+
                 <button
                     onClick={handleSubmit}
-                    disabled={loading}
+                    disabled={loading || isSubmitting}
                     className="w-full bg-blue-600 py-3 rounded font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
                 >
-                    {loading
-                        ? "Saving..."
+                    {loading || isSubmitting
+                        ? (playlistIdToEdit ? "Updating..." : "Creating...")
                         : playlistIdToEdit
                             ? "Update Playlist"
                             : "Create Playlist"}

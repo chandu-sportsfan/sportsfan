@@ -172,7 +172,7 @@ export default function Team360PlaylistListPage() {
                         Manage all audio and video drops for Team360 posts
                     </p>
                 </div>
-                <Link href="/admin/team360-management/create-playlist">
+                <Link href="/admin/team360playlist-management/add-team360playlist">
                     <button className="bg-blue-600 px-4 py-2 rounded text-white hover:bg-blue-700 transition">
                          Create New Playlist
                     </button>
