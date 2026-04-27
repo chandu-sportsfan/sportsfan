@@ -57,13 +57,21 @@ export async function POST(req: NextRequest) {
     // ── 4. Check if host needs to change password on first login ──
     const requiresPasswordChange = user.role === "host" && user.isFirstLogin === true;
 
+    // ── 4.5 Backfill userId if missing ─────────────── ← ADD THIS BLOCK
+    if (!user.userId) {
+      const generatedUserId = `${user.firstName.toLowerCase()}_${email.replace(/[^a-zA-Z0-9]/g, "_")}`;
+      await userRef.update({ userId: generatedUserId });
+      user.userId = generatedUserId;
+    }
+
+
     // ── 5. Create JWT token ───────────────────────
     const token = jwt.sign(
       {
-        email:  user.email,
+        email: user.email,
         userId: user.userId,
-        name:   `${user.firstName} ${user.lastName}`,
-        role:   user.role ?? "user",
+        name: `${user.firstName} ${user.lastName}`,
+        role: user.role ?? "user",
         status: user.status ?? "active",
         isFirstLogin: user.isFirstLogin ?? false,
       },
@@ -76,10 +84,10 @@ export async function POST(req: NextRequest) {
       success: true,
       requiresPasswordChange: requiresPasswordChange, // ← Add this flag
       user: {
-        email:  user.email,
-        name:   `${user.firstName} ${user.lastName}`,
+        email: user.email,
+        name: `${user.firstName} ${user.lastName}`,
         userId: user.userId,
-        role:   user.role   ?? "user",
+        role: user.role ?? "user",
         status: user.status ?? "active",
         isFirstLogin: user.isFirstLogin ?? false,
       },
@@ -88,10 +96,10 @@ export async function POST(req: NextRequest) {
     // ── 7. Set HTTP-only cookies ───────────────────
     response.cookies.set("token", token, {
       httpOnly: true,
-      secure:   process.env.NODE_ENV === "production",
+      secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge:   7 * 24 * 60 * 60,
-      path:     "/",
+      maxAge: 7 * 24 * 60 * 60,
+      path: "/",
     });
 
     return response;
