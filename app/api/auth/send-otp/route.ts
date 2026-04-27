@@ -22,9 +22,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
 
-    
+
     //  CHECK USER EXISTS
-    
+
     // console.log(" Checking if user exists...");
 
     const userRef = db.collection("users").doc(email);
@@ -44,13 +44,24 @@ export async function POST(req: NextRequest) {
     // =========================
     console.log(" Creating new user...");
 
+    // await userRef.set({
+    //   firstName,
+    //   lastName,
+    //   email,
+    //   createdAt: Date.now(),
+    //   isVerified: false,
+    //   status: "active", 
+    //   role: "user",
+    // });
+    const userId = `${firstName.toLowerCase()}_${email.replace(/[^a-zA-Z0-9]/g, "_")}`;
     await userRef.set({
       firstName,
       lastName,
       email,
+      userId, 
       createdAt: Date.now(),
       isVerified: false,
-      status: "active", 
+      status: "active",
       role: "user",
     });
 

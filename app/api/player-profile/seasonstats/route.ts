@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
     strikeRate: season.strikeRate || "0",
     average: season.average || "0",
 
+
     // ✅ NEW combined fields
     fiftiesAndHundreds: season.fiftiesAndHundreds || "",
     highestScore: season.highestScore || "",
