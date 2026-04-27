@@ -79,6 +79,13 @@ const NAV: NavGroup[] = [
           { href: "/admin/clubprofile-management/clubprofile-list", label: "Club Profiles List" },
         ],
       },
+      {
+        label: "User Feedback", icon: "◉",
+        children: [
+          { href: "/admin/userfeedback-management/add-userfeedback", label: "Add User Feedback" },
+          { href: "/admin/userfeedback-management/userfeedback-list", label: "User Feedback List" },
+        ],
+      },
        {
         label: "Player Profiles", icon: "◉",
         children: [
@@ -121,6 +128,14 @@ const NAV: NavGroup[] = [
           { href: "/admin/audiomessages-management", label: "Audio Messages List" },
           { href: "/admin/audiodrops-management/", label: "Audio Request Drops List" },
            { href: "/admin/audioplaylist-management/", label: "Audio List" },
+
+        ],
+      },
+       {
+        label: "Sportsfan360 Profile", icon: "◉",
+        children: [
+          { href: "/admin/sportsfan360profile-management/add-sportsfan360", label: "Add Sportsfan360 Profile" },
+           { href: "/admin/sportsfan360profile-management/sportsfan360profile-list", label: "Sportsfan360 Profile List" },
 
         ],
       },

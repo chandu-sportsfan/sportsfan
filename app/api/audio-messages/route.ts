@@ -103,12 +103,14 @@ export async function GET(req: NextRequest) {
         const countOnly = searchParams.get("count") === "true"; // ← ADD THIS
         const limit = parseInt(searchParams.get("limit") || "100");
 
-        let query = db.collection("audioMessages").orderBy("createdAt", "desc");
+       let query: FirebaseFirestore.Query = db.collection("audioMessages");
 
-        // ← ADD THIS BLOCK: filter by audioId when provided
         if (audioId) {
             query = query.where("audioId", "==", audioId) as typeof query;
         }
+
+       query = query.orderBy("createdAt", "desc").limit(limit);
+
 
         const snapshot = await query.limit(limit).get();
 
