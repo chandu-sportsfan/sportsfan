@@ -10,7 +10,7 @@ import {
 } from "react";
 import axios from "axios";
 
-/* ================= TYPES ================= */
+/*  TYPES  */
 
 export interface TeamScore {
   name: string;
