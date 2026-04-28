@@ -1,38 +1,59 @@
+// app/api/cloudinary/plays/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import { db } from "@/lib/firebaseAdmin";
+import { FieldValue } from "firebase-admin/firestore";
 
-const PLAYS_FILE = path.join(process.cwd(), "data", "plays.json");
+// Single Firestore doc: appData/plays
+// Stores: { "sf360/audio/some-track": 12, "sf360/video/some-video": 7, ... }
+const PLAYS_DOC = db.collection("appData").doc("plays");
 
-function readPlays(): Record<string, number> {
+// ─── GET: Return all play counts ──────────────────────────────────────────────
+export async function GET() {
     try {
-        if (!fs.existsSync(PLAYS_FILE)) return {};
-        return JSON.parse(fs.readFileSync(PLAYS_FILE, "utf-8"));
-    } catch {
-        return {};
+        const doc = await PLAYS_DOC.get();
+        const plays: Record<string, number> = doc.exists
+            ? (doc.data() as Record<string, number>)
+            : {};
+
+        return NextResponse.json({ success: true, plays });
+    } catch (error) {
+        console.error("[plays] GET error:", error);
+        return NextResponse.json(
+            { success: false, error: "Failed to fetch plays" },
+            { status: 500 }
+        );
     }
 }
 
-function writePlays(data: Record<string, number>) {
-    const dir = path.dirname(PLAYS_FILE);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(PLAYS_FILE, JSON.stringify(data, null, 2));
-}
-
-// GET /api/cloudinary/plays — returns all play counts
-export async function GET() {
-    const plays = readPlays();
-    return NextResponse.json({ success: true, plays });
-}
-
-// POST /api/cloudinary/plays — increment play count for an id
+// ─── POST: Atomically increment play count ────────────────────────────────────
+// Body: { id: string }
 export async function POST(req: NextRequest) {
-    const { id } = await req.json();
-    if (!id) return NextResponse.json({ success: false }, { status: 400 });
+    try {
+        const { id } = await req.json();
 
-    const plays = readPlays();
-    plays[id] = (plays[id] || 0) + 1;
-    writePlays(plays);
+        if (!id) {
+            return NextResponse.json(
+                { success: false, error: "id is required" },
+                { status: 400 }
+            );
+        }
 
-    return NextResponse.json({ success: true, plays: plays[id] });
+        // FieldValue.increment is atomic — safe under concurrent serverless requests
+        await PLAYS_DOC.set(
+            { [id]: FieldValue.increment(1) },
+            { merge: true }
+        );
+
+        // Read back updated count for this id only
+        const doc = await PLAYS_DOC.get();
+        const plays = doc.exists ? (doc.data() as Record<string, number>) : {};
+
+        return NextResponse.json({ success: true, plays: plays[id] ?? 1 });
+    } catch (error) {
+        console.error("[plays] POST error:", error);
+        return NextResponse.json(
+            { success: false, error: "Failed to increment plays" },
+            { status: 500 }
+        );
+    }
 }
