@@ -1,13 +1,12 @@
-// app/api/video-progress/route.ts
+// app/api/audio-progress/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
-
 
 export async function GET(req: NextRequest) {
     try {
         const searchParams = req.nextUrl.searchParams;
         const userId = searchParams.get("userId");
-        const videoId = searchParams.get("videoId");
+        const audioId = searchParams.get("audioId");
 
         if (!userId) {
             return NextResponse.json(
@@ -16,13 +15,13 @@ export async function GET(req: NextRequest) {
             );
         }
 
-        // Fetch single video progress
-        if (videoId) {
+        // Fetch single audio progress
+        if (audioId) {
             const doc = await db
-                .collection("videoProgress")
+                .collection("audioProgress")
                 .doc(userId)
-                .collection("videos")
-                .doc(encodeURIComponent(videoId))
+                .collection("tracks")
+                .doc(encodeURIComponent(audioId))
                 .get();
 
             if (!doc.exists) {
@@ -32,11 +31,11 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ success: true, progress: doc.data() });
         }
 
-        // Fetch all in-progress videos for user (for Continue Watching)
+        // Fetch all in-progress tracks for user (for Continue Listening)
         const snapshot = await db
-            .collection("videoProgress")
+            .collection("audioProgress")
             .doc(userId)
-            .collection("videos")
+            .collection("tracks")
             .where("pct", ">", 2)
             .where("pct", "<", 95)
             .orderBy("pct")
@@ -48,7 +47,7 @@ export async function GET(req: NextRequest) {
 
         return NextResponse.json({ success: true, progress });
     } catch (error) {
-        console.error("Error fetching video progress:", error);
+        console.error("Error fetching audio progress:", error);
         return NextResponse.json(
             {
                 success: false,
@@ -60,34 +59,34 @@ export async function GET(req: NextRequest) {
     }
 }
 
-// ─── POST: Save/update progress ───────────────────────────────────────────────
-// Body: { userId, videoId, title, subtitle, elapsed, durationSeconds, pct, url }
+// ─── POST: Save/update progress 
+// Body: { userId, audioId, title, subtitle, elapsed, durationSeconds, pct, url }
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { userId, videoId, title, subtitle, elapsed, durationSeconds, pct, url } = body;
+        const { userId, audioId, title, subtitle, elapsed, durationSeconds, pct, url } = body;
 
-        if (!userId || !videoId) {
+        if (!userId || !audioId) {
             return NextResponse.json(
-                { success: false, error: "userId and videoId are required" },
+                { success: false, error: "userId and audioId are required" },
                 { status: 400 }
             );
         }
 
-        // If video is >95% watched — clear progress (treat as finished)
+        // If audio is >95% listened — clear progress (treat as finished)
         if (pct >= 95) {
             await db
-                .collection("videoProgress")
+                .collection("audioProgress")
                 .doc(userId)
-                .collection("videos")
-                .doc(encodeURIComponent(videoId))
+                .collection("tracks")
+                .doc(encodeURIComponent(audioId))
                 .delete();
 
-            return NextResponse.json({ success: true, message: "Progress cleared — video finished" });
+            return NextResponse.json({ success: true, message: "Progress cleared — audio finished" });
         }
 
         const progressData = {
-            videoId,
+            audioId,
             title,
             subtitle: subtitle || "",
             elapsed: elapsed || 0,
@@ -98,15 +97,15 @@ export async function POST(req: NextRequest) {
         };
 
         await db
-            .collection("videoProgress")
+            .collection("audioProgress")
             .doc(userId)
-            .collection("videos")
-            .doc(encodeURIComponent(videoId))
+            .collection("tracks")
+            .doc(encodeURIComponent(audioId))
             .set(progressData, { merge: true });
 
         return NextResponse.json({ success: true, progress: progressData });
     } catch (error) {
-        console.error("Error saving video progress:", error);
+        console.error("Error saving audio progress:", error);
         return NextResponse.json(
             {
                 success: false,
@@ -118,31 +117,31 @@ export async function POST(req: NextRequest) {
     }
 }
 
-// ─── DELETE: Clear progress for a specific video ─────────────────────────────
-// DELETE /api/cloudinary/video-progress?userId=xxx&videoId=sf360/video/bumrah_chapter-1
+// ─── DELETE: Clear progress for a specific track 
+// DELETE /api/audio-progress?userId=xxx&audioId=sf360/audio/bumrah_pregame
 export async function DELETE(req: NextRequest) {
     try {
         const searchParams = req.nextUrl.searchParams;
         const userId = searchParams.get("userId");
-        const videoId = searchParams.get("videoId");
+        const audioId = searchParams.get("audioId");
 
-        if (!userId || !videoId) {
+        if (!userId || !audioId) {
             return NextResponse.json(
-                { success: false, error: "userId and videoId are required" },
+                { success: false, error: "userId and audioId are required" },
                 { status: 400 }
             );
         }
 
         await db
-            .collection("videoProgress")
+            .collection("audioProgress")
             .doc(userId)
-            .collection("videos")
-            .doc(encodeURIComponent(videoId))
+            .collection("tracks")
+            .doc(encodeURIComponent(audioId))
             .delete();
 
         return NextResponse.json({ success: true, message: "Progress cleared" });
     } catch (error) {
-        console.error("Error clearing video progress:", error);
+        console.error("Error clearing audio progress:", error);
         return NextResponse.json(
             {
                 success: false,
