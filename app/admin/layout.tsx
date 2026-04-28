@@ -131,6 +131,16 @@ const NAV: NavGroup[] = [
 
         ],
       },
+      {
+        label: "Video Messages Screen", icon: "◉",
+        children: [
+          // { href: "/admin/hostloginscreen-management/add-hostroomlogin", label: "Add Host Login Form" },
+          { href: "/admin/videodrops-management/videomessages", label: "Video Messages List" },
+          // { href: "/admin/videodrops-management/", label: "Video Request Drops List" },
+          //  { href: "/admin/videoplaylist-management/", label: "Video List" },
+
+        ],
+      },
        {
         label: "Sportsfan360 Profile", icon: "◉",
         children: [
