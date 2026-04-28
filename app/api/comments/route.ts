@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 
-type CommentStatus = "pending" | "approved" | "rejected" | "spam";
-
 interface Comment {
     contentId: string;
-    contentType: string; // Dynamic - no validation, accepts any string
+    contentType: string; // Dynamic - accepts any string
     userId: string;
     userName: string;
     userEmail?: string;
@@ -14,7 +12,6 @@ interface Comment {
     parentCommentId?: string;
     likes?: number;
     likedBy?: string[];
-    status?: CommentStatus;
     timestamp?: number; // For video/audio: time in seconds when comment was made
     createdAt: number;
     updatedAt: number;
@@ -24,85 +21,37 @@ interface Comment {
     };
 }
 
-// ─── GET: Fetch comments for a specific content or for admin ─────────────────
+// ─── GET: Fetch comments for specific content ─────────────────────────────────
 export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
         const contentId = searchParams.get("contentId");
-        const contentType = searchParams.get("contentType");
-        const status = searchParams.get("status") as CommentStatus;
-        const userId = searchParams.get("userId");
+        const parentCommentId = searchParams.get("parentCommentId");
         const limit = parseInt(searchParams.get("limit") || "20");
         const lastDocId = searchParams.get("lastDocId");
         const lastDocCreatedAt = searchParams.get("lastDocCreatedAt");
 
-        // Case 1: Admin fetching all comments (no contentId filter)
-        if (!contentId && status) {
-            let query = db.collection("comments").orderBy("createdAt", "desc");
-
-            if (status) {
-                query = query.where("status", "==", status);
-            }
-
-            if (contentType) {
-                query = query.where("contentType", "==", contentType);
-            }
-
-            if (userId) {
-                query = query.where("userId", "==", userId);
-            }
-
-            query = query.limit(limit);
-
-            // Pagination
-            if (lastDocId && lastDocCreatedAt) {
-                const lastDocRef = db.collection("comments").doc(lastDocId);
-                const lastDoc = await lastDocRef.get();
-                if (lastDoc.exists) {
-                    query = query.startAfter(lastDoc);
-                }
-            }
-
-            const snapshot = await query.get();
-            const comments = snapshot.docs.map((doc) => ({
-                id: doc.id,
-                ...doc.data(),
-            }));
-
-            const lastDoc = snapshot.docs[snapshot.docs.length - 1];
-
-            return NextResponse.json({
-                success: true,
-                comments,
-                pagination: {
-                    limit,
-                    hasMore: comments.length === limit,
-                    nextCursor: comments.length === limit
-                        ? {
-                            lastDocId: lastDoc?.id,
-                            lastDocCreatedAt: lastDoc?.data()?.createdAt,
-                        }
-                        : null,
-                },
-            });
-        }
-
-        // Case 2: Fetch comments for specific content (public)
-        if (!contentId) {
+        if (!contentId && !parentCommentId) {
             return NextResponse.json(
-                { error: "contentId is required" },
+                { error: "contentId or parentCommentId is required" },
                 { status: 400 }
             );
         }
 
-        // Build query for public comments (only approved ones)
-        let query = db.collection("comments")
-            .where("contentId", "==", contentId)
-            .where("status", "==", "approved")
-            .orderBy("createdAt", "desc");
+        let query = db.collection("comments").orderBy("createdAt", "desc");
 
-        if (contentType) {
-            query = query.where("contentType", "==", contentType);
+        // Fetch replies for a specific comment
+        if (parentCommentId) {
+            query = db.collection("comments")
+                .where("parentCommentId", "==", parentCommentId)
+                .orderBy("createdAt", "asc");
+        } 
+        // Fetch top-level comments for content
+        else {
+            query = db.collection("comments")
+                .where("contentId", "==", contentId)
+                .where("parentCommentId", "==", null) // Only top-level comments
+                .orderBy("createdAt", "desc");
         }
 
         query = query.limit(limit);
@@ -122,34 +71,45 @@ export async function GET(req: NextRequest) {
             ...doc.data(),
         }));
 
-        // Fetch replies for top-level comments
-        const commentsWithReplies = await Promise.all(
-            comments.map(async (comment) => {
-                const repliesQuery = await db.collection("comments")
-                    .where("parentCommentId", "==", comment.id)
-                    .where("status", "==", "approved")
-                    .orderBy("createdAt", "asc")
-                    .limit(10)
-                    .get();
+        // If fetching top-level comments, also get reply counts
+        if (!parentCommentId) {
+            const commentsWithReplyCounts = await Promise.all(
+                comments.map(async (comment) => {
+                    const repliesQuery = await db.collection("comments")
+                        .where("parentCommentId", "==", comment.id)
+                        .count()
+                        .get();
+                    
+                    return {
+                        ...comment,
+                        replyCount: repliesQuery.data().count,
+                    };
+                })
+            );
 
-                const replies = repliesQuery.docs.map((doc) => ({
-                    id: doc.id,
-                    ...doc.data(),
-                }));
+            const lastDoc = snapshot.docs[snapshot.docs.length - 1];
 
-                return {
-                    ...comment,
-                    replies: replies,
-                    replyCount: replies.length,
-                };
-            })
-        );
+            return NextResponse.json({
+                success: true,
+                comments: commentsWithReplyCounts,
+                pagination: {
+                    limit,
+                    hasMore: comments.length === limit,
+                    nextCursor: comments.length === limit
+                        ? {
+                            lastDocId: lastDoc?.id,
+                            lastDocCreatedAt: lastDoc?.data()?.createdAt,
+                        }
+                        : null,
+                },
+            });
+        }
 
+        // For replies, return as-is
         const lastDoc = snapshot.docs[snapshot.docs.length - 1];
-
         return NextResponse.json({
             success: true,
-            comments: commentsWithReplies,
+            comments,
             pagination: {
                 limit,
                 hasMore: comments.length === limit,
@@ -187,7 +147,7 @@ export async function POST(req: NextRequest) {
             metadata,
         } = body;
 
-        // Validation - only check required fields, NOT content type values
+        // Validation
         if (!contentId || !contentType || !commentText || !userId || !userName) {
             return NextResponse.json(
                 { error: "contentId, contentType, commentText, userId, and userName are required" },
@@ -195,24 +155,24 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Optional: Check for spam (1 comment per minute)
+        // Optional: Check for spam (1 comment per 30 seconds)
         const recentCommentsQuery = await db.collection("comments")
             .where("userId", "==", userId)
             .where("contentId", "==", contentId)
-            .where("createdAt", ">", Date.now() - 60000)
+            .where("createdAt", ">", Date.now() - 30000) // 30 seconds
             .limit(1)
             .get();
 
         if (!recentCommentsQuery.empty) {
             return NextResponse.json(
-                { error: "Please wait a minute before commenting again" },
+                { error: "Please wait a moment before commenting again" },
                 { status: 429 }
             );
         }
 
         const newComment: Comment = {
             contentId,
-            contentType, // Dynamic - accepts any string
+            contentType,
             userId,
             userName,
             userEmail: userEmail || "",
@@ -221,7 +181,6 @@ export async function POST(req: NextRequest) {
             parentCommentId: parentCommentId || null,
             likes: 0,
             likedBy: [],
-            status: "pending", // All comments start as pending for moderation
             timestamp: timestamp || null,
             createdAt: Date.now(),
             updatedAt: Date.now(),
@@ -330,17 +289,16 @@ export async function PUT(req: NextRequest) {
     }
 }
 
-// ─── DELETE: Delete a comment (admin only or owner) ──────────────────────────
+// ─── DELETE: Delete a comment (owner only) ───────────────────────────────────
 export async function DELETE(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
         const commentId = searchParams.get("commentId");
         const userId = searchParams.get("userId");
-        const isAdmin = searchParams.get("isAdmin") === "true";
 
-        if (!commentId) {
+        if (!commentId || !userId) {
             return NextResponse.json(
-                { error: "commentId is required" },
+                { error: "commentId and userId are required" },
                 { status: 400 }
             );
         }
@@ -357,24 +315,16 @@ export async function DELETE(req: NextRequest) {
 
         const commentData = commentDoc.data();
 
-        // Check permissions: admin OR comment owner
-        if (!isAdmin && commentData?.userId !== userId) {
+        // Only comment owner can delete
+        if (commentData?.userId !== userId) {
             return NextResponse.json(
-                { error: "You don't have permission to delete this comment" },
+                { error: "You can only delete your own comments" },
                 { status: 403 }
             );
         }
 
-        // Soft delete for users, hard delete for admin
-        if (!isAdmin) {
-            await commentRef.update({
-                status: "rejected",
-                commentText: "[Comment deleted by user]",
-                updatedAt: Date.now(),
-            });
-        } else {
-            await commentRef.delete();
-        }
+        // Hard delete
+        await commentRef.delete();
 
         return NextResponse.json({
             success: true,
