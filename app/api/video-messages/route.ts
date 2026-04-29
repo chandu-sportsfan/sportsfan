@@ -1,6 +1,19 @@
-// Admin Panel: app/api/audio-messages/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
+
+// Add this interface
+interface VideoMessage {
+    id: string;
+    videoId: string;
+    videoTitle: string;
+    userId: string;
+    userName: string;
+    message: string;
+    rating: number | null;
+    createdAt: number;
+    isRead: boolean;
+    isFlagged: boolean;
+}
 
 // POST - User sends message
 export async function POST(req: NextRequest) {
@@ -27,7 +40,7 @@ export async function POST(req: NextRequest) {
             message: { id: docRef.id, ...messageData }
         });
     } catch (error: unknown) {
-        console.log("video-message POST error:", error);
+        console.error("video-message POST error:", error);
         return NextResponse.json(
             { success: false, message: "Failed to save message" },
             { status: 500 }
@@ -35,38 +48,51 @@ export async function POST(req: NextRequest) {
     }
 }
 
-
-
 // GET - Fetch messages with filters
 export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
         const status = searchParams.get("status");
-        const videoId = searchParams.get("videoId");        // ← ADD THIS
-        const countOnly = searchParams.get("count") === "true"; // ← ADD THIS
+        const videoId = searchParams.get("videoId");
+        const countOnly = searchParams.get("count") === "true";
         const limit = parseInt(searchParams.get("limit") || "100");
 
-       let query: FirebaseFirestore.Query = db.collection("videoMessages");
+        let query: FirebaseFirestore.Query = db.collection("videoMessages");
 
         if (videoId) {
-            query = query.where("videoId", "==", videoId) as typeof query;
+            query = query.where("videoId", "==", videoId);
         }
 
-       query = query.orderBy("createdAt", "desc").limit(limit);
+        // Remove orderBy temporarily - sort on client side instead
+        // query = query.orderBy("createdAt", "desc");
+        
+        if (!countOnly) {
+            query = query.limit(limit);
+        }
 
+        const snapshot = await query.get();
 
-        const snapshot = await query.limit(limit).get();
-
+        // Type assertion to fix TypeScript errors
         let messages = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
-        })) as Array<{
-            id: string;
-            isRead: boolean;
-            isFlagged: boolean;
-            videoId: string;
-            [key: string]: unknown;
-        }>;
+        })) as VideoMessage[];
+
+        // Sort client-side
+        messages.sort((a, b) => b.createdAt - a.createdAt);
+
+        if (status === "unread") {
+            messages = messages.filter(m => !m.isRead);
+        } else if (status === "flagged") {
+            messages = messages.filter(m => m.isFlagged);
+        }
+
+        if (countOnly) {
+            return NextResponse.json({
+                success: true,
+                count: messages.length
+            });
+        }
 
         const stats = {
             total: messages.length,
@@ -75,37 +101,27 @@ export async function GET(req: NextRequest) {
             totalVideos: new Set(messages.map(m => m.videoId)).size
         };
 
-        if (status === "unread") {
-            messages = messages.filter(m => !m.isRead);
-        } else if (status === "flagged") {
-            messages = messages.filter(m => m.isFlagged);
-        }
-
-        // ← ADD THIS: return just the count when count=true is passed
-        if (countOnly) {
-            return NextResponse.json({
-                success: true,
-                count: messages.length
-            });
-        }
-
         return NextResponse.json({
             success: true,
-            signals: messages, // ← also expose as "signals" for VideoDrop.tsx
+            signals: messages,
             messages,
             stats,
             count: messages.length
         });
     } catch (error: unknown) {
-        console.log("video-message GET error:", error);
+        console.error("video-message GET error:", error);
         return NextResponse.json(
-            { success: false, message: "Failed to fetch messages" },
+            { 
+                success: false, 
+                message: "Failed to fetch messages",
+                error: error instanceof Error ? error.message : "Unknown error"
+            },
             { status: 500 }
         );
     }
 }
 
-// PATCH - Update message status (mark as read/unread, flag/unflag)
+// PATCH - Update message status
 export async function PATCH(req: NextRequest) {
     try {
         const body = await req.json();
@@ -120,16 +136,14 @@ export async function PATCH(req: NextRequest) {
             );
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const updateData: any = { updatedAt: Date.now() };
+        const updateData: Partial<Omit<VideoMessage, 'id'>> & { updatedAt?: number } = { updatedAt: Date.now() };
         if (isRead !== undefined) updateData.isRead = isRead;
         if (isFlagged !== undefined) updateData.isFlagged = isFlagged;
 
         await db.collection("videoMessages").doc(messageId).update(updateData);
 
-        // Return the updated document so frontend can sync state
         const updatedDoc = await db.collection("videoMessages").doc(messageId).get();
-        const updatedMessage = { id: updatedDoc.id, ...updatedDoc.data() };
+        const updatedMessage = { id: updatedDoc.id, ...updatedDoc.data() } as VideoMessage;
 
         return NextResponse.json({
             success: true,
@@ -137,7 +151,7 @@ export async function PATCH(req: NextRequest) {
             updatedMessage
         });
     } catch (error: unknown) {
-        console.log("video-message PATCH error:", error);
+        console.error("video-message PATCH error:", error);
         return NextResponse.json(
             { success: false, message: "Failed to update message" },
             { status: 500 }
@@ -165,7 +179,7 @@ export async function DELETE(req: NextRequest) {
             message: "Message deleted successfully"
         });
     } catch (error: unknown) {
-        console.log("video-message DELETE error:", error);
+        console.error("video-message DELETE error:", error);
         return NextResponse.json(
             { success: false, message: "Failed to delete message" },
             { status: 500 }
