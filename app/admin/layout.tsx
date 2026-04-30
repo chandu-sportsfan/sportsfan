@@ -147,6 +147,12 @@ const NAV: NavGroup[] = [
           { href: "/admin/comments-management/comments-list", label: "All Comments" },
         ],
       },
+      {
+        label: "Playlists Management", icon: "◉",
+        children: [
+          { href: "/admin/playlists-management/playlists-list", label: "All Playlists" },
+        ],
+      },
        {
         label: "Sportsfan360 Profile", icon: "◉",
         children: [
