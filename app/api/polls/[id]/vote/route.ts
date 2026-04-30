@@ -3,22 +3,33 @@ import { db } from "@/lib/firebaseAdmin";
 import { Timestamp } from "firebase-admin/firestore";
 import { VoteBody, PollOption } from "@/types/polls";
 
-type Params = { params: { id: string } };
-
 function getErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : "An unknown error occurred";
 }
 
+function getIdFromUrl(req: NextRequest): string {
+  const url = new URL(req.url);
+  const parts = url.pathname.split("/");
+  return parts[parts.length - 1];
+}
+
 // ─── POST /api/polls/:id/vote ─────────────────────────────────────────────────
-export async function POST(req: NextRequest, { params }: Params) {
+
+
+export async function POST(req: NextRequest) {
   try {
+    const id = getIdFromUrl(req);
+
+    if (!id) {
+      return NextResponse.json({ error: "Poll ID is required" }, { status: 400 });
+    }
     const body: VoteBody = await req.json();
 
     if (!body.optionId) {
       return NextResponse.json({ success: false, error: "optionId is required" }, { status: 400 });
     }
 
-    const ref = db.collection("polls").doc(params.id);
+    const ref = db.collection("polls").doc(id);
 
     const result = await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
