@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { Timestamp } from "firebase-admin/firestore";
-import { UpdatePollBody } from "@/types/polls";
-
-type Params = { params: { id: string } };
 
 function getErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : "An unknown error occurred";
@@ -15,10 +12,22 @@ type PollUpdates = {
   endsAt?: Timestamp;
 };
 
-// ─── GET /api/polls/:id ───────────────────────────────────────────────────────
-export async function GET(_req: NextRequest, { params }: Params) {
+function getIdFromUrl(req: NextRequest): string {
+  const url = new URL(req.url);
+  const parts = url.pathname.split("/");
+  return parts[parts.length - 1];
+}
+
+// GET - Fetch single article by ID
+export async function GET(req: NextRequest) {
   try {
-    const snap = await db.collection("polls").doc(params.id).get();
+    const id = getIdFromUrl(req);
+
+    if (!id) {
+      return NextResponse.json({ error: "Poll ID is required" }, { status: 400 });
+    }
+
+    const snap = await db.collection("polls").doc(id).get();
     if (!snap.exists) {
       return NextResponse.json({ success: false, error: "Poll not found" }, { status: 404 });
     }
@@ -38,10 +47,15 @@ export async function GET(_req: NextRequest, { params }: Params) {
 }
 
 // ─── PUT /api/polls/:id ───────────────────────────────────────────────────────
-export async function PUT(req: NextRequest, { params }: Params) {
+export async function PUT(req: NextRequest) {
   try {
-    const body: UpdatePollBody = await req.json();
-    const ref = db.collection("polls").doc(params.id);
+    const id = getIdFromUrl(req);
+    const body = await req.json();
+
+    if (!id) {
+      return NextResponse.json({ error: "Poll ID is required" }, { status: 400 });
+    }
+    const ref = db.collection("polls").doc(id);
 
     const snap = await ref.get();
     if (!snap.exists) {
@@ -76,9 +90,15 @@ export async function PUT(req: NextRequest, { params }: Params) {
 }
 
 // ─── DELETE /api/polls/:id ────────────────────────────────────────────────────
-export async function DELETE(_req: NextRequest, { params }: Params) {
+export async function DELETE(req: NextRequest) {
   try {
-    const ref = db.collection("polls").doc(params.id);
+    const id = getIdFromUrl(req);
+    // const body = await req.json();
+
+    if (!id) {
+      return NextResponse.json({ error: "Poll ID is required" }, { status: 400 });
+    }
+    const ref = db.collection("polls").doc(id);
     const snap = await ref.get();
     if (!snap.exists) {
       return NextResponse.json({ success: false, error: "Poll not found" }, { status: 404 });
