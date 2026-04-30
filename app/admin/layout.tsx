@@ -148,20 +148,23 @@ const NAV: NavGroup[] = [
 
         ],
       },
+      {
+        label: "Comments Management", icon: "◉",
+        children: [
+          { href: "/admin/comments-management/comments-list", label: "All Comments" },
+        ],
+      },
+      {
+        label: "Playlists Management", icon: "◉",
+        children: [
+          { href: "/admin/playlists-management/playlists-list", label: "All Playlists" },
+        ],
+      },
        {
         label: "Sportsfan360 Profile", icon: "◉",
         children: [
           { href: "/admin/sportsfan360profile-management/add-sportsfan360", label: "Add Sportsfan360 Profile" },
            { href: "/admin/sportsfan360profile-management/sportsfan360profile-list", label: "Sportsfan360 Profile List" },
-
-        ],
-      },
-
-       {
-        label: "User Feedback", icon: "◉",
-        children: [
-          { href: "/admin/userfeedback-management/feedback", label: "Add Feedback" },
-           { href: "/admin/userfeedback-management/feedbacklist", label: "Feedback List" },
 
         ],
       },
@@ -311,9 +314,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 );
 
   return (
-    <html lang="en">
-      <head>
-        <style>{`
+    <>
+      <style>{`
           * { box-sizing: border-box; }
           body { margin: 0; }
 
@@ -427,9 +429,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             .search-bar { display: none; }
           }
         `}</style>
-      </head>
-      <body>
-        <div className="admin-shell">
+      <div className="admin-shell">
 
           {/* Desktop Sidebar */}
           <nav className="sidebar-desktop">
@@ -490,7 +490,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
           </div>
         </div>
-      </body>
-    </html>
+    </>
   );
 }
