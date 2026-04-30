@@ -107,6 +107,13 @@ const NAV: NavGroup[] = [
           { href: "/admin/watchalong-management/watchalong-list", label: "Watch Along List" },
         ],
       },
+       {
+        label: "Polls & Quizes", icon: "◉",
+        children: [
+          { href: "/admin/polls-management", label: "Add Poll" },
+          { href: "/admin/polls-management/polls-list", label: "Polls List" },
+        ],
+      },
         {
         label: "Host Screen", icon: "◉",
         children: [
