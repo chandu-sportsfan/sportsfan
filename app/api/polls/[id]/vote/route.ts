@@ -10,7 +10,7 @@ function getErrorMessage(err: unknown): string {
 function getIdFromUrl(req: NextRequest): string {
   const url = new URL(req.url);
   const parts = url.pathname.split("/");
-  return parts[parts.length - 1];
+  return parts[parts.length - 2];
 }
 
 // ─── POST /api/polls/:id/vote ─────────────────────────────────────────────────
