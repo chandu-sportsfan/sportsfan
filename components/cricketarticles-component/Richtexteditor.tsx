@@ -14,6 +14,7 @@ interface RichTextEditorProps {
 type EditorInstance = {
   getData: () => string;
   setData: (data: string) => void;
+  execute: (commandName: string, options?: { value?: string }) => void;
 };
 
 type CKEditorProps = {
@@ -21,6 +22,14 @@ type CKEditorProps = {
   data: string;
   config?: {
     placeholder?: string;
+    heading?: {
+      options: Array<{
+        model: string;
+        view?: string;
+        title: string;
+        class: string;
+      }>;
+    };
     toolbar?: string[];
     simpleUpload?: {
       uploadUrl: string;
@@ -78,6 +87,10 @@ export function RichTextEditor({ value, onChange, placeholder = "Write here...",
     } catch {}
   }, [onChange]);
 
+  const applyHeading = useCallback((level: "heading1" | "heading2" | "heading3") => {
+    editorRef.current?.execute("heading", { value: level });
+  }, []);
+
   useEffect(() => {
     const id = setTimeout(() => saveDraft(), 1000);
     return () => clearTimeout(id);
@@ -105,6 +118,15 @@ export function RichTextEditor({ value, onChange, placeholder = "Write here...",
     <div className="rich-editor-wrapper">
       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", padding: "6px 8px" }}>
         <div style={{ display: "flex", gap: 8 }}>
+          <button type="button" onClick={() => applyHeading("heading1")} className="toolbar-btn">
+            H1
+          </button>
+          <button type="button" onClick={() => applyHeading("heading2")} className="toolbar-btn">
+            H2
+          </button>
+          <button type="button" onClick={() => applyHeading("heading3")} className="toolbar-btn">
+            H3
+          </button>
           <button type="button" onClick={() => setShowSource((s) => !s)} className="toolbar-btn">
             {showSource ? "WYSIWYG" : "HTML"}
           </button>
@@ -125,7 +147,6 @@ export function RichTextEditor({ value, onChange, placeholder = "Write here...",
           config={{
             placeholder,
             toolbar: [
-              "heading",
               "|",
               "bold",
               "italic",
@@ -235,11 +256,36 @@ export function RichTextEditor({ value, onChange, placeholder = "Write here...",
           margin: 0 0 0.75rem;
         }
 
+        .rich-editor-wrapper .ck-content h1,
         .rich-editor-wrapper .ck-content h2,
         .rich-editor-wrapper .ck-content h3,
         .rich-editor-wrapper .ck-content h4 {
           color: #f9fafb;
           font-weight: 700;
+        }
+
+        .rich-editor-wrapper .ck-content h1 {
+          font-size: 2rem;
+          line-height: 1.2;
+          margin: 0 0 0.85rem;
+        }
+
+        .rich-editor-wrapper .ck-content h2 {
+          font-size: 1.5rem;
+          line-height: 1.25;
+          margin: 0 0 0.8rem;
+        }
+
+        .rich-editor-wrapper .ck-content h3 {
+          font-size: 1.25rem;
+          line-height: 1.3;
+          margin: 0 0 0.75rem;
+        }
+
+        .rich-editor-wrapper .ck-content h4 {
+          font-size: 1.1rem;
+          line-height: 1.35;
+          margin: 0 0 0.7rem;
         }
 
         .rich-editor-wrapper .ck-content blockquote {
