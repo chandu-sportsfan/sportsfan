@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, type ComponentType } from "react";
 import { CKEditor } from "@ckeditor/ckeditor5-react";
 import ClassicEditor from "@ckeditor/ckeditor5-build-classic";
 
@@ -15,6 +15,22 @@ type EditorInstance = {
   getData: () => string;
   setData: (data: string) => void;
 };
+
+type CKEditorProps = {
+  editor: unknown;
+  data: string;
+  config?: {
+    placeholder?: string;
+    toolbar?: string[];
+    simpleUpload?: {
+      uploadUrl: string;
+    };
+  };
+  onReady?: (editor: EditorInstance) => void;
+  onChange?: (event: unknown, editor: EditorInstance) => void;
+};
+
+const CKEditorComponent = CKEditor as unknown as ComponentType<CKEditorProps>;
 
 export function RichTextEditor({ value, onChange, placeholder = "Write here...", minHeight = 140 }: RichTextEditorProps) {
   const editorRef = useRef<EditorInstance | null>(null);
@@ -103,7 +119,7 @@ export function RichTextEditor({ value, onChange, placeholder = "Write here...",
       </div>
 
       {!showSource ? (
-        <CKEditor
+        <CKEditorComponent
           editor={ClassicEditor}
           data={localValue ?? ""}
           config={{
@@ -129,12 +145,12 @@ export function RichTextEditor({ value, onChange, placeholder = "Write here...",
               uploadUrl: "/api/upload",
             },
           }}
-          onReady={(editor) => {
-            editorRef.current = editor as unknown as EditorInstance;
+          onReady={(editor: EditorInstance) => {
+            editorRef.current = editor;
             editor.setData(localValue ?? "");
             lastSyncedValue.current = localValue ?? "";
           }}
-          onChange={(_, editor) => {
+          onChange={(_: unknown, editor: EditorInstance) => {
             const nextValue = editor.getData();
             lastSyncedValue.current = nextValue;
             setLocalValue(nextValue);
