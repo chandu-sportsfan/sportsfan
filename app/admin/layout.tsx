@@ -110,7 +110,7 @@ const NAV: NavGroup[] = [
        {
         label: "Polls & Quizes", icon: "◉",
         children: [
-          { href: "/admin/polls-management", label: "Add Poll" },
+          { href: "/admin/polls-management/add-polls", label: "Add Poll" },
           { href: "/admin/polls-management/polls-list", label: "Polls List" },
         ],
       },

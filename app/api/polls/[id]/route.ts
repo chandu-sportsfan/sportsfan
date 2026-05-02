@@ -6,11 +6,6 @@ function getErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : "An unknown error occurred";
 }
 
-type PollUpdates = {
-  title?: string;
-  active?: boolean;
-  endsAt?: Timestamp;
-};
 
 function getIdFromUrl(req: NextRequest): string {
   const url = new URL(req.url);
@@ -46,6 +41,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// ─── PUT /api/polls/:id 
 // ─── PUT /api/polls/:id ───────────────────────────────────────────────────────
 export async function PUT(req: NextRequest) {
   try {
@@ -62,10 +58,42 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Poll not found" }, { status: 404 });
     }
 
-    const updates: PollUpdates = {};
-    if (body.title !== undefined) updates.title = body.title.trim();
-    if (body.active !== undefined) updates.active = body.active;
-    if (body.endsAt !== undefined) updates.endsAt = Timestamp.fromDate(new Date(body.endsAt));
+    const updates: {
+      title?: string;
+      active?: boolean;
+      endsAt?: Timestamp;
+      type?: string;
+      options?: {
+        id: string;
+        label: string;
+        isCorrect: boolean;
+        votes: number;
+      }[];
+    } = {};
+    
+    // Update basic fields
+    if (body.title !== undefined) updates.title = String(body.title).trim();
+    if (body.active !== undefined) updates.active = Boolean(body.active);
+    if (body.endsAt !== undefined) updates.endsAt = Timestamp.fromDate(new Date(String(body.endsAt)));
+    
+    // Update type and options (for full poll editing)
+    if (body.type !== undefined) updates.type = String(body.type);
+    if (body.options !== undefined && Array.isArray(body.options)) {
+      // Preserve existing vote counts when updating options
+      const existingData = snap.data()!;
+      const existingOptions: { label: string; votes?: number }[] = existingData.options || [];
+      
+      const newOptions = body.options.map((opt: { label: string; isCorrect?: boolean }, index: number) => {
+        const existingOpt = existingOptions.find((e) => e.label === opt.label);
+        return {
+          id: `opt_${index + 1}`,
+          label: String(opt.label),
+          isCorrect: Boolean(opt.isCorrect),
+          votes: existingOpt?.votes || 0  // Preserve existing vote counts
+        };
+      });
+      updates.options = newOptions;
+    }
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ success: false, error: "No valid fields to update" }, { status: 400 });
@@ -85,9 +113,11 @@ export async function PUT(req: NextRequest) {
       },
     });
   } catch (err: unknown) {
+    console.error("PUT error:", err);
     return NextResponse.json({ success: false, error: getErrorMessage(err) }, { status: 500 });
   }
 }
+
 
 // ─── DELETE /api/polls/:id ────────────────────────────────────────────────────
 export async function DELETE(req: NextRequest) {
