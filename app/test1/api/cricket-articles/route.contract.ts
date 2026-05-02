@@ -6,6 +6,7 @@ export type CricketArticleInput = {
   readTime?: string;
   views?: string;
   image?: string;
+  tags?: string[];
 };
 
 export type CricketArticle = {
@@ -15,6 +16,7 @@ export type CricketArticle = {
   readTime: string;
   views: string;
   image: string;
+  tags: string[];
   createdAt: number;
   updatedAt: number;
 };
@@ -64,6 +66,7 @@ export function mapCreateArticlePayload(input: CricketArticleInput, id: string, 
     readTime: input.readTime || "5 min read",
     views: input.views || "0 views",
     image: input.image || "",
+    tags: Array.isArray(input.tags) ? input.tags : [],
     createdAt: now,
     updatedAt: now,
   };
@@ -77,6 +80,7 @@ export function mapUpdateArticlePayload(existing: CricketArticle, input: Cricket
     readTime: input.readTime ?? existing.readTime,
     views: input.views ?? existing.views,
     image: input.image ?? existing.image,
+    tags: Array.isArray(input.tags) ? input.tags : existing.tags,
     updatedAt: now,
   };
 }
@@ -137,6 +141,7 @@ export function buildAdminApiRequest(input: CricketArticleInput) {
     readTime: input.readTime || "5 min read",
     views: input.views || "0 views",
     image: input.image || "",
+    tags: Array.isArray(input.tags) ? input.tags : [],
   };
 }
 
@@ -144,6 +149,9 @@ export function validateAdminArticleForm(input: CricketArticleInput) {
   const errors: string[] = [];
   if (!input.title?.trim()) errors.push("Title is required");
   if (!input.image?.trim()) errors.push("Image is required");
+  if (input.tags !== undefined && !Array.isArray(input.tags)) {
+    errors.push("Tags must be an array of strings");
+  }
   return {
     valid: errors.length === 0,
     errors,
