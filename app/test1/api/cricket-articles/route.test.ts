@@ -29,6 +29,7 @@ const seedRows: CricketArticle[] = [
     readTime: "3 min read",
     views: "1K views",
     image: "a.jpg",
+    tags: ["tag1", "tag2"],
     createdAt: 200,
     updatedAt: 200,
   },
@@ -39,6 +40,7 @@ const seedRows: CricketArticle[] = [
     readTime: "6 min read",
     views: "2K views",
     image: "b.jpg",
+    tags: ["tag3"],
     createdAt: 100,
     updatedAt: 100,
   },
@@ -49,6 +51,7 @@ test("API create success validation", () => {
     badge: "NEWS",
     title: "Title",
     image: "img.jpg",
+    tags: ["tag1", "tag2"],
   });
   assert.equal(result.ok, true);
 });
@@ -173,6 +176,7 @@ test("Admin panel API integration mapping", () => {
     readTime: "5 min read",
     views: "3K views",
     image: "i1.jpg",
+    tags: [],
   });
 });
 
