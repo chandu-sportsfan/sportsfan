@@ -3,7 +3,7 @@
 import axios from "axios";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Eye, Trash2, Search } from "lucide-react";
+import { Eye, Trash2, Search, Flag } from "lucide-react";
 
 type Comment = {
     id: string;
@@ -20,6 +20,8 @@ type Comment = {
     timestamp?: number;
     createdAt: number;
     updatedAt: number;
+    isFlagged?: boolean;
+    flaggedAt?: number | null;
     metadata?: {
         contentTitle?: string;
         contentUrl?: string;
@@ -76,6 +78,48 @@ export default function CommentsListPage() {
         } catch (error) {
             console.error("Delete failed", error);
             alert("Failed to delete comment");
+        }
+    };
+
+    const handleFlag = async (id: string, currentIsFlagged: boolean) => {
+        const confirmed = window.confirm(
+            currentIsFlagged
+                ? "Remove the moderation flag from this comment?"
+                : "Flag this comment for review? Users should see a warning before interacting with it."
+        );
+
+        if (!confirmed) return;
+
+        try {
+            const response = await axios.patch("/api/admin/comments", {
+                commentId: id,
+                isFlagged: !currentIsFlagged,
+            });
+
+            if (response.data.success) {
+                const newIsFlagged = !currentIsFlagged;
+                setComments((prev) =>
+                    prev.map((comment) =>
+                        comment.id === id
+                            ? {
+                                  ...comment,
+                                  isFlagged: newIsFlagged,
+                                  flaggedAt: newIsFlagged ? Date.now() : null,
+                              }
+                            : comment
+                    )
+                );
+                alert(
+                    newIsFlagged
+                        ? "Comment flagged successfully"
+                        : "Comment unflagged successfully"
+                );
+            } else {
+                alert("Failed to update comment flag");
+            }
+        } catch (error) {
+            console.error("Flag update failed", error);
+            alert("Failed to update comment flag");
         }
     };
 
@@ -183,7 +227,9 @@ export default function CommentsListPage() {
                                 comments.map((comment, index) => (
                                     <tr
                                         key={comment.id}
-                                        className="border-b border-[#21262d] hover:bg-[#0d1117] transition"
+                                        className={`border-b border-[#21262d] hover:bg-[#0d1117] transition ${
+                                            comment.isFlagged ? "bg-red-500/5" : ""
+                                        }`}
                                     >
                                         <td className="px-4 py-3 text-sm text-gray-500">
                                             {index + 1}
@@ -199,7 +245,15 @@ export default function CommentsListPage() {
                                         </td>
 
                                         <td className="px-4 py-3 text-sm text-gray-300 max-w-[300px] truncate">
-                                            {comment.commentText}
+                                            <div className="space-y-1">
+                                                <div>{comment.commentText}</div>
+                                                {comment.isFlagged && (
+                                                    <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-1 text-xs font-medium text-red-400">
+                                                        <Flag size={10} />
+                                                        Flagged for review
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
 
                                         <td className="px-4 py-3 text-sm">
@@ -230,6 +284,18 @@ export default function CommentsListPage() {
                                                         <Eye size={16} />
                                                     </button>
                                                 </Link>
+
+                                                <button
+                                                    onClick={() => handleFlag(comment.id, Boolean(comment.isFlagged))}
+                                                    className={`p-2 rounded-md transition ${
+                                                        comment.isFlagged
+                                                            ? "bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20"
+                                                            : "bg-orange-500/10 text-orange-400 hover:bg-orange-500/20"
+                                                    }`}
+                                                    title={comment.isFlagged ? "Remove flag" : "Flag comment"}
+                                                >
+                                                    <Flag size={16} />
+                                                </button>
 
                                                 <button
                                                     onClick={() => handleDelete(comment.id)}

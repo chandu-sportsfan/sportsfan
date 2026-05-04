@@ -4,7 +4,7 @@ import axios from "axios";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Trash2, Copy } from "lucide-react";
+import { ArrowLeft, Trash2, Copy, Flag, AlertTriangle } from "lucide-react";
 
 type Comment = {
     id: string;
@@ -21,6 +21,8 @@ type Comment = {
     timestamp?: number;
     createdAt: number;
     updatedAt: number;
+    isFlagged?: boolean;
+    flaggedAt?: number | null;
     metadata?: {
         contentTitle?: string;
         contentUrl?: string;
@@ -82,6 +84,40 @@ export default function CommentDetailPage() {
         }
     };
 
+    const handleFlag = async () => {
+        if (!comment) return;
+
+        const confirmed = window.confirm(
+            comment.isFlagged
+                ? "Remove the moderation flag from this comment?"
+                : "Flag this comment for review? Users should see a warning before interacting with it."
+        );
+
+        if (!confirmed) return;
+
+        try {
+            const response = await axios.patch("/api/admin/comments", {
+                commentId: comment.id,
+                isFlagged: !comment.isFlagged,
+            });
+
+            if (response.data.success) {
+                const updatedComment = response.data.comment as Comment;
+                setComment(updatedComment);
+                alert(
+                    updatedComment.isFlagged
+                        ? "Comment flagged successfully"
+                        : "Comment unflagged successfully"
+                );
+            } else {
+                alert("Failed to update comment flag");
+            }
+        } catch (error) {
+            console.error("Flag update failed", error);
+            alert("Failed to update comment flag");
+        }
+    };
+
     const copyToClipboard = (text: string, field: string) => {
         navigator.clipboard.writeText(text);
         setCopiedField(field);
@@ -139,17 +175,44 @@ export default function CommentDetailPage() {
                         Back to Comments
                     </button>
                 </Link>
-                <button
-                    onClick={handleDelete}
-                    className="flex items-center gap-2 bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-white text-sm transition font-medium"
-                >
-                    <Trash2 size={16} />
-                    Delete Comment
-                </button>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={handleFlag}
+                        className={`flex items-center gap-2 px-4 py-2 rounded text-sm transition font-medium ${
+                            comment.isFlagged
+                                ? "bg-yellow-600 hover:bg-yellow-700 text-white"
+                                : "bg-orange-600 hover:bg-orange-700 text-white"
+                        }`}
+                    >
+                        <Flag size={16} />
+                        {comment.isFlagged ? "Remove Flag" : "Flag Comment"}
+                    </button>
+                    <button
+                        onClick={handleDelete}
+                        className="flex items-center gap-2 bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-white text-sm transition font-medium"
+                    >
+                        <Trash2 size={16} />
+                        Delete Comment
+                    </button>
+                </div>
             </div>
 
             {/* Main Content */}
             <div className="bg-[#161b22] border border-[#21262d] rounded-lg p-8 space-y-8">
+                {comment.isFlagged && (
+                    <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4">
+                        <div className="flex items-start gap-3">
+                            <AlertTriangle size={18} className="mt-0.5 text-red-400" />
+                            <div>
+                                <p className="text-sm font-semibold text-red-300">Flagged comment</p>
+                                <p className="text-sm text-red-200/80 mt-1">
+                                    This comment is marked for review. Users should see a warning dialog before interacting with it.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* User Information */}
                 <div className="pb-8 border-b border-[#21262d]">
                     <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400 mb-4">

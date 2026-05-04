@@ -43,16 +43,26 @@ function validateQuestions(questions: QuizQuestion[]): string | null {
 // ─── GET /api/fanbattle/quiz/[id] ─────────────────────────────────────────────
 // Always returns full quiz including correctAnswer (admin single-fetch for edit form)
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+//  Helper: extract ID from URL 
+function getIdFromUrl(req: NextRequest): string {
+  const url = new URL(req.url);
+  const parts = url.pathname.split("/");
+  return parts[parts.length - 1];
+}
+
+// GET - Fetch single article by ID
+export async function GET(req: NextRequest) {
   try {
-    const doc = await db.collection("fanBattleQuizzes").doc(params.id).get();
+    const id = getIdFromUrl(req);
+
+    if (!id) {
+      return NextResponse.json({ error: "Quiz ID is required" }, { status: 400 });
+    }
+    const doc = await db.collection("fanBattleQuizzes").doc(id).get();
 
     if (!doc.exists) {
       return NextResponse.json(
-        { error: `Quiz "${params.id}" not found` },
+        { error: `Quiz "${id}" not found` },
         { status: 404 }
       );
     }
@@ -70,17 +80,19 @@ export async function GET(
 
 // ─── PUT /api/fanbattle/quiz/[id] ─────────────────────────────────────────────
 
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(req: NextRequest) {
   try {
-    const docRef = db.collection("fanBattleQuizzes").doc(params.id);
+    const id = getIdFromUrl(req);
+
+    if (!id) {
+      return NextResponse.json({ error: "Quiz ID is required" }, { status: 400 });
+    }
+    const docRef = db.collection("fanBattleQuizzes").doc(id);
     const existing = await docRef.get();
 
     if (!existing.exists) {
       return NextResponse.json(
-        { error: `Quiz "${params.id}" not found` },
+        { error: `Quiz "${id}" not found` },
         { status: 404 }
       );
     }
@@ -145,17 +157,19 @@ export async function PUT(
 
 // ─── DELETE /api/fanbattle/quiz/[id] ─────────────────────────────────────────
 
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(req: NextRequest) {
   try {
-    const docRef = db.collection("fanBattleQuizzes").doc(params.id);
+    const id = getIdFromUrl(req);
+
+    if (!id) {
+      return NextResponse.json({ error: "Quiz ID is required" }, { status: 400 });
+    }
+    const docRef = db.collection("fanBattleQuizzes").doc(id);
     const existing = await docRef.get();
 
     if (!existing.exists) {
       return NextResponse.json(
-        { error: `Quiz "${params.id}" not found` },
+        { error: `Quiz "${id}" not found` },
         { status: 404 }
       );
     }
@@ -163,7 +177,7 @@ export async function DELETE(
     await docRef.delete();
 
     return NextResponse.json(
-      { success: true, message: `Quiz "${params.id}" deleted` },
+      { success: true, message: `Quiz "${id}" deleted` },
       { status: 200 }
     );
   } catch (error: unknown) {

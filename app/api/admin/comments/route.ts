@@ -16,6 +16,8 @@ interface Comment {
     timestamp?: number;
     createdAt: number;
     updatedAt: number;
+    isFlagged?: boolean;
+    flaggedAt?: number | null;
     metadata?: {
         contentTitle?: string;
         contentUrl?: string;
@@ -193,6 +195,49 @@ export async function DELETE(req: NextRequest) {
     } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : "Unexpected error";
         console.error("Error deleting comment:", error);
+        return NextResponse.json({ error: msg }, { status: 500 });
+    }
+}
+
+// ─── PATCH: Admin flag/unflag comment ────────────────────────────────────────
+export async function PATCH(req: NextRequest) {
+    try {
+        const body = await req.json();
+        const { commentId, isFlagged } = body;
+
+        if (!commentId || typeof isFlagged !== "boolean") {
+            return NextResponse.json(
+                { error: "commentId and isFlagged are required" },
+                { status: 400 }
+            );
+        }
+
+        const commentRef = db.collection("comments").doc(commentId);
+        const commentDoc = await commentRef.get();
+
+        if (!commentDoc.exists) {
+            return NextResponse.json(
+                { error: "Comment not found" },
+                { status: 404 }
+            );
+        }
+
+        await commentRef.update({
+            isFlagged,
+            flaggedAt: isFlagged ? Date.now() : null,
+            updatedAt: Date.now(),
+        });
+
+        const updatedDoc = await commentRef.get();
+
+        return NextResponse.json({
+            success: true,
+            message: isFlagged ? "Comment flagged successfully" : "Comment unflagged successfully",
+            comment: { id: updatedDoc.id, ...updatedDoc.data() },
+        });
+    } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : "Unexpected error";
+        console.error("Error updating comment flag:", error);
         return NextResponse.json({ error: msg }, { status: 500 });
     }
 }
