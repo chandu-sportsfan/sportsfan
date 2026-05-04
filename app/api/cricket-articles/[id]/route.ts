@@ -70,7 +70,7 @@ export async function PUT(req: NextRequest) {
     }
 
     //  ADDED 'description' to allowed fields
-    const allowedFields = ["badge", "title", "description", "readTime", "author", "views", "image"];
+    const allowedFields = ["badge", "title", "description", "readTime", "author", "views", "image","tags"];
     
     const updates: Record<string, unknown> = {
       updatedAt: Date.now(),
@@ -93,6 +93,14 @@ export async function PUT(req: NextRequest) {
     // Validate numeric conversions for views (if provided as string with "K")
     if (body.views !== undefined) {
       updates.views = body.views; // Keep as string with "K" format
+    }
+
+    // Validate tags is an array if provided
+    if (body.tags !== undefined && !Array.isArray(body.tags)) {
+      return NextResponse.json(
+        { error: "Tags must be an array of strings" },
+        { status: 400 }
+      );
     }
 
     await docRef.update(updates);
