@@ -6,7 +6,7 @@
 // import { Plus, Trash2, GripVertical } from "lucide-react";
 
 // type BadgeType = "FEATURE" | "ANALYSIS" | "OPINION" | "NEWS";
-
+'.'
 // type FormState = {
 //     badge: BadgeType;
 //     title: string;
@@ -423,7 +423,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Plus, Trash2, GripVertical } from "lucide-react";
 import { RichTextEditor } from "./Richtexteditor"; 
-import CreatableSelect from 'react-select/creatable';
 
 type BadgeType = "FEATURE" | "ANALYSIS" | "OPINION" | "NEWS";
 
@@ -452,6 +451,7 @@ export default function CricketArticleForm({
         tags: [],
     });
 
+    const [tagInput, setTagInput] = useState("");
     const [image, setImage] = useState<File | null>(null);
     const [existingImage, setExistingImage] = useState("");
     const [loading, setLoading] = useState(false);
@@ -462,6 +462,27 @@ export default function CricketArticleForm({
         { value: "Match Report", label: "Match Report" },
         { value: "Player Transfer", label: "Player Transfer" },
     ];
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            const newTag = tagInput.trim();
+            if (newTag && !form.tags.includes(newTag)) {
+                setForm((prev) => ({
+                    ...prev,
+                    tags: [...prev.tags, newTag],
+                }));
+                setTagInput("");
+            }
+        }
+    };
+
+    const removeTag = (indexToRemove: number) => {
+        setForm((prev) => ({
+            ...prev,
+            tags: prev.tags.filter((_, index) => index !== indexToRemove),
+        }));
+    };
 
     /*  FETCH SINGLE ARTICLE  */
     useEffect(() => {
@@ -693,15 +714,34 @@ export default function CricketArticleForm({
                     />
                     <div>
                         <label className="text-xs text-gray-400 block mb-1">Article Tags</label>
-                        <CreatableSelect
-                            isMulti
-                            options={predefinedTags}
-                            placeholder="Type tag and press Enter..."
-                            onChange={handleTagChange}
-                            value={form.tags.map(t => ({ label: t, value: t }))}
-                            styles={tagStyles}
-                            components={{ IndicatorSeparator: () => null }} 
-                        />
+                        <div className="w-full bg-[#0d1117] border border-gray-700 rounded px-3 py-2 focus-within:border-blue-500 focus-within:outline-none">
+                            <div className="flex flex-wrap gap-2 mb-2">
+                                {form.tags.map((tag, index) => (
+                                    <span 
+                                        key={index} 
+                                        className="flex items-center gap-1 bg-blue-500/20 text-blue-500 px-2 py-1 rounded text-xs"
+                                    >
+                                        {tag}
+                                        <button 
+                                            type="button" 
+                                            onClick={() => removeTag(index)}
+                                            className="hover:text-white transition"
+                                        >
+                                            &times;
+                                        </button>
+                                    </span>
+                                ))}
+                            </div>
+                            <input
+                                type="text"
+                                value={tagInput}
+                                onChange={(e) => setTagInput(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                placeholder="Type tag and press Enter..."
+                                className="w-full bg-transparent border-none text-white text-sm focus:outline-none"
+                            />
+                        </div>
+                        <p className="text-[10px] text-gray-500 mt-1">Press Enter to add multiple tags</p>
                     </div>
                 </div>
 
