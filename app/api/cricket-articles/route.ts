@@ -16,6 +16,7 @@ export async function POST(req: NextRequest) {
       author,
       views,
       image,
+      tags,
     } = body;
 
     // Validation
@@ -43,6 +44,7 @@ export async function POST(req: NextRequest) {
       readTime: readTime || "5 min read",
       views: views || "0 views",
       image,
+      tags: Array.isArray(tags) ? tags : [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
