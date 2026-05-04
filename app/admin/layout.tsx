@@ -148,6 +148,13 @@ const NAV: NavGroup[] = [
 
         ],
       },
+       {
+        label: "Fan Battle", icon: "◉",
+        children: [
+          { href: "/admin/fanbattle-management/add-fanbattle", label: "Add Fan Battle" },
+          { href: "/admin/fanbattle-management/fanbattle-list", label: "Fan Battle List" },
+        ],
+      },
       {
         label: "Comments Management", icon: "◉",
         children: [

@@ -59,3 +59,34 @@ export async function GET(req: NextRequest) {
         );
     }
 }
+
+export async function DELETE(req: NextRequest) {
+    try {
+        const id = getIdFromUrl(req);
+
+        if (!id) {
+            return NextResponse.json({ error: "ID required" }, { status: 400 });
+        }
+
+        const publicId = decodeURIComponent(id);
+
+        // For Cloudinary, audio files are treated as 'video' resource_type
+        const result = await cloudinary.uploader.destroy(publicId, {
+            resource_type: "video"
+        });
+
+        if (result.result === 'ok') {
+            return NextResponse.json({ success: true, message: "Audio deleted successfully" });
+        } else if (result.result === 'not found') {
+            return NextResponse.json({ success: false, error: "Audio not found" }, { status: 404 });
+        } else {
+            return NextResponse.json({ success: false, error: "Failed to delete audio" }, { status: 400 });
+        }
+    } catch (error) {
+        console.error("Error deleting audio:", error);
+        return NextResponse.json(
+            { success: false, error: "Internal Server Error" },
+            { status: 500 }
+        );
+    }
+}

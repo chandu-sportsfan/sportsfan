@@ -12,6 +12,7 @@ import {
   Calendar,
   ChevronRight,
   Volume2,
+  Trash2,
 } from "lucide-react";
 
 type MatchInfo = {
@@ -95,9 +96,32 @@ export default function AudioListPage() {
   const [progress, setProgress] = useState<Record<string, number>>({});
   const audioRefs = useRef<Record<string, HTMLAudioElement>>({});
 
+  const [realDurations, setRealDurations] = useState<Record<string, string>>({});
+  const requestedDurations = useRef<Set<string>>(new Set());
+
   useEffect(() => {
     fetchAudio();
   }, []);
+
+  useEffect(() => {
+    audioFiles.forEach((audio) => {
+      if ((!audio.duration || audio.duration === "0:00") && !requestedDurations.current.has(audio.id)) {
+        requestedDurations.current.add(audio.id);
+        const tempAudio = new Audio(audio.url);
+        tempAudio.addEventListener("loadedmetadata", () => {
+          const secs = tempAudio.duration;
+          if (secs && !isNaN(secs) && secs !== Infinity) {
+            const m = Math.floor(secs / 60);
+            const s = Math.floor(secs % 60);
+            setRealDurations((prev) => ({
+              ...prev,
+              [audio.id]: `${m}:${s.toString().padStart(2, "0")}`,
+            }));
+          }
+        });
+      }
+    });
+  }, [audioFiles]);
 
   const fetchAudio = async () => {
     try {
@@ -111,6 +135,21 @@ export default function AudioListPage() {
       setAudioFiles([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async (audio: AudioFile) => {
+    if (!window.confirm("Are you sure you want to delete this audio file?")) return;
+    try {
+      await axios.delete(`/api/cloudinary/audio/${encodeURIComponent(audio.id)}`);
+      setAudioFiles((prev) => prev.filter((a) => a.id !== audio.id));
+      if (playingId === audio.id) {
+        audioRefs.current[audio.id]?.pause();
+        setPlayingId(null);
+      }
+    } catch (err) {
+      console.error("Failed to delete audio", err);
+      alert("Failed to delete audio file");
     }
   };
 
@@ -223,6 +262,7 @@ export default function AudioListPage() {
                   "Size",
                   "Uploaded",
                   "Play",
+                  "Actions",
                 ].map((head) => (
                   <th
                     key={head}
@@ -237,7 +277,7 @@ export default function AudioListPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-12 text-gray-500">
+                  <td colSpan={9} className="text-center py-12 text-gray-500">
                     <div className="flex flex-col items-center gap-2">
                       <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
                       <span className="text-sm">Loading audio files...</span>
@@ -246,7 +286,7 @@ export default function AudioListPage() {
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-12 text-gray-500">
+                  <td colSpan={9} className="text-center py-12 text-gray-500">
                     <Mic2 size={28} className="mx-auto mb-2 opacity-30" />
                     <p className="text-sm">No audio files found</p>
                   </td>
@@ -321,7 +361,7 @@ export default function AudioListPage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5 text-gray-400 text-sm">
                           <Clock size={12} />
-                          {audio.duration}
+                          {realDurations[audio.id] || audio.duration || "0:00"}
                         </div>
                       </td>
 
@@ -369,6 +409,17 @@ export default function AudioListPage() {
                             </div>
                           )}
                         </div>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => handleDelete(audio)}
+                          className="w-8 h-8 rounded-full flex items-center justify-center transition bg-[#21262d] text-red-400 hover:bg-red-500/10 hover:text-red-500"
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </td>
                     </tr>
                   );
