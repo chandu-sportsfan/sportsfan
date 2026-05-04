@@ -86,8 +86,7 @@ export async function POST(req: NextRequest) {
       "selectedAnswer",
       "userId",
       "userName",
-      "userEmail",
-      "userAvatar",
+      "email",
     ];
     const missing = required.filter((f) => !body[f]);
     if (missing.length) {
@@ -132,8 +131,8 @@ export async function POST(req: NextRequest) {
       questionNumber: Number(body.questionNumber),
       userId: body.userId,
       userName: body.userName,
-      userEmail: body.userEmail,
-      userAvatar: body.userAvatar,
+      userEmail: body.email,
+      userAvatar: body?.userAvatar,
       selectedAnswer: body.selectedAnswer,
       isCorrect,
       pointsEarned,
@@ -208,8 +207,8 @@ export async function POST(req: NextRequest) {
         quizId: body.quizId,
         userId: body.userId,
         userName: body.userName,
-        userEmail: body.userEmail,
-        userAvatar: body.userAvatar,
+        userEmail: body.email,
+        userAvatar: body?.userAvatar,
         totalPointsEarned: pointsEarned,
         correctCount: isCorrect ? 1 : 0,
         incorrectCount: isCorrect ? 0 : 1,
