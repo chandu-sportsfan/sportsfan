@@ -15,6 +15,8 @@ interface Comment {
     timestamp?: number; // For video/audio: time in seconds when comment was made
     createdAt: number;
     updatedAt: number;
+    isFlagged?: boolean;
+    flaggedAt?: number | null;
     metadata?: {
         contentTitle?: string;
         contentUrl?: string;
@@ -184,6 +186,8 @@ export async function POST(req: NextRequest) {
             timestamp: timestamp || null,
             createdAt: Date.now(),
             updatedAt: Date.now(),
+            isFlagged: false,
+            flaggedAt: null,
             metadata: metadata || {},
         };
 
