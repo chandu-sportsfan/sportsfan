@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// ─── GET /api/fanbattle/quiz ──────────────────────────────────────────────────
+// ─── GET /api/fanbattle/quiz 
 // Query params: level, category, limit, lastDocId, lastDocCreatedAt, admin
 
 export async function GET(req: NextRequest) {
