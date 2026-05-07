@@ -138,7 +138,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get("userId");
     const limit = parseInt(searchParams.get("limit") || "50");
-    const timeFrame = searchParams.get("timeFrame") || "all-time"; // all-time, weekly, monthly
+    const timeFrame = searchParams.get("timeFrame") || "all-time";
 
     const leaderboardQuery = db.collection("globalLeaderboard")
       .orderBy("totalPoints", "desc")
@@ -155,19 +155,20 @@ export async function GET(req: NextRequest) {
     let currentUserRank = null;
     let currentUserPoints = null;
     
-    if (userId) {
+    if (userId && userId !== "null" && userId !== "undefined") {
       const userLeaderboardRef = db.collection("globalLeaderboard").doc(userId);
       const userLeaderboardSnap = await userLeaderboardRef.get();
       
       if (userLeaderboardSnap.exists) {
         currentUserPoints = userLeaderboardSnap.data()?.totalPoints || 0;
         
-        // Find user's rank (expensive operation - consider caching this)
+        // Find user's rank (consider using a more efficient method in production)
         const allUsers = await db.collection("globalLeaderboard")
           .orderBy("totalPoints", "desc")
           .get();
         
         currentUserRank = allUsers.docs.findIndex(doc => doc.id === userId) + 1;
+        if (currentUserRank === 0) currentUserRank = null;
       }
     }
 
@@ -175,7 +176,7 @@ export async function GET(req: NextRequest) {
       success: true,
       leaderboard,
       currentUser: {
-        userId,
+        userId: userId || null,
         rank: currentUserRank,
         points: currentUserPoints,
       },
@@ -190,38 +191,40 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ─── GET /transactions — Fetch user's point history ──────────────────────────
-export async function PATCH(req: NextRequest) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const userId = searchParams.get("userId");
-    const limit = parseInt(searchParams.get("limit") || "20");
 
-    if (!userId) {
-      return NextResponse.json({ error: "userId is required" }, { status: 400 });
-    }
 
-    const transactionsSnap = await db
-      .collection("userPointTransactions")
-      .where("userId", "==", userId)
-      .orderBy("createdAt", "desc")
-      .limit(limit)
-      .get();
+// // ─── GET /transactions — Fetch user's point history 
+// export async function PATCH(req: NextRequest) {
+//   try {
+//     const { searchParams } = new URL(req.url);
+//     const userId = searchParams.get("userId");
+//     const limit = parseInt(searchParams.get("limit") || "20");
 
-    const transactions = transactionsSnap.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+//     if (!userId) {
+//       return NextResponse.json({ error: "userId is required" }, { status: 400 });
+//     }
 
-    return NextResponse.json({
-      success: true,
-      transactions,
-      total: transactions.length,
-    });
+//     const transactionsSnap = await db
+//       .collection("userPointTransactions")
+//       .where("userId", "==", userId)
+//       .orderBy("createdAt", "desc")
+//       .limit(limit)
+//       .get();
 
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : "Unexpected error";
-    console.error("GET /api/user-points/transactions error:", error);
-    return NextResponse.json({ error: msg }, { status: 500 });
-  }
-}
+//     const transactions = transactionsSnap.docs.map(doc => ({
+//       id: doc.id,
+//       ...doc.data(),
+//     }));
+
+//     return NextResponse.json({
+//       success: true,
+//       transactions,
+//       total: transactions.length,
+//     });
+
+//   } catch (error: unknown) {
+//     const msg = error instanceof Error ? error.message : "Unexpected error";
+//     console.error("GET /api/user-points/transactions error:", error);
+//     return NextResponse.json({ error: msg }, { status: 500 });
+//   }
+// }
