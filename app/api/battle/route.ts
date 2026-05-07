@@ -1,6 +1,7 @@
 // import { NextRequest, NextResponse } from "next/server";
 // import { db } from "@/lib/firebaseAdmin";
 // import { FieldValue } from "firebase-admin/firestore";
+// import { transporter } from "@/lib/mailer";
 
 // type BattleType = "PLAYERS" | "CLUBS";
 
@@ -25,11 +26,10 @@
 //   try {
 //     const userRef = db.collection("users").doc(userId);
 //     const userSnap = await userRef.get();
-    
+
 //     if (userSnap.exists) {
 //       const userData = userSnap.data();
-      
-//       // Extract name from different formats
+
 //       let userName = "";
 //       if (providedName && providedName !== "Unknown User") {
 //         userName = providedName;
@@ -42,11 +42,9 @@
 //       } else {
 //         userName = "User";
 //       }
-      
-//       // Get email
+
 //       const userEmail = providedEmail || userData?.email || "";
-      
-//       // Ensure points fields exist
+
 //       if (userData?.totalPoints === undefined || userData?.pointsBreakdown === undefined) {
 //         await userRef.update({
 //           totalPoints: userData?.totalPoints || 0,
@@ -57,27 +55,26 @@
 //             PREDICTION_CORRECT: 0,
 //             FANTASY_WIN: 0,
 //             DAILY_LOGIN: 0,
-//             SHARE_BATTLE: 0
+//             SHARE_BATTLE: 0,
 //           },
-//           lastUpdated: Date.now()
+//           lastUpdated: Date.now(),
 //         });
 //       }
-      
+
 //       return { userName, userEmail, userData };
 //     }
-    
-//     // User doesn't exist, return provided info or defaults
+
 //     return {
 //       userName: providedName || "User",
 //       userEmail: providedEmail || "",
-//       userData: null
+//       userData: null,
 //     };
 //   } catch (error) {
 //     console.error("Error getting user info:", error);
 //     return {
 //       userName: providedName || "User",
 //       userEmail: providedEmail || "",
-//       userData: null
+//       userData: null,
 //     };
 //   }
 // }
@@ -86,9 +83,8 @@
 // async function ensureUserHasPointsFields(userId: string, userEmail: string, userName: string) {
 //   const userRef = db.collection("users").doc(userId);
 //   const userSnap = await userRef.get();
-  
+
 //   if (!userSnap.exists) {
-//     // Create new user with complete structure
 //     return {
 //       exists: false,
 //       ref: userRef,
@@ -106,19 +102,18 @@
 //           PREDICTION_CORRECT: 0,
 //           FANTASY_WIN: 0,
 //           DAILY_LOGIN: 0,
-//           SHARE_BATTLE: 0
+//           SHARE_BATTLE: 0,
 //         },
 //         createdAt: Date.now(),
 //         lastUpdated: Date.now(),
 //         status: "active",
-//         role: "user"
-//       }
+//         role: "user",
+//       },
 //     };
 //   }
-  
+
 //   const userData = userSnap.data();
-  
-//   // Check and add missing points fields
+
 //   const updates: {
 //     totalPoints?: number;
 //     pointsBreakdown?: {
@@ -133,12 +128,12 @@
 //     lastUpdated?: number;
 //   } = {};
 //   let needsUpdate = false;
-  
+
 //   if (userData?.totalPoints === undefined) {
 //     updates.totalPoints = 0;
 //     needsUpdate = true;
 //   }
-  
+
 //   if (userData?.pointsBreakdown === undefined) {
 //     updates.pointsBreakdown = {
 //       CREATE_BATTLE: 0,
@@ -147,17 +142,178 @@
 //       PREDICTION_CORRECT: 0,
 //       FANTASY_WIN: 0,
 //       DAILY_LOGIN: 0,
-//       SHARE_BATTLE: 0
+//       SHARE_BATTLE: 0,
 //     };
 //     needsUpdate = true;
 //   }
-  
+
 //   if (needsUpdate) {
 //     updates.lastUpdated = Date.now();
 //     await userRef.update(updates);
 //   }
-  
+
 //   return { exists: true, ref: userRef, data: userData };
+// }
+
+// // ─── Send battle invite emails ────────────────────────────────────────────────
+// async function sendBattleInviteEmails(
+//   invitedFriends: InvitedFriend[],
+//   battleName: string,
+//   battleType: BattleType,
+//   battleId: string,
+//   userName: string
+// ) {
+//   if (!invitedFriends || invitedFriends.length === 0) return { sent: 0, failed: [] };
+
+//   const appUrl = "https://sportsfan-frontend.vercel.app";
+//   const battleUrl = `${appUrl}/battles/${battleId}`;
+
+//   const emailPromises = invitedFriends.map(({ email, name }) =>
+//     transporter.sendMail({
+//       from: `"SportsFan360" <${process.env.EMAIL}>`,
+//       to: email,
+//       subject: `⚔️ ${userName} challenged you to a Battle on SportsFan360!`,
+//       html: `
+//         <!DOCTYPE html>
+//         <html>
+//         <body style="margin:0;padding:0;background:#07070f;font-family:Arial,sans-serif;color:#fff;">
+//           <table width="100%" cellpadding="0" cellspacing="0" style="background:#07070f;padding:40px 20px;">
+//             <tr><td align="center">
+//               <table width="520" cellpadding="0" cellspacing="0"
+//                 style="background:#1a1a1e;border-radius:16px;border:1px solid rgba(255,255,255,0.1);overflow:hidden;max-width:520px;">
+
+//                 <!-- Header -->
+//                 <tr>
+//                   <td style="background:linear-gradient(135deg,#e91e8c,#d75a2d);padding:32px;text-align:center;">
+//                     <div style="font-size:44px;margin-bottom:12px;">⚔️</div>
+//                     <h1 style="margin:0;font-size:24px;font-weight:800;color:#fff;letter-spacing:-0.5px;">
+//                       You've Been Challenged!
+//                     </h1>
+//                     <p style="margin:10px 0 0;font-size:14px;color:rgba(255,255,255,0.8);">
+//                       A battle awaits you on SportsFan360
+//                     </p>
+//                   </td>
+//                 </tr>
+
+//                 <!-- Body -->
+//                 <tr>
+//                   <td style="padding:32px;">
+
+//                     <p style="margin:0 0 8px;font-size:16px;color:#ccc;">
+//                       Hey <strong style="color:#fff;">${name}</strong>,
+//                     </p>
+//                     <p style="margin:0 0 28px;font-size:15px;color:#aaa;line-height:1.6;">
+//                       <strong style="color:#ff9a6c;">${userName}</strong> has created a battle and personally invited you to join. Think you can win?
+//                     </p>
+
+//                     <!-- Battle Card -->
+//                     <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(215,90,45,0.35);border-radius:12px;padding:20px 24px;margin-bottom:28px;">
+//                       <table width="100%" cellpadding="0" cellspacing="0">
+//                         <tr>
+//                           <td style="padding-bottom:14px;">
+//                             <p style="margin:0 0 4px;font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:#666;">Battle Name</p>
+//                             <p style="margin:0;font-size:20px;font-weight:700;color:#fff;">${battleName}</p>
+//                           </td>
+//                         </tr>
+//                         <tr>
+//                           <td>
+//                             <p style="margin:0 0 4px;font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:#666;">Battle Type</p>
+//                             <p style="margin:0;font-size:15px;font-weight:600;color:#ff9a6c;">
+//                               ${battleType === "PLAYERS" ? "👤 Players Battle" : "🏏 Clubs Battle"}
+//                             </p>
+//                           </td>
+//                         </tr>
+//                       </table>
+//                     </div>
+
+//                     <!-- How it works -->
+//                     <p style="margin:0 0 14px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:#666;">
+//                       How It Works
+//                     </p>
+//                     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+//                       <tr>
+//                         <td style="padding:0 0 10px 0;">
+//                           <table cellpadding="0" cellspacing="0"><tr>
+//                             <td style="font-size:18px;padding-right:12px;vertical-align:top;">1️⃣</td>
+//                             <td style="font-size:14px;color:#aaa;line-height:1.5;vertical-align:top;">Click the button below to view the battle</td>
+//                           </tr></table>
+//                         </td>
+//                       </tr>
+//                       <tr>
+//                         <td style="padding:0 0 10px 0;">
+//                           <table cellpadding="0" cellspacing="0"><tr>
+//                             <td style="font-size:18px;padding-right:12px;vertical-align:top;">2️⃣</td>
+//                             <td style="font-size:14px;color:#aaa;line-height:1.5;vertical-align:top;">Sign up or log in to your SportsFan360 account</td>
+//                           </tr></table>
+//                         </td>
+//                       </tr>
+//                       <tr>
+//                         <td style="padding:0 0 10px 0;">
+//                           <table cellpadding="0" cellspacing="0"><tr>
+//                             <td style="font-size:18px;padding-right:12px;vertical-align:top;">3️⃣</td>
+//                             <td style="font-size:14px;color:#aaa;line-height:1.5;vertical-align:top;">Cast your vote and compete with other fans</td>
+//                           </tr></table>
+//                         </td>
+//                       </tr>
+//                       <tr>
+//                         <td>
+//                           <table cellpadding="0" cellspacing="0"><tr>
+//                             <td style="font-size:18px;padding-right:12px;vertical-align:top;">4️⃣</td>
+//                             <td style="font-size:14px;color:#aaa;line-height:1.5;vertical-align:top;">Track live results and see who wins!</td>
+//                           </tr></table>
+//                         </td>
+//                       </tr>
+//                     </table>
+
+//                     <!-- CTA Button -->
+//                     <a href="${battleUrl}"
+//                       style="display:block;text-align:center;background:linear-gradient(135deg,#e91e8c,#d75a2d);
+//                       color:#fff;font-size:16px;font-weight:700;padding:16px 32px;
+//                       border-radius:12px;text-decoration:none;margin-bottom:16px;
+//                       letter-spacing:0.3px;">
+//                       ⚔️ &nbsp;Join the Battle Now
+//                     </a>
+
+//                     <!-- Secondary link -->
+//                     <p style="margin:0;text-align:center;font-size:13px;color:#555;">
+//                       Or visit
+//                       <a href="${appUrl}" style="color:#d75a2d;text-decoration:none;margin-left:4px;">
+//                         sportsfan-frontend.vercel.app
+//                       </a>
+//                     </p>
+//                   </td>
+//                 </tr>
+
+//                 <!-- Footer -->
+//                 <tr>
+//                   <td style="padding:20px 32px 24px;border-top:1px solid rgba(255,255,255,0.07);text-align:center;">
+//                     <p style="margin:0;font-size:12px;color:#444;line-height:1.7;">
+//                       You received this because <strong style="color:#666;">${userName}</strong> invited you to SportsFan360.<br/>
+//                       If you didn't expect this email, you can safely ignore it.
+//                     </p>
+//                   </td>
+//                 </tr>
+
+//               </table>
+//             </td></tr>
+//           </table>
+//         </body>
+//         </html>
+//       `,
+//     })
+//   );
+
+//   const results = await Promise.allSettled(emailPromises);
+
+//   const failed: string[] = [];
+//   results.forEach((result, i) => {
+//     if (result.status === "rejected") {
+//       console.error(`Failed to send invite to ${invitedFriends[i].email}:`, result.reason);
+//       failed.push(invitedFriends[i].email);
+//     }
+//   });
+
+//   return { sent: invitedFriends.length - failed.length, failed };
 // }
 
 // // ─── POST — Create a new battle ───────────────────────────────────────────────
@@ -193,20 +349,13 @@
 //     }
 
 //     if (!userId || typeof userId !== "string") {
-//       return NextResponse.json(
-//         { error: "userId is required" },
-//         { status: 400 }
-//       );
+//       return NextResponse.json({ error: "userId is required" }, { status: 400 });
 //     }
 
 //     if (!userName || typeof userName !== "string") {
-//       return NextResponse.json(
-//         { error: "userName is required" },
-//         { status: 400 }
-//       );
+//       return NextResponse.json({ error: "userName is required" }, { status: 400 });
 //     }
 
-//     // ── Type-specific validation ──
 //     if (battleType === "PLAYERS") {
 //       if (!Array.isArray(selectedPlayers) || selectedPlayers.length === 0) {
 //         return NextResponse.json(
@@ -252,7 +401,7 @@
 //     }
 
 //     // Get standardized user info
-//     const { userName: standardizedName, userEmail: standardizedEmail } = 
+//     const { userName: standardizedName, userEmail: standardizedEmail } =
 //       await getStandardizedUserInfo(userId, userName, userEmail);
 
 //     // Ensure user has points fields
@@ -278,28 +427,25 @@
 //     batch.set(battleRef, newBattle);
 
 //     // ── Award points for creating a battle ──
-//     const pointsToAward = 10; // CREATE_BATTLE = 10 points
-    
-//     // Create transaction record
+//     const pointsToAward = 10;
+
 //     const transactionId = `${userId}_${Date.now()}_CREATE_BATTLE`;
 //     const transactionRef = db.collection("userPointTransactions").doc(transactionId);
-    
+
 //     batch.set(transactionRef, {
 //       userId,
 //       userEmail: standardizedEmail,
 //       userName: standardizedName,
 //       points: pointsToAward,
-//       reason: 'CREATE_BATTLE',
+//       reason: "CREATE_BATTLE",
 //       metadata: { battleId: battleRef.id },
 //       createdAt: Date.now(),
 //     });
 
-//     // Update user's total points in the users collection
 //     const userRef = db.collection("users").doc(userId);
 //     const userSnap = await userRef.get();
-    
+
 //     if (!userSnap.exists) {
-//       // Create user document with complete structure
 //       batch.set(userRef, {
 //         userId,
 //         email: standardizedEmail,
@@ -314,23 +460,21 @@
 //           PREDICTION_CORRECT: 0,
 //           FANTASY_WIN: 0,
 //           DAILY_LOGIN: 0,
-//           SHARE_BATTLE: 0
+//           SHARE_BATTLE: 0,
 //         },
 //         createdAt: Date.now(),
 //         lastUpdated: Date.now(),
 //         status: "active",
-//         role: "user"
+//         role: "user",
 //       });
 //     } else {
-//       // Update existing user
 //       batch.update(userRef, {
 //         totalPoints: FieldValue.increment(pointsToAward),
-//         'pointsBreakdown.CREATE_BATTLE': FieldValue.increment(pointsToAward),
+//         "pointsBreakdown.CREATE_BATTLE": FieldValue.increment(pointsToAward),
 //         lastUpdated: Date.now(),
 //       });
 //     }
 
-//     // Update global leaderboard
 //     const globalLeaderboardRef = db.collection("globalLeaderboard").doc(userId);
 //     batch.set(
 //       globalLeaderboardRef,
@@ -344,8 +488,19 @@
 //       { merge: true }
 //     );
 
-//     // Commit all changes
+//     // ── Commit all DB changes ──
 //     await batch.commit();
+
+//     // ── Send invite emails AFTER commit so battleId is real ──
+//     const { sent: emailsSent, failed: emailsFailed } = await sendBattleInviteEmails(
+//       invitedFriends ?? [],
+//       battleName.trim(),
+//       battleType,
+//       battleRef.id,
+//       standardizedName
+//     );
+
+//     console.log(`✅ Battle created: ${battleRef.id} | Emails sent: ${emailsSent} | Failed: ${emailsFailed.length}`);
 
 //     return NextResponse.json(
 //       {
@@ -354,6 +509,10 @@
 //         battle: { id: battleRef.id, ...newBattle },
 //         pointsAwarded: pointsToAward,
 //         message: `Battle created successfully! +${pointsToAward} points awarded!`,
+//         invites: {
+//           sent: emailsSent,
+//           failed: emailsFailed,
+//         },
 //       },
 //       { status: 201 }
 //     );
@@ -379,7 +538,6 @@
 //       .collection("fanBattles")
 //       .orderBy("createdAt", "desc");
 
-//     // ── Optional filters ──
 //     if (battleType && ["PLAYERS", "CLUBS"].includes(battleType)) {
 //       query = query.where("battleType", "==", battleType);
 //     }
@@ -390,7 +548,6 @@
 
 //     query = query.limit(limit);
 
-//     // ── Cursor-based pagination ──
 //     if (lastDocId && lastDocCreatedAt) {
 //       const lastDocRef = db.collection("fanBattles").doc(lastDocId);
 //       const lastDocSnap = await lastDocRef.get();
@@ -434,12 +591,6 @@
 
 
 
-
-
-
-
-
-
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
@@ -464,7 +615,11 @@ interface BattlePayload {
 }
 
 // Helper function to get standardized user info
-async function getStandardizedUserInfo(userId: string, providedName?: string, providedEmail?: string) {
+async function getStandardizedUserInfo(
+  userId: string,
+  providedName?: string,
+  providedEmail?: string
+) {
   try {
     const userRef = db.collection("users").doc(userId);
     const userSnap = await userRef.get();
@@ -487,7 +642,10 @@ async function getStandardizedUserInfo(userId: string, providedName?: string, pr
 
       const userEmail = providedEmail || userData?.email || "";
 
-      if (userData?.totalPoints === undefined || userData?.pointsBreakdown === undefined) {
+      if (
+        userData?.totalPoints === undefined ||
+        userData?.pointsBreakdown === undefined
+      ) {
         await userRef.update({
           totalPoints: userData?.totalPoints || 0,
           pointsBreakdown: {
@@ -522,7 +680,11 @@ async function getStandardizedUserInfo(userId: string, providedName?: string, pr
 }
 
 // Helper to ensure user has points fields
-async function ensureUserHasPointsFields(userId: string, userEmail: string, userName: string) {
+async function ensureUserHasPointsFields(
+  userId: string,
+  userEmail: string,
+  userName: string
+) {
   const userRef = db.collection("users").doc(userId);
   const userSnap = await userRef.get();
 
@@ -640,7 +802,6 @@ async function sendBattleInviteEmails(
                 <!-- Body -->
                 <tr>
                   <td style="padding:32px;">
-
                     <p style="margin:0 0 8px;font-size:16px;color:#ccc;">
                       Hey <strong style="color:#fff;">${name}</strong>,
                     </p>
@@ -673,50 +834,40 @@ async function sendBattleInviteEmails(
                       How It Works
                     </p>
                     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
-                      <tr>
-                        <td style="padding:0 0 10px 0;">
-                          <table cellpadding="0" cellspacing="0"><tr>
-                            <td style="font-size:18px;padding-right:12px;vertical-align:top;">1️⃣</td>
-                            <td style="font-size:14px;color:#aaa;line-height:1.5;vertical-align:top;">Click the button below to view the battle</td>
-                          </tr></table>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding:0 0 10px 0;">
-                          <table cellpadding="0" cellspacing="0"><tr>
-                            <td style="font-size:18px;padding-right:12px;vertical-align:top;">2️⃣</td>
-                            <td style="font-size:14px;color:#aaa;line-height:1.5;vertical-align:top;">Sign up or log in to your SportsFan360 account</td>
-                          </tr></table>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding:0 0 10px 0;">
-                          <table cellpadding="0" cellspacing="0"><tr>
-                            <td style="font-size:18px;padding-right:12px;vertical-align:top;">3️⃣</td>
-                            <td style="font-size:14px;color:#aaa;line-height:1.5;vertical-align:top;">Cast your vote and compete with other fans</td>
-                          </tr></table>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>
-                          <table cellpadding="0" cellspacing="0"><tr>
-                            <td style="font-size:18px;padding-right:12px;vertical-align:top;">4️⃣</td>
-                            <td style="font-size:14px;color:#aaa;line-height:1.5;vertical-align:top;">Track live results and see who wins!</td>
-                          </tr></table>
-                        </td>
-                      </tr>
+                      <tr><td style="padding:0 0 10px 0;">
+                        <table cellpadding="0" cellspacing="0"><tr>
+                          <td style="font-size:18px;padding-right:12px;vertical-align:top;">1️⃣</td>
+                          <td style="font-size:14px;color:#aaa;line-height:1.5;vertical-align:top;">Click the button below to view the battle</td>
+                        </tr></table>
+                      </td></tr>
+                      <tr><td style="padding:0 0 10px 0;">
+                        <table cellpadding="0" cellspacing="0"><tr>
+                          <td style="font-size:18px;padding-right:12px;vertical-align:top;">2️⃣</td>
+                          <td style="font-size:14px;color:#aaa;line-height:1.5;vertical-align:top;">Sign up or log in to your SportsFan360 account</td>
+                        </tr></table>
+                      </td></tr>
+                      <tr><td style="padding:0 0 10px 0;">
+                        <table cellpadding="0" cellspacing="0"><tr>
+                          <td style="font-size:18px;padding-right:12px;vertical-align:top;">3️⃣</td>
+                          <td style="font-size:14px;color:#aaa;line-height:1.5;vertical-align:top;">Cast your vote and compete with other fans</td>
+                        </tr></table>
+                      </td></tr>
+                      <tr><td>
+                        <table cellpadding="0" cellspacing="0"><tr>
+                          <td style="font-size:18px;padding-right:12px;vertical-align:top;">4️⃣</td>
+                          <td style="font-size:14px;color:#aaa;line-height:1.5;vertical-align:top;">Track live results and see who wins!</td>
+                        </tr></table>
+                      </td></tr>
                     </table>
 
                     <!-- CTA Button -->
                     <a href="${battleUrl}"
                       style="display:block;text-align:center;background:linear-gradient(135deg,#e91e8c,#d75a2d);
                       color:#fff;font-size:16px;font-weight:700;padding:16px 32px;
-                      border-radius:12px;text-decoration:none;margin-bottom:16px;
-                      letter-spacing:0.3px;">
+                      border-radius:12px;text-decoration:none;margin-bottom:16px;letter-spacing:0.3px;">
                       ⚔️ &nbsp;Join the Battle Now
                     </a>
 
-                    <!-- Secondary link -->
                     <p style="margin:0;text-align:center;font-size:13px;color:#555;">
                       Or visit
                       <a href="${appUrl}" style="color:#d75a2d;text-decoration:none;margin-left:4px;">
@@ -930,10 +1081,29 @@ export async function POST(req: NextRequest) {
       { merge: true }
     );
 
-    // ── Commit all DB changes ──
+    // ── Create in-app notifications for each invited friend ──────────────────
+    if (invitedFriends && invitedFriends.length > 0) {
+      for (const friend of invitedFriends) {
+        const notifRef = db.collection("notifications").doc();
+        batch.set(notifRef, {
+          type: "BATTLE_INVITE",
+          recipientEmail: friend.email,
+          senderName: standardizedName,
+          senderId: userId,
+          battleId: battleRef.id,
+          battleName: battleName.trim(),
+          battleType,
+          message: `${standardizedName} has invited you to a Fan Battle!`,
+          isRead: false,
+          createdAt: Date.now(),
+        });
+      }
+    }
+
+    // ── Commit all DB changes (battle + points + notifications) ──────────────
     await batch.commit();
 
-    // ── Send invite emails AFTER commit so battleId is real ──
+    // ── Send invite emails AFTER commit so battleRef.id is real ─────────────
     const { sent: emailsSent, failed: emailsFailed } = await sendBattleInviteEmails(
       invitedFriends ?? [],
       battleName.trim(),
@@ -942,7 +1112,9 @@ export async function POST(req: NextRequest) {
       standardizedName
     );
 
-    console.log(`✅ Battle created: ${battleRef.id} | Emails sent: ${emailsSent} | Failed: ${emailsFailed.length}`);
+    console.log(
+      `✅ Battle created: ${battleRef.id} | Emails sent: ${emailsSent} | Failed: ${emailsFailed.length}`
+    );
 
     return NextResponse.json(
       {
