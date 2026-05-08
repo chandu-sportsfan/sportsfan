@@ -28,6 +28,66 @@ export interface PlayerRow {
   econ?: string;
 }
 
+export interface MatchCard {
+  matchNo: number;
+  date: string;      // e.g. "May 07"
+  day: string;       // e.g. "Wed"
+  time: string;      // e.g. "7:30 PM IST"
+  teamA: string;     // abbr, e.g. "LSG"
+  teamAFull: string;
+  teamB: string;     // abbr, e.g. "RCB"
+  teamBFull: string;
+  venue: string;
+  status: "upcoming" | "live" | "completed";
+  result?: string;   // e.g. "MI won by 7 wickets"
+}
+
+export interface HighestScoreRow {
+  rank: number;
+  player: string;
+  team: string;
+  score: string; // e.g. "141*"
+}
+
+export interface MostFiftiesRow {
+  rank: number;
+  player: string;
+  team: string;
+  fifties: number;
+}
+
+export interface TodayMatch {
+  teamA: string;
+  teamAFull: string;
+  teamB: string;
+  teamBFull: string;
+  time: string;
+  venue: string;
+  matchNo: number;
+  totalMatches: number;
+}
+
+export interface RecentMatch {
+  teamA: string;
+  teamB: string;
+  result: string;
+  scoreA?: string;
+  scoreB?: string;
+  oversA?: string;
+  oversB?: string;
+}
+
+export interface IPLStatsResponse {
+  pointsTable: TeamRow[];
+  orangeCap: PlayerRow[];
+  purpleCap: PlayerRow[];
+  todayMatch: TodayMatch;
+  recentMatch: RecentMatch;
+  upcomingMatches: MatchCard[];
+  highestScores: HighestScoreRow[];
+  mostFifties: MostFiftiesRow[];
+}
+
 // ─── HTML parsing helpers ─────────────────────────────────────────────────────
 
 function stripTags(html: string): string {
@@ -62,9 +122,6 @@ function extractRows(html: string): string[][] {
   return rows;
 }
 
-/**
- * Depth-aware <table> extractor — correctly handles nested tables.
- */
 function extractTables(html: string): string[] {
   const tables: string[] = [];
   let depth = 0;
@@ -164,25 +221,14 @@ function mapPlayerRow(row: string[], type: "orange" | "purple"): PlayerRow | nul
   };
 }
 
-/**
- * Three-strategy parser — survives any HTML layout the CDN uses.
- *
- * Strategy 1: two separate <table> blocks  → table[0]=orange, table[1]=purple
- * Strategy 2: one <table>, two <tbody>     → tbody[0]=orange, tbody[1]=purple
- * Strategy 3: keyword scan across all rows (last resort)
- */
 function parseCaps(html: string): { orange: PlayerRow[]; purple: PlayerRow[] } {
-
-  // Strategy 1: multiple top-level tables
   const tables = extractTables(html);
   if (tables.length >= 2) {
-    console.log("[parseCaps] Strategy 1: " + tables.length + " tables found");
     const orange = extractRows(tables[0]).map((r) => mapPlayerRow(r, "orange")).filter(Boolean) as PlayerRow[];
     const purple = extractRows(tables[1]).map((r) => mapPlayerRow(r, "purple")).filter(Boolean) as PlayerRow[];
     return { orange, purple };
   }
 
-  // Strategy 2: one table, two tbody blocks
   if (tables.length === 1) {
     const tbodyRe = /<tbody\b[^>]*>([\s\S]*?)<\/tbody>/gi;
     const bodies: string[] = [];
@@ -190,15 +236,12 @@ function parseCaps(html: string): { orange: PlayerRow[]; purple: PlayerRow[] } {
     while ((bm = tbodyRe.exec(tables[0])) !== null) bodies.push(bm[1]);
 
     if (bodies.length >= 2) {
-      console.log("[parseCaps] Strategy 2: " + bodies.length + " tbody blocks found");
       const orange = extractRows(bodies[0]).map((r) => mapPlayerRow(r, "orange")).filter(Boolean) as PlayerRow[];
       const purple = extractRows(bodies[1]).map((r) => mapPlayerRow(r, "purple")).filter(Boolean) as PlayerRow[];
       return { orange, purple };
     }
   }
 
-  // Strategy 3: keyword scan fallback
-  console.log("[parseCaps] Strategy 3: keyword scan");
   const rows = extractRows(html);
   const orange: PlayerRow[] = [];
   const purple: PlayerRow[] = [];
@@ -220,7 +263,118 @@ function parseCaps(html: string): { orange: PlayerRow[]; purple: PlayerRow[] } {
   return { orange, purple };
 }
 
-// ─── Route handler ────────────────────────────────────────────────────────────
+// ─── Mock data for new sections ───────────────────────────────────────────────
+// Replace these with real CDN fetches when URLs are available
+
+function getMockTodayMatch(): TodayMatch {
+  return {
+    teamA: "LSG",
+    teamAFull: "Lucknow Super Giants",
+    teamB: "RCB",
+    teamBFull: "Royal Challengers Bengaluru",
+    time: "7:30 PM IST",
+    venue: "Bharat Ratna Shri Atal Bihari Vajpayee Ekana Cricket Stadium, Lucknow",
+    matchNo: 50,
+    totalMatches: 74,
+  };
+}
+
+function getMockRecentMatch(): RecentMatch {
+  return {
+    teamA: "GT",
+    teamB: "MI",
+    result: "MI won by 7 wickets",
+    scoreA: "174/8",
+    scoreB: "175/3",
+    oversA: "20.0",
+    oversB: "18.4",
+  };
+}
+
+function getMockUpcomingMatches(): MatchCard[] {
+  return [
+    {
+      matchNo: 50,
+      date: "May 07",
+      day: "Wed",
+      time: "7:30 PM IST",
+      teamA: "LSG",
+      teamAFull: "Lucknow Super Giants",
+      teamB: "RCB",
+      teamBFull: "Royal Challengers Bengaluru",
+      venue: "Ekana Cricket Stadium, Lucknow",
+      status: "upcoming",
+    },
+    {
+      matchNo: 51,
+      date: "May 08",
+      day: "Thu",
+      time: "7:30 PM IST",
+      teamA: "PBKS",
+      teamAFull: "Punjab Kings",
+      teamB: "RR",
+      teamBFull: "Rajasthan Royals",
+      venue: "Himachal Pradesh Cricket Association Stadium, Dharamshala",
+      status: "upcoming",
+    },
+    {
+      matchNo: 52,
+      date: "May 09",
+      day: "Fri",
+      time: "7:30 PM IST",
+      teamA: "CSK",
+      teamAFull: "Chennai Super Kings",
+      teamB: "GT",
+      teamBFull: "Gujarat Titans",
+      venue: "MA Chidambaram Stadium, Chennai",
+      status: "upcoming",
+    },
+    {
+      matchNo: 53,
+      date: "May 10",
+      day: "Sat",
+      time: "3:30 PM IST",
+      teamA: "SRH",
+      teamAFull: "Sunrisers Hyderabad",
+      teamB: "KKR",
+      teamBFull: "Kolkata Knight Riders",
+      venue: "Rajiv Gandhi International Stadium, Hyderabad",
+      status: "upcoming",
+    },
+  ];
+}
+
+function getMockHighestScores(): HighestScoreRow[] {
+  return [
+    { rank: 1, player: "Abhishek Sharma", team: "SRH", score: "141*" },
+    { rank: 2, player: "Jos Buttler", team: "RR", score: "124*" },
+    { rank: 3, player: "Quinton de Kock", team: "LSG", score: "108*" },
+    { rank: 4, player: "Shubman Gill", team: "GT", score: "104" },
+    { rank: 5, player: "Virat Kohli", team: "RCB", score: "100*" },
+    { rank: 6, player: "Ruturaj Gaikwad", team: "CSK", score: "98" },
+    { rank: 7, player: "KL Rahul", team: "LSG", score: "97*" },
+    { rank: 8, player: "David Warner", team: "DC", score: "92" },
+    { rank: 9, player: "Rohit Sharma", team: "MI", score: "91" },
+    { rank: 10, player: "Faf du Plessis", team: "RCB", score: "88" },
+  ];
+}
+
+function getMockMostFifties(): MostFiftiesRow[] {
+  return [
+    { rank: 1, player: "Sai Sudharsan", team: "GT", fifties: 6 },
+    { rank: 2, player: "Abhishek Sharma", team: "SRH", fifties: 5 },
+    { rank: 3, player: "Shubman Gill", team: "GT", fifties: 5 },
+    { rank: 4, player: "Virat Kohli", team: "RCB", fifties: 4 },
+    { rank: 5, player: "Jos Buttler", team: "RR", fifties: 4 },
+    { rank: 6, player: "KL Rahul", team: "LSG", fifties: 3 },
+    { rank: 7, player: "Rohit Sharma", team: "MI", fifties: 3 },
+    { rank: 8, player: "Ruturaj Gaikwad", team: "CSK", fifties: 3 },
+    { rank: 9, player: "David Warner", team: "DC", fifties: 2 },
+    { rank: 10, player: "Hardik Pandya", team: "MI", fifties: 2 },
+  ];
+}
+
+// ─── CORS Headers ─────────────────────────────────────────────────────────────
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -228,10 +382,17 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
+// ─── CDN URLs ─────────────────────────────────────────────────────────────────
+
 const POINTS_TABLE_URL =
-  "https://res.cloudinary.com/dflnsufit/raw/upload/v1777856863/sf360/scripts/IPL_Points_Table_2026.html";
+  "https://res.cloudinary.com/dflnsufit/raw/upload/v1778156923/sf360/scripts/IPL_Points_Table_2026.html";
 const CAPS_URL =
-  "https://res.cloudinary.com/dflnsufit/raw/upload/v1777856864/sf360/scripts/IPL_Caps_2026.html";
+  "https://res.cloudinary.com/dflnsufit/raw/upload/v1778156925/sf360/scripts/IPL_Caps_2026.html";
+
+// Placeholder URLs — replace when CDN endpoints are live:
+ const MATCHES_STATS_URL    = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778156927/sf360/scripts/IPL_Fixtures_2026.html";
+
+// ─── Route handler ────────────────────────────────────────────────────────────
 
 export async function GET() {
   try {
@@ -252,25 +413,18 @@ export async function GET() {
     const pointsTable = parsePointsTable(pointsHtml);
     const { orange: orangeCap, purple: purpleCap } = parseCaps(capsHtml);
 
-    // ── TEMPORARY DEBUG — remove _debug once rows appear in the UI ───────────
-    const capsTables = extractTables(capsHtml);
-    const allCapsRows = extractRows(capsHtml);
+    const response: IPLStatsResponse = {
+      pointsTable,
+      orangeCap,
+      purpleCap,
+      todayMatch: getMockTodayMatch(),
+      recentMatch: getMockRecentMatch(),
+      upcomingMatches: getMockUpcomingMatches(),
+      highestScores: getMockHighestScores(),
+      mostFifties: getMockMostFifties(),
+    };
 
-    return NextResponse.json(
-      {
-        pointsTable,
-        orangeCap,
-        purpleCap,
-        _debug: {
-          tableCount:  capsTables.length,
-          totalRows:   allCapsRows.length,
-          first5Rows:  allCapsRows.slice(0, 5),
-          orangeCount: orangeCap.length,
-          purpleCount: purpleCap.length,
-        },
-      },
-      { status: 200, headers: CORS_HEADERS }
-    );
+    return NextResponse.json(response, { status: 200, headers: CORS_HEADERS });
   } catch (error) {
     console.error("Failed to fetch / parse IPL CDN data:", error);
     return NextResponse.json(
