@@ -390,7 +390,7 @@ const CAPS_URL =
   "https://res.cloudinary.com/dflnsufit/raw/upload/v1778156925/sf360/scripts/IPL_Caps_2026.html";
 
 // Placeholder URLs — replace when CDN endpoints are live:
- const MATCHES_STATS_URL    = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778156927/sf360/scripts/IPL_Fixtures_2026.html";
+//  const MATCHES_STATS_URL    = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778156927/sf360/scripts/IPL_Fixtures_2026.html";
 
 // ─── Route handler ────────────────────────────────────────────────────────────
 
