@@ -111,7 +111,7 @@ const MONTH_MAP: Record<string, number> = {
   jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
 };
 
-const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+// const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
 /** Known IPL team abbreviation → full name map used as a fallback lookup. */
 const TEAM_FULL: Record<string, string> = {
@@ -250,7 +250,7 @@ function parsePointsTable(html: string): TeamRow[] {
         } else {
           logo = imgsStr;
         }
-      } catch (e) {
+      } catch {
         logo = "";
       }
 
@@ -338,7 +338,9 @@ function mapPlayerRow(row: string[], type: "orange" | "purple", pointsTable: Tea
           }
         }
       }
-    } catch (e) {}
+    } catch {
+      
+    }
   }
 
   if (!team) team = "TBD"; // Fallback to prevent crashes
@@ -485,13 +487,15 @@ function midnight(d: Date): Date {
  * Parses the IPL fixtures HTML into `todayMatch`, `recentMatch`, and
  * `upcomingMatches`. 
  */
+// ─── Matches parser ───────────────────────────────────────────────────────────
+
 function parseMatches(html: string): {
   todayMatch: TodayMatch;
   recentMatch: RecentMatch;
   upcomingMatches: MatchCard[];
   recentMatches: MatchCard[];
   allCards: MatchCard[]; 
-  rawCompletedMatches: any[];
+  rawCompletedMatches: InternalMatchCard[];
 } {
   const now = new Date();
   if (now.getFullYear() < 2026) now.setFullYear(2026);
@@ -505,7 +509,7 @@ function parseMatches(html: string): {
     .trim();
 
   const rawBlocks = cleanedText.split(/(?=MATCH\s+\d+\b)/gi);
-  const cardsMap = new Map<number, any>();
+  const cardsMap = new Map<number, InternalMatchCard>();
 
   for (const block of rawBlocks) {
     if (!/MATCH\s+\d+/i.test(block)) continue;
@@ -525,7 +529,6 @@ function parseMatches(html: string): {
     let matchDate: Date | null = null;
     let _isDesktop = false;
     
-    // 🛠️ THE FIX: Updated Regex to catch variations like "May 09 Sat" and "7 May 2026, Thur"
     const dateTimeMatch = block.match(/(([A-Za-z]{3,9}\s+\d{1,2}|\d{1,2}\s+[A-Za-z]{3,9})(?:,?\s*\d{4})?)[,\s]+([A-Za-z]{3,9})[,\s]+(\d{1,2}:\d{2}\s*(?:AM|PM)\s*IST)/i);
     
     if (dateTimeMatch) {
@@ -537,7 +540,6 @@ function parseMatches(html: string): {
       timeStr = dateTimeMatch[4].toUpperCase();
       _isDesktop = true;
     } else {
-      // Fallback to grab time if date fails 
       const timeMatch = block.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)\s*IST)/i);
       if (timeMatch) timeStr = timeMatch[1].toUpperCase();
 
@@ -564,14 +566,14 @@ function parseMatches(html: string): {
 
     const teamA = foundTeams[0] || "TBD";
     const teamB = foundTeams[1] || "TBD";
-    if (teamA === "TBD" && matchNo < 71) continue; // Allow TBD for playoffs
+    if (teamA === "TBD" && matchNo < 71) continue; 
 
     const isPast = matchDate ? midnight(matchDate).getTime() < todayMidnight.getTime() : false;
     const hasRealResult = !!resultText;
     const status = (hasRealResult || isPast) ? "completed" : "upcoming";
     const finalResult = resultText || (isPast ? "Match Completed" : undefined);
 
-    const newCard = {
+    const newCard: InternalMatchCard = {
       matchNo, date: dateStr, day: dayName, time: timeStr,
       teamA, teamAFull: TEAM_FULL[teamA] || teamA,
       teamB, teamBFull: TEAM_FULL[teamB] || teamB,
@@ -585,11 +587,10 @@ function parseMatches(html: string): {
 
     const existingCard = cardsMap.get(matchNo);
     
-    // 🛠️ THE FIX: Smart Merging overrides old buggy blocks with valid later blocks 
     if (!existingCard) {
       cardsMap.set(matchNo, newCard);
     } else {
-      const merged = { ...existingCard };
+      const merged: InternalMatchCard = { ...existingCard };
 
       if (newCard._hasRealResult) {
         merged.result = newCard.result;
@@ -608,14 +609,12 @@ function parseMatches(html: string): {
         merged.venue = newCard.venue;
       }
 
-      // Overwrite with the latest valid date provided by the CDN to fix offsets
       if (newCard.date !== "TBD" && newCard.date !== "Completed") {
         merged.date = newCard.date;
         merged.day = newCard.day;
         merged.time = newCard.time;
       }
 
-      // Recalculate if it should genuinely be moved to "Completed" vs a false positive
       const mergedDateObj = parseDateStr(merged.date + " 2026");
       const mergedIsPast = mergedDateObj ? midnight(mergedDateObj).getTime() < todayMidnight.getTime() : false;
       
@@ -636,18 +635,18 @@ function parseMatches(html: string): {
     }
   }
 
-  const cards = Array.from(cardsMap.values()).map(({ _isDesktop, _hasRealResult, ...rest }) => rest);
-  cards.sort((a: any, b: any) => a.matchNo - b.matchNo);
+  const cards = Array.from(cardsMap.values());
+  cards.sort((a, b) => a.matchNo - b.matchNo);
 
-  const cleanCards = cards.map(({ _scoreA, _scoreB, _oversA, _oversB, ...rest }: any) => rest);
+  const cleanCards: MatchCard[] = cards.map(({ _isDesktop, _hasRealResult, _scoreA, _scoreB, _oversA, _oversB, ...rest }) => rest as MatchCard);
 
   return { 
     todayMatch: {} as TodayMatch,
     recentMatch: {} as RecentMatch,
     allCards: cleanCards,
-    rawCompletedMatches: cards.filter((c: any) => c.status === "completed").sort((a: any, b: any) => b.matchNo - a.matchNo),
-    recentMatches: cleanCards.filter((c: any) => c.status === "completed").sort((a: any, b: any) => b.matchNo - a.matchNo),
-    upcomingMatches: cleanCards.filter((c: any) => c.status !== "completed") 
+    rawCompletedMatches: cards.filter(c => c.status === "completed").sort((a, b) => b.matchNo - a.matchNo),
+    recentMatches: cleanCards.filter(c => c.status === "completed").sort((a, b) => b.matchNo - a.matchNo),
+    upcomingMatches: cleanCards.filter(c => c.status !== "completed") 
   };
 }
 
@@ -949,7 +948,7 @@ export async function GET() {
     };
 
     return NextResponse.json(response, { status: 200, headers: CORS_HEADERS });
-  } catch (error) {
+  } catch  {
     return NextResponse.json({ error: "Failed to load stats" }, { status: 500, headers: CORS_HEADERS });
   }
 }
