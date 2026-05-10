@@ -770,7 +770,7 @@ async function sendBattleInviteEmails(
   if (!invitedFriends || invitedFriends.length === 0) return { sent: 0, failed: [] };
 
   const appUrl = "https://sportsfan-frontend.vercel.app";
-  const battleUrl = `${appUrl}/battles/${battleId}`;
+  const battleUrl = `${appUrl}/MainModules/Fantasy`;
 
   const emailPromises = invitedFriends.map(({ email, name }) =>
     transporter.sendMail({
