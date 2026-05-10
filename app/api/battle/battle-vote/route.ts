@@ -600,15 +600,35 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// ─── GET — Fetch leaderboard for a battle ────────────────────────────────────
+// ─── GET — Fetch leaderboard for a battle 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const battleId = searchParams.get("battleId");
     const userId   = searchParams.get("userId");
 
-    if (!battleId)
+    // ── Bulk "which battles has this user touched?" check ─────────────────
+    // Called once on load: ?userId=xxx&checkPlayed=true
+    if (searchParams.get("checkPlayed") === "true") {
+      if (!userId) {
+        return NextResponse.json({ interactedBattleIds: [] });
+      }
+      const votesSnap = await db
+        .collection("battleVotes")
+        .where("userId", "==", userId)
+        .get();
+
+      const interactedBattleIds = [
+        ...new Set(votesSnap.docs.map((doc) => doc.data().battleId as string)),
+      ];
+
+      return NextResponse.json({ success: true, interactedBattleIds });
+    }
+
+    // ── Normal leaderboard fetch: ?battleId=xxx&userId=xxx ─────────────────
+    if (!battleId) {
       return NextResponse.json({ error: "battleId is required" }, { status: 400 });
+    }
 
     const leaderboardSnap = await db
       .collection("fanBattles")
@@ -623,13 +643,22 @@ export async function GET(req: NextRequest) {
     }));
 
     let votedPlayerIds: string[] = [];
+    let interactedPlayerIds: string[] = [];
+
     if (userId) {
       const votesSnap = await db
         .collection("battleVotes")
         .where("battleId", "==", battleId)
         .where("userId", "==", userId)
         .get();
-      votedPlayerIds = votesSnap.docs.map((doc) => doc.data().playerId);
+
+      // All interactions (left + right) — for "already played" detection
+      interactedPlayerIds = votesSnap.docs.map((doc) => doc.data().playerId as string);
+
+      // Right swipes only — for "✓ Voted" badges
+      votedPlayerIds = votesSnap.docs
+        .filter((doc) => doc.data().direction === "right")
+        .map((doc) => doc.data().playerId as string);
     }
 
     return NextResponse.json({
@@ -637,6 +666,7 @@ export async function GET(req: NextRequest) {
       battleId,
       leaderboard,
       votedPlayerIds,
+      interactedPlayerIds,
       total: leaderboard.length,
     });
   } catch (error: unknown) {
