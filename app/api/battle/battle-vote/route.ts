@@ -276,8 +276,6 @@
 
 
 
-
-
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
@@ -304,15 +302,16 @@ interface UserData {
   lastUpdated?: number;
 }
 
-// ── Single source of truth: fetch user from Firestore, never construct a name
+// ── Single source of truth: fetch user from Firestore
 async function getUserInfo(
   userId: string,
   fallbackName?: string,
   fallbackEmail?: string
-): Promise<{ userName: string; userEmail: string; exists: boolean; userData?: UserData }> {
+): Promise<{ userName: string; userEmail: string; exists: boolean; actualUserId: string; userData?: UserData }> {
   try {
     // Try exact match first
     let snap = await db.collection("users").doc(userId).get();
+    let actualUserId = userId;
 
     // If not found, try to find by email (for Google auth users)
     if (!snap.exists && fallbackEmail) {
@@ -323,7 +322,8 @@ async function getUserInfo(
       
       if (!emailQuery.empty) {
         snap = emailQuery.docs[0];
-        console.log(`Found user by email: ${snap.id} for userId: ${userId}`);
+        actualUserId = snap.id;
+        console.log(`Found user by email: ${actualUserId} for userId: ${userId}`);
       }
     }
 
@@ -339,7 +339,7 @@ async function getUserInfo(
             "User";
 
       const userEmail = d.email || fallbackEmail || "";
-      return { userName, userEmail, exists: true, userData: d };
+      return { userName, userEmail, exists: true, actualUserId, userData: d };
     }
 
     // Document doesn't exist yet — use fallback values from the auth token
@@ -347,6 +347,7 @@ async function getUserInfo(
       userName: fallbackName || "User",
       userEmail: fallbackEmail || "",
       exists: false,
+      actualUserId: userId,
     };
   } catch (err) {
     console.error("getUserInfo error:", err);
@@ -354,14 +355,14 @@ async function getUserInfo(
       userName: fallbackName || "User",
       userEmail: fallbackEmail || "",
       exists: false,
+      actualUserId: userId,
     };
   }
 }
 
 // ── Ensure points fields exist on an already-existing user document
-async function backfillPointsIfNeeded(userId: string, userDocId?: string) {
-  const docId = userDocId || userId;
-  const ref = db.collection("users").doc(docId);
+async function backfillPointsIfNeeded(actualUserId: string) {
+  const ref = db.collection("users").doc(actualUserId);
   const snap = await ref.get();
   if (!snap.exists) return false;
 
@@ -394,26 +395,15 @@ async function backfillPointsIfNeeded(userId: string, userDocId?: string) {
   return false;
 }
 
-// ── Check if user already has a transaction for this specific action today
-async function hasRecentTransaction(
+// ── Check if user already has a transaction for this specific battle
+async function hasTransactionForBattle(
   userId: string,
-  reason: string,
-  battleId?: string,
-  hoursWindow: number = 24
+  battleId: string
 ): Promise<boolean> {
-  const cutoffTime = Date.now() - (hoursWindow * 60 * 60 * 1000);
-  
-  let query = db.collection("userPointTransactions")
-    .where("userId", "==", userId)
-    .where("reason", "==", reason)
-    .where("createdAt", ">=", cutoffTime);
-  
-  if (battleId) {
-    query = query.where("metadata.battleId", "==", battleId);
-  }
-  
-  const snapshot = await query.limit(1).get();
-  return !snapshot.empty;
+  const transactionId = `${userId}_${battleId}_PLAY_BATTLE`;
+  const transactionRef = db.collection("userPointTransactions").doc(transactionId);
+  const snapshot = await transactionRef.get();
+  return snapshot.exists;
 }
 
 // ─── POST — Record a vote ─────────────────────────────────────────────────────
@@ -421,6 +411,8 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { battleId, playerId, playerName, userId, userEmail, userName, direction } = body;
+
+    console.log("Received vote request:", { battleId, playerId, userId, direction });
 
     // ── Validation ──────────────────────────────────────────────────────────
     if (!battleId || typeof battleId !== "string")
@@ -450,28 +442,61 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── Resolve user info from Firestore (single source of truth) ───────────
-    const { userName: resolvedName, userEmail: resolvedEmail, exists: userExists, userData } =
+    // ── Resolve user info from Firestore ────────────────────────────────────
+    const { userName: resolvedName, userEmail: resolvedEmail, exists: userExists, actualUserId } =
       await getUserInfo(userId, userName, userEmail);
 
-    // Get the actual document ID (might be different from userId for Google auth)
-    const actualUserId = userData?.userId || userId;
-    
+    console.log("User info resolved:", { actualUserId, userExists, resolvedName });
+
     // Backfill missing points fields if user exists
     if (userExists) {
       await backfillPointsIfNeeded(actualUserId);
     }
 
-    // ── Check for duplicate PLAY_BATTLE transaction (within last 5 seconds) ──
-    const hasRecentPlayBattle = await hasRecentTransaction(userId, "PLAY_BATTLE", battleId, 0.0014); // ~5 seconds
-    if (userPointsAwarded > 0 && hasRecentPlayBattle) {
-      console.log(`Duplicate PLAY_BATTLE detected for user ${userId}, skipping`);
+    // ── Check for duplicate transaction for this battle ──────────────────────
+    const alreadyHasTransaction = await hasTransactionForBattle(actualUserId, battleId);
+    
+    if (userPointsAwarded > 0 && alreadyHasTransaction) {
+      console.log(`Transaction already exists for user ${actualUserId} in battle ${battleId}, skipping points`);
+      // Still record the vote, but don't award points again
+      const batch = db.batch();
+      batch.set(voteRef, {
+        battleId,
+        playerId,
+        playerName: playerName || "Unknown",
+        userId: actualUserId,
+        direction,
+        pointsAwarded: playerPointsAwarded,
+        createdAt: Date.now(),
+      });
+
+      if (playerPointsAwarded > 0) {
+        const leaderboardRef = db
+          .collection("fanBattles")
+          .doc(battleId)
+          .collection("leaderboard")
+          .doc(playerId);
+        batch.set(
+          leaderboardRef,
+          {
+            playerId,
+            playerName: playerName || "Unknown",
+            points: FieldValue.increment(playerPointsAwarded),
+            votes: FieldValue.increment(1),
+            updatedAt: Date.now(),
+          },
+          { merge: true }
+        );
+      }
+
+      await batch.commit();
+
       return NextResponse.json(
         { 
           success: true, 
           playerPointsAwarded,
           userPointsAwarded: 0,
-          message: "Vote recorded but points already awarded for this battle",
+          message: "Vote recorded (points already awarded for this battle)",
           duplicate: true
         },
         { status: 200 }
@@ -486,7 +511,7 @@ export async function POST(req: NextRequest) {
       battleId,
       playerId,
       playerName: playerName || "Unknown",
-      userId,
+      userId: actualUserId,
       direction,
       pointsAwarded: playerPointsAwarded,
       createdAt: Date.now(),
@@ -515,26 +540,18 @@ export async function POST(req: NextRequest) {
 
     // 3. User points transaction - use consistent ID pattern to prevent duplicates
     if (userPointsAwarded > 0) {
-      // Create a deterministic transaction ID based on userId, battleId, and action
-      // This prevents duplicate transactions for the same battle
-      const transactionId = `${userId}_${battleId}_PLAY_BATTLE`;
+      const transactionId = `${actualUserId}_${battleId}_PLAY_BATTLE`;
       const transactionRef = db.collection("userPointTransactions").doc(transactionId);
       
-      const existingTransaction = await transactionRef.get();
-      
-      if (!existingTransaction.exists) {
-        batch.set(transactionRef, {
-          userId: actualUserId,
-          userEmail: resolvedEmail,
-          userName: resolvedName,
-          points: userPointsAwarded,
-          reason: "PLAY_BATTLE",
-          metadata: { battleId, playerId, playerName },
-          createdAt: Date.now(),
-        });
-      } else {
-        console.log(`Transaction ${transactionId} already exists, skipping creation`);
-      }
+      batch.set(transactionRef, {
+        userId: actualUserId,
+        userEmail: resolvedEmail,
+        userName: resolvedName,
+        points: userPointsAwarded,
+        reason: "PLAY_BATTLE",
+        metadata: { battleId, playerId, playerName },
+        createdAt: Date.now(),
+      });
 
       if (userExists) {
         const userDocRef = db.collection("users").doc(actualUserId);
@@ -546,7 +563,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 4. Global leaderboard — use consistent ID
+    // 4. Global leaderboard
     const globalLeaderboardRef = db.collection("globalLeaderboard").doc(actualUserId);
     batch.set(
       globalLeaderboardRef,
@@ -561,6 +578,8 @@ export async function POST(req: NextRequest) {
     );
 
     await batch.commit();
+
+    console.log("Vote recorded successfully for user:", actualUserId);
 
     return NextResponse.json(
       {
@@ -577,7 +596,7 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
     console.error("POST /api/battle-vote error:", error);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: msg, details: error instanceof Error ? error.stack : undefined }, { status: 500 });
   }
 }
 
