@@ -609,21 +609,39 @@ export async function GET(req: NextRequest) {
 
     // ── Bulk "which battles has this user touched?" check ─────────────────
     // Called once on load: ?userId=xxx&checkPlayed=true
-    if (searchParams.get("checkPlayed") === "true") {
-      if (!userId) {
-        return NextResponse.json({ interactedBattleIds: [] });
-      }
-      const votesSnap = await db
-        .collection("battleVotes")
-        .where("userId", "==", userId)
-        .get();
+    // if (searchParams.get("checkPlayed") === "true") {
+    //   if (!userId) {
+    //     return NextResponse.json({ interactedBattleIds: [] });
+    //   }
+    //   const votesSnap = await db
+    //     .collection("battleVotes")
+    //     .where("userId", "==", userId)
+    //     .get();
 
-      const interactedBattleIds = [
-        ...new Set(votesSnap.docs.map((doc) => doc.data().battleId as string)),
-      ];
+    //   const interactedBattleIds = [
+    //     ...new Set(votesSnap.docs.map((doc) => doc.data().battleId as string)),
+    //   ];
 
-      return NextResponse.json({ success: true, interactedBattleIds });
-    }
+    //   return NextResponse.json({ success: true, interactedBattleIds });
+    // }
+
+    // Add to your existing GET function in battle-vote/route.ts
+if (searchParams.get("checkPlayed") === "true") {
+  if (!userId) {
+    return NextResponse.json({ interactedBattleIds: [] });
+  }
+  
+  // Get completed battle sessions
+  const sessionsSnap = await db
+    .collection("battleSessions")
+    .where("userId", "==", userId)
+    .where("status", "==", "completed")
+    .get();
+
+  const completedBattleIds = sessionsSnap.docs.map((doc) => doc.data().battleId);
+
+  return NextResponse.json({ success: true, interactedBattleIds: completedBattleIds });
+}
 
     // ── Normal leaderboard fetch: ?battleId=xxx&userId=xxx ─────────────────
     if (!battleId) {
