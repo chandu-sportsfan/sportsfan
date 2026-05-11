@@ -867,9 +867,9 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-const POINTS_TABLE_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778261177/sf360/scripts/IPL_Points_Table_2026.html";
-const CAPS_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778261179/sf360/scripts/IPL_Caps_2026.html";
-const MATCHES_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778261181/sf360/scripts/IPL_Fixtures_2026.html";
+const POINTS_TABLE_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778487293/sf360/scripts/IPL_Points_Table_2026.html";
+const CAPS_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778487295/sf360/scripts/IPL_Caps_2026.html";
+const MATCHES_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778487300/sf360/scripts/IPL_Fixtures_2026.html";
 
 export async function GET() {
   try {
@@ -933,7 +933,7 @@ export async function GET() {
       time: todaySource?.time || "7:30 PM IST", venue: todaySource?.venue || "TBD",
       matchNo: todaySource?.matchNo || 1, totalMatches: 74
     };
-// 
+
     // Use the raw matches here to ensure the scores aren't stripped!
     const lastComp = matchesData.rawCompletedMatches[0];
     const recentMatch = {
