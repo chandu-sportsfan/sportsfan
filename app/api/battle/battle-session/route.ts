@@ -15,41 +15,60 @@ interface BattleSession {
   updatedAt: number;
 }
 
-// ─── GET /api/fanbattle/battle-session ──────────────────────────────────────
+// ─── GET /api/fanbattle/battle-session 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const battleId = searchParams.get("battleId");
     const userId = searchParams.get("userId");
 
-    if (!battleId || !userId) {
+    if (!userId) {
       return NextResponse.json(
-        { error: "battleId and userId are required" },
+        { error: "userId is required" },
         { status: 400 }
       );
     }
 
     const sessionsRef = db.collection("battleSessions");
+    
+    // If battleId is provided, fetch specific battle session
+    if (battleId) {
+      const query = sessionsRef
+        .where("battleId", "==", battleId)
+        .where("userId", "==", userId)
+        .limit(1);
+
+      const snapshot = await query.get();
+
+      if (snapshot.empty) {
+        return NextResponse.json(
+          { success: true, data: null, message: "No session found" },
+          { status: 200 }
+        );
+      }
+
+      const sessionDoc = snapshot.docs[0];
+      return NextResponse.json({
+        success: true,
+        data: { id: sessionDoc.id, ...sessionDoc.data() },
+      });
+    }
+    
+    // If only userId is provided, fetch all sessions for the user
     const query = sessionsRef
-      .where("battleId", "==", battleId)
       .where("userId", "==", userId)
-      .limit(1);
+      .orderBy("completedAt", "desc");
 
     const snapshot = await query.get();
+    const sessions = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
 
-    if (snapshot.empty) {
-      return NextResponse.json(
-        { success: true, data: null, message: "No session found" },
-        { status: 200 }
-      );
-    }
-
-    const sessionDoc = snapshot.docs[0];
-    const sessionData = sessionDoc.data() as Omit<BattleSession, 'id'>;
-    
     return NextResponse.json({
       success: true,
-      data: { id: sessionDoc.id, ...sessionData },
+      data: sessions,
+      total: sessions.length,
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
