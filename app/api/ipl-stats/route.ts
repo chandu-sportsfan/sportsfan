@@ -528,11 +528,30 @@ function parseMatches(html: string): {
     const resultMatch = block.match(/([a-z\s]+won by \d+\s+(?:runs?|wickets?|wkts?|wkt)(?:\s*\([^)]+\))?|no result|tied|abandoned|match tied)/i);
     if (resultMatch) resultText = resultMatch[1].trim();
 
-    const scoreMatches = [...block.matchAll(/(\d{1,3}(?:\/\d{1,2})?)\s*\(([\d\.]+)[^)]*\)/gi)];
+    // 🛠️ THE FIX: More forgiving regex for spaces, hyphens, and formatting variations
+   // 🛠️ THE ULTIMATE FIX: Handles scores with OR without overs safely
+    // Matches "180/5 (20.0)", "180-5", "180/5", or "180 (20.0)" while ignoring plain dates/match numbers.
+    const scoreMatches = [...block.matchAll(/(\d{1,3}\s*[\/-]\s*\d{1,2}(?:\s*\(\s*[\d\.]+[^)]*\))?|\d{1,3}\s*\(\s*[\d\.]+[^)]*\))/gi)];
+    
     let scoreA, oversA, scoreB, oversB;
-    if (scoreMatches.length >= 1) { scoreA = scoreMatches[0][1]; oversA = scoreMatches[0][2]; }
-    if (scoreMatches.length >= 2) { scoreB = scoreMatches[1][1]; oversB = scoreMatches[1][2]; }
-
+    
+    if (scoreMatches.length >= 1) {
+      const matchStr = scoreMatches[0][0];
+      const sMatch = matchStr.match(/(\d{1,3}(?:\s*[\/-]\s*\d{1,2})?)/);
+      const oMatch = matchStr.match(/\(\s*([\d\.]+)/);
+      
+      if (sMatch) scoreA = sMatch[1].replace(/\s+/g, "").replace("-", "/");
+      if (oMatch) oversA = oMatch[1];
+    }
+    
+    if (scoreMatches.length >= 2) {
+      const matchStr = scoreMatches[1][0];
+      const sMatch = matchStr.match(/(\d{1,3}(?:\s*[\/-]\s*\d{1,2})?)/);
+      const oMatch = matchStr.match(/\(\s*([\d\.]+)/);
+      
+      if (sMatch) scoreB = sMatch[1].replace(/\s+/g, "").replace("-", "/");
+      if (oMatch) oversB = oMatch[1];
+    }
     let dateStr = "TBD", dayName = "TBD", timeStr = "7:30 PM IST";
     let matchDate: Date | null = null;
     let _isDesktop = false;
@@ -835,27 +854,23 @@ function parseMatches(html: string): {
 
 function getMockHighestScores(): HighestScoreRow[] {
   return [
-    { rank: 1, player: "Virat Kohli",    team: "RCB",  score: "127*" },
-    { rank: 2, player: "Shubman Gill",   team: "GT",   score: "119"  },
-    { rank: 3, player: "KL Rahul",       team: "DC",   score: "110*" },
-    { rank: 4, player: "Jos Buttler",    team: "RR",   score: "107"  },
-    { rank: 5, player: "Rohit Sharma",   team: "MI",   score: "98"   },
-    { rank: 6, player: "David Warner",   team: "DC",   score: "94*"  },
-    { rank: 7, player: "Ruturaj Gaikwad",team: "CSK",  score: "91"   },
-    { rank: 8, player: "Abhishek Sharma",team: "SRH",  score: "88*"  },
+    { rank: 1, player: "KL Rahul",        team: "DC",  score: "152*" },
+    { rank: 2, player: "Abhishek Sharma", team: "SRH", score: "135*" },
+    { rank: 3, player: "Ryan Rickelton",  team: "MI",  score: "123*" },
+    { rank: 4, player: "Sanju Samson",    team: "CSK", score: "115*" },
+    { rank: 5, player: "Quinton de Kock", team: "MI",  score: "112*" },
+    { rank: 6, player: "Mitchell Marsh",  team: "LSG", score: "111"  },
   ];
 }
 
 function getMockMostFifties(): MostFiftiesRow[] {
   return [
-    { rank: 1, player: "Virat Kohli",    team: "RCB",  fifties: 5 },
-    { rank: 2, player: "KL Rahul",       team: "DC",   fifties: 4 },
-    { rank: 3, player: "Shubman Gill",   team: "GT",   fifties: 4 },
-    { rank: 4, player: "Rohit Sharma",   team: "MI",   fifties: 3 },
-    { rank: 5, player: "Jos Buttler",    team: "RR",   fifties: 3 },
-    { rank: 6, player: "Ruturaj Gaikwad",team: "CSK",  fifties: 2 },
-    { rank: 7, player: "Abhishek Sharma",team: "SRH",  fifties: 2 },
-    { rank: 8, player: "David Warner",   team: "DC",   fifties: 2 },
+    { rank: 1, player: "Heinrich Klaasen",  team: "SRH",  fifties: 5 },
+    { rank: 1, player: "Shreyas Iyer",      team: "PBKS", fifties: 5 },
+    { rank: 3, player: "Ishan Kishan",      team: "SRH",  fifties: 4 },
+    { rank: 3, player: "Prabhsimran Singh", team: "PBKS", fifties: 4 },
+    { rank: 3, player: "Sai Sudharsan",     team: "GT",   fifties: 4 },
+    { rank: 3, player: "Shubman Gill",      team: "GT",   fifties: 4 },
   ];
 }
 
@@ -867,9 +882,9 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-const POINTS_TABLE_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778261177/sf360/scripts/IPL_Points_Table_2026.html";
-const CAPS_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778261179/sf360/scripts/IPL_Caps_2026.html";
-const MATCHES_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778261181/sf360/scripts/IPL_Fixtures_2026.html";
+const POINTS_TABLE_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778548589/sf360/scripts/IPL_Points_Table_2026.html";
+const CAPS_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778548594/sf360/scripts/IPL_Caps_2026.html";
+const MATCHES_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778548635/sf360/scripts/IPL_Fixtures_2026.html";
 
 export async function GET() {
   try {
@@ -933,7 +948,7 @@ export async function GET() {
       time: todaySource?.time || "7:30 PM IST", venue: todaySource?.venue || "TBD",
       matchNo: todaySource?.matchNo || 1, totalMatches: 74
     };
-// 
+
     // Use the raw matches here to ensure the scores aren't stripped!
     const lastComp = matchesData.rawCompletedMatches[0];
     const recentMatch = {
