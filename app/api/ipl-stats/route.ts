@@ -528,11 +528,19 @@ function parseMatches(html: string): {
     const resultMatch = block.match(/([a-z\s]+won by \d+\s+(?:runs?|wickets?|wkts?|wkt)(?:\s*\([^)]+\))?|no result|tied|abandoned|match tied)/i);
     if (resultMatch) resultText = resultMatch[1].trim();
 
-    const scoreMatches = [...block.matchAll(/(\d{1,3}(?:\/\d{1,2})?)\s*\(([\d\.]+)[^)]*\)/gi)];
+    // 🛠️ THE FIX: More forgiving regex for spaces, hyphens, and formatting variations
+    const scoreMatches = [...block.matchAll(/(\d{1,3}(?:\s*[\/-]\s*\d{1,2})?)\s*\(\s*([\d\.]+)[^)]*\)/gi)];
     let scoreA, oversA, scoreB, oversB;
-    if (scoreMatches.length >= 1) { scoreA = scoreMatches[0][1]; oversA = scoreMatches[0][2]; }
-    if (scoreMatches.length >= 2) { scoreB = scoreMatches[1][1]; oversB = scoreMatches[1][2]; }
-
+    
+    if (scoreMatches.length >= 1) { 
+      // Clean up the score string (e.g. turn "180 - 5" or "180 / 5" into "180/5")
+      scoreA = scoreMatches[0][1].replace(/\s+/g, "").replace("-", "/"); 
+      oversA = scoreMatches[0][2]; 
+    }
+    if (scoreMatches.length >= 2) { 
+      scoreB = scoreMatches[1][1].replace(/\s+/g, "").replace("-", "/"); 
+      oversB = scoreMatches[1][2]; 
+    }
     let dateStr = "TBD", dayName = "TBD", timeStr = "7:30 PM IST";
     let matchDate: Date | null = null;
     let _isDesktop = false;
