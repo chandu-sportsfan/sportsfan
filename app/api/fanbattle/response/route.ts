@@ -254,14 +254,11 @@ export async function POST(req: NextRequest) {
 
 
 
-
 // api/fanbattle/response/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { getUserInfo, awardUserPoints } from "@/lib/userPoints";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface QuizQuestion {
   questionNumber: number;
@@ -275,10 +272,6 @@ interface QuizDoc {
 }
 
 // ─── GET /api/fanbattle/response ──────────────────────────────────────────────
-// Query params:
-//   sessionId           → return single session doc
-//   userId + quizId     → return all responses for that user/quiz combo
-
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -286,24 +279,14 @@ export async function GET(req: NextRequest) {
     const userId = searchParams.get("userId");
     const quizId = searchParams.get("quizId");
 
-    // ── Single session lookup ────────────────────────────────────────────────
     if (sessionId) {
       const doc = await db.collection("fanBattleSessions").doc(sessionId).get();
-
       if (!doc.exists) {
-        return NextResponse.json(
-          { error: `Session "${sessionId}" not found` },
-          { status: 404 }
-        );
+        return NextResponse.json({ error: `Session "${sessionId}" not found` }, { status: 404 });
       }
-
-      return NextResponse.json(
-        { success: true, data: { id: doc.id, ...doc.data() } },
-        { status: 200 }
-      );
+      return NextResponse.json({ success: true, data: { id: doc.id, ...doc.data() } }, { status: 200 });
     }
 
-    // ── Filter responses by userId / quizId ──────────────────────────────────
     let query = db
       .collection("fanBattleResponses")
       .orderBy("answeredAt", "desc") as FirebaseFirestore.Query;
@@ -314,10 +297,7 @@ export async function GET(req: NextRequest) {
     const snapshot = await query.get();
     const responses = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-    return NextResponse.json(
-      { success: true, count: responses.length, data: responses },
-      { status: 200 }
-    );
+    return NextResponse.json({ success: true, count: responses.length, data: responses }, { status: 200 });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
     console.error("Error fetching responses:", error);
@@ -326,50 +306,23 @@ export async function GET(req: NextRequest) {
 }
 
 // ─── POST /api/fanbattle/response ─────────────────────────────────────────────
-// Body:
-// {
-//   quizId, questionNumber, selectedAnswer,
-//   userId, userName, userEmail, userAvatar,
-//   sessionId?   ← pass on Q2+ to continue existing session
-// }
-
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    // ── Validate required fields ─────────────────────────────────────────────
-    const required = [
-      "quizId",
-      "questionNumber",
-      "selectedAnswer",
-      "userId",
-      "userName",
-      "userEmail",
-    ];
+    const required = ["quizId", "questionNumber", "selectedAnswer", "userId", "userName", "userEmail"];
     const missing = required.filter((f) => !body[f]);
     if (missing.length) {
-      return NextResponse.json(
-        { error: `Missing required fields: ${missing.join(", ")}` },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: `Missing required fields: ${missing.join(", ")}` }, { status: 400 });
     }
 
-    // ── Fetch quiz from Firestore to score the answer ────────────────────────
     const quizDoc = await db.collection("fanBattleQuizzes").doc(body.quizId).get();
-
     if (!quizDoc.exists) {
-      return NextResponse.json(
-        { error: `Quiz "${body.quizId}" not found` },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: `Quiz "${body.quizId}" not found` }, { status: 404 });
     }
 
     const quiz = quizDoc.data() as QuizDoc;
-
-    const quizQuestion = quiz.questions.find(
-      (q) => q.questionNumber === Number(body.questionNumber)
-    );
-
+    const quizQuestion = quiz.questions.find((q) => q.questionNumber === Number(body.questionNumber));
     if (!quizQuestion) {
       return NextResponse.json(
         { error: `Question ${body.questionNumber} not found in quiz "${body.quizId}"` },
@@ -377,42 +330,35 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── Score ────────────────────────────────────────────────────────────────
-    const isCorrect =
-      body.selectedAnswer.trim() === quizQuestion.correctAnswer.trim();
+    const isCorrect = body.selectedAnswer.trim() === quizQuestion.correctAnswer.trim();
     const pointsEarned = isCorrect ? quizQuestion.points : 0;
     const now = Date.now();
 
-    // ── Two separate userId concerns ─────────────────────────────────────────
+    // ── userId split ──────────────────────────────────────────────────────────
     //
-    // sessionUserId  — the raw auth ID from the client (body.userId).
-    //                  Used for ALL session + response writes so that
-    //                  /api/fanbattle/session?userId=X can always find them.
-    //                  The frontend always queries with this same value.
+    // authUserId   = body.userId, the stable auth ID the frontend always sends.
+    //                Used for: sessions, responses, globalLeaderboard doc ID,
+    //                          transactionId prefix.
+    //                Must match what /api/fanbattle/session queries use.
     //
-    // actualUserId   — resolved via getUserInfo (may differ for Google auth
-    //                  users found by email). Used ONLY for points writes
-    //                  (userPointTransactions, users doc, globalLeaderboard).
+    // actualUserId = resolved by getUserInfo (may differ for Google auth users
+    //                found via email lookup in Firestore).
+    //                Used for: users collection writes only.
     //
-    // Keeping these separate is the fix for the lock-check bug: previously
-    // sessions were stored with actualUserId but queried with body.userId,
-    // so the session GET returned null and easy looked "incomplete".
+    // For most users these are identical. The split only matters when getUserInfo
+    // resolves a different doc via email — without it, globalLeaderboard gets
+    // written under a different ID than every other collection, so it never shows.
 
-    const sessionUserId = body.userId as string;
+    const authUserId = body.userId as string;
 
-    const {
-      userName: resolvedName,
-      userEmail: resolvedEmail,
-      exists: userExists,
-      actualUserId,
-    } = await getUserInfo(body.userId, body.userName, body.userEmail);
+    const { userName: resolvedName, userEmail: resolvedEmail, exists: userExists, actualUserId } =
+      await getUserInfo(body.userId, body.userName, body.userEmail);
 
-    // ── Save individual response ─────────────────────────────────────────────
-    // Response also stored with sessionUserId so the GET ?userId=X filter works.
+    // ── Save response — stored under authUserId so GET ?userId= queries match ─
     const responsePayload = {
       quizId: body.quizId,
       questionNumber: Number(body.questionNumber),
-      userId: sessionUserId,
+      userId: authUserId,
       userName: resolvedName,
       userEmail: resolvedEmail,
       userAvatar: body?.userAvatar,
@@ -423,29 +369,20 @@ export async function POST(req: NextRequest) {
       correctAnswer: quizQuestion.correctAnswer,
     };
 
-    const responseRef = await db
-      .collection("fanBattleResponses")
-      .add(responsePayload);
+    const responseRef = await db.collection("fanBattleResponses").add(responsePayload);
 
-    // ── Create or update session ─────────────────────────────────────────────
+    // ── Create or update session ──────────────────────────────────────────────
     const sessionsRef = db.collection("fanBattleSessions");
     let sessionId: string;
     let sessionData: FirebaseFirestore.DocumentData;
 
     if (body.sessionId) {
-      // Continue existing session
       const sessionDoc = await sessionsRef.doc(body.sessionId).get();
-
       if (!sessionDoc.exists) {
-        return NextResponse.json(
-          { error: `Session "${body.sessionId}" not found` },
-          { status: 404 }
-        );
+        return NextResponse.json({ error: `Session "${body.sessionId}" not found` }, { status: 404 });
       }
 
       const existing = sessionDoc.data()!;
-
-      // ── Check if question already answered ───────────────────────────────
       const responseIds = (existing.responseIds as string[]) || [];
       let alreadyAnswered = false;
 
@@ -460,10 +397,7 @@ export async function POST(req: NextRequest) {
 
       if (alreadyAnswered) {
         return NextResponse.json(
-          {
-            error: `Question ${body.questionNumber} already answered in this session`,
-            alreadyAnswered: true,
-          },
+          { error: `Question ${body.questionNumber} already answered in this session`, alreadyAnswered: true },
           { status: 409 }
         );
       }
@@ -483,16 +417,15 @@ export async function POST(req: NextRequest) {
       };
 
       await sessionsRef.doc(body.sessionId).update(updates);
-
       sessionId = body.sessionId;
       sessionData = { ...existing, ...updates };
     } else {
-      // Create new session — stored with sessionUserId so GET queries match
+      // New session — stored under authUserId so lock-check queries always find it
       const isComplete = quiz.totalQuestions === 1;
 
       const newSession = {
         quizId: body.quizId,
-        userId: sessionUserId,        // ← raw auth ID, matches what the frontend queries
+        userId: authUserId,
         userName: resolvedName,
         userEmail: resolvedEmail,
         userAvatar: body?.userAvatar,
@@ -513,18 +446,17 @@ export async function POST(req: NextRequest) {
       sessionData = newSession;
     }
 
-    // ── Award user points via shared utility ─────────────────────────────────
-    // Uses actualUserId (the resolved canonical ID) for all Firestore point
-    // writes — separate from sessionUserId which is only for session lookups.
+    // ── Award points ──────────────────────────────────────────────────────────
     if (pointsEarned > 0) {
       await awardUserPoints({
-        actualUserId,
+        actualUserId,                  // → users doc write
+        authUserId,                    // → globalLeaderboard doc ID + transactionId
         userName: resolvedName,
         userEmail: resolvedEmail,
         userExists,
         points: pointsEarned,
         reason: "TRIVIA_CORRECT",
-        transactionId: `${actualUserId}_${body.quizId}_Q${body.questionNumber}_TRIVIA_CORRECT`,
+        transactionId: `${authUserId}_${body.quizId}_Q${body.questionNumber}_TRIVIA_CORRECT`,
         metadata: {
           quizId: body.quizId,
           questionNumber: Number(body.questionNumber),

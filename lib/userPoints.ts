@@ -1,15 +1,15 @@
 // lib/userPoints.ts
-// Single shared utility for awarding points to users.
-// Import this in any route that needs to give a user points.
-// Adding a new feature = just call awardUserPoints() with a new reason string.
-// No lists to maintain, no schema migrations, no backfill scripts needed.
 
 import { db } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 
 // ─── getUserInfo ──────────────────────────────────────────────────────────────
-// Resolves the canonical userId and display name from Firestore.
+// Resolves canonical user info from Firestore.
 // Falls back to email lookup for Google auth users whose UID may differ.
+//
+// Returns:
+//   actualUserId — Firestore DOCUMENT ID of the users doc  → use for users collection writes
+//   authUserId   — the original ID the client sent          → use for sessions + globalLeaderboard
 
 export async function getUserInfo(
   userId: string,
@@ -20,6 +20,7 @@ export async function getUserInfo(
   userEmail: string;
   exists: boolean;
   actualUserId: string;
+  authUserId: string;
 }> {
   try {
     let snap = await db.collection("users").doc(userId).get();
@@ -35,7 +36,7 @@ export async function getUserInfo(
       if (!emailQuery.empty) {
         snap = emailQuery.docs[0];
         actualUserId = snap.id;
-        console.log(`[getUserInfo] Found user by email: ${actualUserId} for userId: ${userId}`);
+        console.log(`[getUserInfo] Found user by email: ${actualUserId} for authUserId: ${userId}`);
       }
     }
 
@@ -51,6 +52,7 @@ export async function getUserInfo(
         userEmail: d.email || fallbackEmail || "",
         exists: true,
         actualUserId,
+        authUserId: userId,
       };
     }
 
@@ -59,6 +61,7 @@ export async function getUserInfo(
       userEmail: fallbackEmail || "",
       exists: false,
       actualUserId: userId,
+      authUserId: userId,
     };
   } catch (err) {
     console.error("[getUserInfo] error:", err);
@@ -67,6 +70,7 @@ export async function getUserInfo(
       userEmail: fallbackEmail || "",
       exists: false,
       actualUserId: userId,
+      authUserId: userId,
     };
   }
 }
@@ -74,19 +78,17 @@ export async function getUserInfo(
 // ─── awardUserPoints ──────────────────────────────────────────────────────────
 // Awards points to a user for any reason.
 //
-// Key behaviours:
-//  - Idempotent: uses a caller-supplied deterministic transactionId.
-//    If that doc already exists the function returns false and does nothing.
-//  - Dynamic breakdown keys: Firestore increment() on a missing nested field
-//    initialises it to 0 + n automatically — no hardcoded list needed.
-//  - Always updates globalLeaderboard via merge so the leaderboard context
-//    picks up points from every feature without extra wiring.
+//  actualUserId  — Firestore doc ID → users collection writes
+//  authUserId    — stable auth ID   → globalLeaderboard doc ID + transactionId
+//                  For most users these are identical. They diverge only when
+//                  a Google auth user's Firestore doc was found via email lookup.
 //
-// @returns true  — points were awarded
-//          false — transaction already existed (idempotent no-op)
+// Idempotent: if transactionId already exists, returns false and does nothing.
+// Dynamic breakdown keys: increment() on a missing field initialises it to 0+n.
 
 export async function awardUserPoints({
   actualUserId,
+  authUserId,
   userName,
   userEmail,
   userExists,
@@ -96,28 +98,33 @@ export async function awardUserPoints({
   metadata,
 }: {
   actualUserId: string;
+  authUserId?: string;  // optional — defaults to actualUserId when not supplied
   userName: string;
   userEmail: string;
   userExists: boolean;
   points: number;
-  reason: string;        // e.g. "PLAY_BATTLE", "TRIVIA_CORRECT", "CREATE_BATTLE" — any string
-  transactionId: string; // deterministic, unique per action e.g. `${userId}_${battleId}_PLAY_BATTLE`
+  reason: string;
+  transactionId: string;
   metadata?: Record<string, unknown>;
 }): Promise<boolean> {
   if (points <= 0) return false;
 
+  // When authUserId is not provided (battle-vote, battle/route, user-points),
+  // fall back to actualUserId — both are the same value for those callers.
+  // Only fanbattle/response needs to pass authUserId explicitly because
+  // getUserInfo may resolve a different actualUserId via email lookup there.
+  const leaderboardUserId = authUserId ?? actualUserId;
+
   const transactionRef = db.collection("userPointTransactions").doc(transactionId);
   const txSnap = await transactionRef.get();
-
-  // Already awarded — idempotent guard
   if (txSnap.exists) return false;
 
   const now = Date.now();
   const batch = db.batch();
 
-  // 1. Idempotent transaction record
+  // 1. Transaction record
   batch.set(transactionRef, {
-    userId: actualUserId,
+    userId: leaderboardUserId,
     userEmail,
     userName,
     points,
@@ -126,9 +133,7 @@ export async function awardUserPoints({
     createdAt: now,
   });
 
-  // 2. User document
-  // increment() on a missing field (e.g. pointsBreakdown.TRIVIA_CORRECT) sets it
-  // to 0 + n — Firestore handles this natively, no pre-init or backfill needed.
+  // 2. User doc — keyed on actualUserId (real Firestore doc ID)
   if (userExists) {
     const userRef = db.collection("users").doc(actualUserId);
     batch.update(userRef, {
@@ -138,12 +143,14 @@ export async function awardUserPoints({
     });
   }
 
-  // 3. Global leaderboard — merge so existing fields are preserved
-  const globalRef = db.collection("globalLeaderboard").doc(actualUserId);
+  // 3. Global leaderboard — keyed on leaderboardUserId (= authUserId when provided,
+  //    otherwise actualUserId). Using authUserId for trivia ensures the doc ID
+  //    matches what the frontend sends and what sessions/responses are stored under.
+  const globalRef = db.collection("globalLeaderboard").doc(leaderboardUserId);
   batch.set(
     globalRef,
     {
-      userId: actualUserId,
+      userId: leaderboardUserId,
       userName,
       userEmail,
       totalPoints: FieldValue.increment(points),
