@@ -529,17 +529,28 @@ function parseMatches(html: string): {
     if (resultMatch) resultText = resultMatch[1].trim();
 
     // 🛠️ THE FIX: More forgiving regex for spaces, hyphens, and formatting variations
-    const scoreMatches = [...block.matchAll(/(\d{1,3}(?:\s*[\/-]\s*\d{1,2})?)\s*\(\s*([\d\.]+)[^)]*\)/gi)];
+   // 🛠️ THE ULTIMATE FIX: Handles scores with OR without overs safely
+    // Matches "180/5 (20.0)", "180-5", "180/5", or "180 (20.0)" while ignoring plain dates/match numbers.
+    const scoreMatches = [...block.matchAll(/(\d{1,3}\s*[\/-]\s*\d{1,2}(?:\s*\(\s*[\d\.]+[^)]*\))?|\d{1,3}\s*\(\s*[\d\.]+[^)]*\))/gi)];
+    
     let scoreA, oversA, scoreB, oversB;
     
-    if (scoreMatches.length >= 1) { 
-      // Clean up the score string (e.g. turn "180 - 5" or "180 / 5" into "180/5")
-      scoreA = scoreMatches[0][1].replace(/\s+/g, "").replace("-", "/"); 
-      oversA = scoreMatches[0][2]; 
+    if (scoreMatches.length >= 1) {
+      const matchStr = scoreMatches[0][0];
+      const sMatch = matchStr.match(/(\d{1,3}(?:\s*[\/-]\s*\d{1,2})?)/);
+      const oMatch = matchStr.match(/\(\s*([\d\.]+)/);
+      
+      if (sMatch) scoreA = sMatch[1].replace(/\s+/g, "").replace("-", "/");
+      if (oMatch) oversA = oMatch[1];
     }
-    if (scoreMatches.length >= 2) { 
-      scoreB = scoreMatches[1][1].replace(/\s+/g, "").replace("-", "/"); 
-      oversB = scoreMatches[1][2]; 
+    
+    if (scoreMatches.length >= 2) {
+      const matchStr = scoreMatches[1][0];
+      const sMatch = matchStr.match(/(\d{1,3}(?:\s*[\/-]\s*\d{1,2})?)/);
+      const oMatch = matchStr.match(/\(\s*([\d\.]+)/);
+      
+      if (sMatch) scoreB = sMatch[1].replace(/\s+/g, "").replace("-", "/");
+      if (oMatch) oversB = oMatch[1];
     }
     let dateStr = "TBD", dayName = "TBD", timeStr = "7:30 PM IST";
     let matchDate: Date | null = null;
