@@ -1,3 +1,5 @@
+// // api/battle/route.ts
+
 // import { NextRequest, NextResponse } from "next/server";
 // import { db } from "@/lib/firebaseAdmin";
 // import { FieldValue } from "firebase-admin/firestore";
@@ -22,7 +24,11 @@
 // }
 
 // // Helper function to get standardized user info
-// async function getStandardizedUserInfo(userId: string, providedName?: string, providedEmail?: string) {
+// async function getStandardizedUserInfo(
+//   userId: string,
+//   providedName?: string,
+//   providedEmail?: string
+// ) {
 //   try {
 //     const userRef = db.collection("users").doc(userId);
 //     const userSnap = await userRef.get();
@@ -45,7 +51,10 @@
 
 //       const userEmail = providedEmail || userData?.email || "";
 
-//       if (userData?.totalPoints === undefined || userData?.pointsBreakdown === undefined) {
+//       if (
+//         userData?.totalPoints === undefined ||
+//         userData?.pointsBreakdown === undefined
+//       ) {
 //         await userRef.update({
 //           totalPoints: userData?.totalPoints || 0,
 //           pointsBreakdown: {
@@ -80,7 +89,11 @@
 // }
 
 // // Helper to ensure user has points fields
-// async function ensureUserHasPointsFields(userId: string, userEmail: string, userName: string) {
+// async function ensureUserHasPointsFields(
+//   userId: string,
+//   userEmail: string,
+//   userName: string
+// ) {
 //   const userRef = db.collection("users").doc(userId);
 //   const userSnap = await userRef.get();
 
@@ -166,7 +179,7 @@
 //   if (!invitedFriends || invitedFriends.length === 0) return { sent: 0, failed: [] };
 
 //   const appUrl = "https://sportsfan-frontend.vercel.app";
-//   const battleUrl = `${appUrl}/battles/${battleId}`;
+//   const battleUrl = `${appUrl}/MainModules/Fantasy`;
 
 //   const emailPromises = invitedFriends.map(({ email, name }) =>
 //     transporter.sendMail({
@@ -198,7 +211,6 @@
 //                 <!-- Body -->
 //                 <tr>
 //                   <td style="padding:32px;">
-
 //                     <p style="margin:0 0 8px;font-size:16px;color:#ccc;">
 //                       Hey <strong style="color:#fff;">${name}</strong>,
 //                     </p>
@@ -231,50 +243,40 @@
 //                       How It Works
 //                     </p>
 //                     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
-//                       <tr>
-//                         <td style="padding:0 0 10px 0;">
-//                           <table cellpadding="0" cellspacing="0"><tr>
-//                             <td style="font-size:18px;padding-right:12px;vertical-align:top;">1️⃣</td>
-//                             <td style="font-size:14px;color:#aaa;line-height:1.5;vertical-align:top;">Click the button below to view the battle</td>
-//                           </tr></table>
-//                         </td>
-//                       </tr>
-//                       <tr>
-//                         <td style="padding:0 0 10px 0;">
-//                           <table cellpadding="0" cellspacing="0"><tr>
-//                             <td style="font-size:18px;padding-right:12px;vertical-align:top;">2️⃣</td>
-//                             <td style="font-size:14px;color:#aaa;line-height:1.5;vertical-align:top;">Sign up or log in to your SportsFan360 account</td>
-//                           </tr></table>
-//                         </td>
-//                       </tr>
-//                       <tr>
-//                         <td style="padding:0 0 10px 0;">
-//                           <table cellpadding="0" cellspacing="0"><tr>
-//                             <td style="font-size:18px;padding-right:12px;vertical-align:top;">3️⃣</td>
-//                             <td style="font-size:14px;color:#aaa;line-height:1.5;vertical-align:top;">Cast your vote and compete with other fans</td>
-//                           </tr></table>
-//                         </td>
-//                       </tr>
-//                       <tr>
-//                         <td>
-//                           <table cellpadding="0" cellspacing="0"><tr>
-//                             <td style="font-size:18px;padding-right:12px;vertical-align:top;">4️⃣</td>
-//                             <td style="font-size:14px;color:#aaa;line-height:1.5;vertical-align:top;">Track live results and see who wins!</td>
-//                           </tr></table>
-//                         </td>
-//                       </tr>
+//                       <tr><td style="padding:0 0 10px 0;">
+//                         <table cellpadding="0" cellspacing="0"><tr>
+//                           <td style="font-size:18px;padding-right:12px;vertical-align:top;">1️⃣</td>
+//                           <td style="font-size:14px;color:#aaa;line-height:1.5;vertical-align:top;">Click the button below to view the battle</td>
+//                         </tr></table>
+//                       </td></tr>
+//                       <tr><td style="padding:0 0 10px 0;">
+//                         <table cellpadding="0" cellspacing="0"><tr>
+//                           <td style="font-size:18px;padding-right:12px;vertical-align:top;">2️⃣</td>
+//                           <td style="font-size:14px;color:#aaa;line-height:1.5;vertical-align:top;">Sign up or log in to your SportsFan360 account</td>
+//                         </tr></table>
+//                       </td></tr>
+//                       <tr><td style="padding:0 0 10px 0;">
+//                         <table cellpadding="0" cellspacing="0"><tr>
+//                           <td style="font-size:18px;padding-right:12px;vertical-align:top;">3️⃣</td>
+//                           <td style="font-size:14px;color:#aaa;line-height:1.5;vertical-align:top;">Cast your vote and compete with other fans</td>
+//                         </tr></table>
+//                       </td></tr>
+//                       <tr><td>
+//                         <table cellpadding="0" cellspacing="0"><tr>
+//                           <td style="font-size:18px;padding-right:12px;vertical-align:top;">4️⃣</td>
+//                           <td style="font-size:14px;color:#aaa;line-height:1.5;vertical-align:top;">Track live results and see who wins!</td>
+//                         </tr></table>
+//                       </td></tr>
 //                     </table>
 
 //                     <!-- CTA Button -->
 //                     <a href="${battleUrl}"
 //                       style="display:block;text-align:center;background:linear-gradient(135deg,#e91e8c,#d75a2d);
 //                       color:#fff;font-size:16px;font-weight:700;padding:16px 32px;
-//                       border-radius:12px;text-decoration:none;margin-bottom:16px;
-//                       letter-spacing:0.3px;">
+//                       border-radius:12px;text-decoration:none;margin-bottom:16px;letter-spacing:0.3px;">
 //                       ⚔️ &nbsp;Join the Battle Now
 //                     </a>
 
-//                     <!-- Secondary link -->
 //                     <p style="margin:0;text-align:center;font-size:13px;color:#555;">
 //                       Or visit
 //                       <a href="${appUrl}" style="color:#d75a2d;text-decoration:none;margin-left:4px;">
@@ -488,10 +490,29 @@
 //       { merge: true }
 //     );
 
-//     // ── Commit all DB changes ──
+//     // ── Create in-app notifications for each invited friend ──────────────────
+//     if (invitedFriends && invitedFriends.length > 0) {
+//       for (const friend of invitedFriends) {
+//         const notifRef = db.collection("notifications").doc();
+//         batch.set(notifRef, {
+//           type: "BATTLE_INVITE",
+//           recipientEmail: friend.email,
+//           senderName: standardizedName,
+//           senderId: userId,
+//           battleId: battleRef.id,
+//           battleName: battleName.trim(),
+//           battleType,
+//           message: `${standardizedName} has invited you to a Fan Battle!`,
+//           isRead: false,
+//           createdAt: Date.now(),
+//         });
+//       }
+//     }
+
+//     // ── Commit all DB changes (battle + points + notifications) ──────────────
 //     await batch.commit();
 
-//     // ── Send invite emails AFTER commit so battleId is real ──
+//     // ── Send invite emails AFTER commit so battleRef.id is real ─────────────
 //     const { sent: emailsSent, failed: emailsFailed } = await sendBattleInviteEmails(
 //       invitedFriends ?? [],
 //       battleName.trim(),
@@ -500,7 +521,9 @@
 //       standardizedName
 //     );
 
-//     console.log(`✅ Battle created: ${battleRef.id} | Emails sent: ${emailsSent} | Failed: ${emailsFailed.length}`);
+//     console.log(
+//       `✅ Battle created: ${battleRef.id} | Emails sent: ${emailsSent} | Failed: ${emailsFailed.length}`
+//     );
 
 //     return NextResponse.json(
 //       {
@@ -591,10 +614,13 @@
 
 
 
+// api/battle/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
-import { FieldValue } from "firebase-admin/firestore";
+// import { FieldValue } from "firebase-admin/firestore";
 import { transporter } from "@/lib/mailer";
+import { awardUserPoints } from "@/lib/userPoints";
 
 type BattleType = "PLAYERS" | "CLUBS";
 
@@ -614,7 +640,7 @@ interface BattlePayload {
   userEmail?: string;
 }
 
-// Helper function to get standardized user info
+// ── Resolve display name and email from Firestore ────────────────────────────
 async function getStandardizedUserInfo(
   userId: string,
   providedName?: string,
@@ -641,26 +667,6 @@ async function getStandardizedUserInfo(
       }
 
       const userEmail = providedEmail || userData?.email || "";
-
-      if (
-        userData?.totalPoints === undefined ||
-        userData?.pointsBreakdown === undefined
-      ) {
-        await userRef.update({
-          totalPoints: userData?.totalPoints || 0,
-          pointsBreakdown: {
-            CREATE_BATTLE: 0,
-            PLAY_BATTLE: 0,
-            INVITE_ACCEPTED: 0,
-            PREDICTION_CORRECT: 0,
-            FANTASY_WIN: 0,
-            DAILY_LOGIN: 0,
-            SHARE_BATTLE: 0,
-          },
-          lastUpdated: Date.now(),
-        });
-      }
-
       return { userName, userEmail, userData };
     }
 
@@ -677,86 +683,6 @@ async function getStandardizedUserInfo(
       userData: null,
     };
   }
-}
-
-// Helper to ensure user has points fields
-async function ensureUserHasPointsFields(
-  userId: string,
-  userEmail: string,
-  userName: string
-) {
-  const userRef = db.collection("users").doc(userId);
-  const userSnap = await userRef.get();
-
-  if (!userSnap.exists) {
-    return {
-      exists: false,
-      ref: userRef,
-      data: {
-        userId,
-        email: userEmail,
-        name: userName,
-        firstName: userName.split(" ")[0] || "",
-        lastName: userName.split(" ")[1] || "",
-        totalPoints: 0,
-        pointsBreakdown: {
-          CREATE_BATTLE: 0,
-          PLAY_BATTLE: 0,
-          INVITE_ACCEPTED: 0,
-          PREDICTION_CORRECT: 0,
-          FANTASY_WIN: 0,
-          DAILY_LOGIN: 0,
-          SHARE_BATTLE: 0,
-        },
-        createdAt: Date.now(),
-        lastUpdated: Date.now(),
-        status: "active",
-        role: "user",
-      },
-    };
-  }
-
-  const userData = userSnap.data();
-
-  const updates: {
-    totalPoints?: number;
-    pointsBreakdown?: {
-      CREATE_BATTLE: number;
-      PLAY_BATTLE: number;
-      INVITE_ACCEPTED: number;
-      PREDICTION_CORRECT: number;
-      FANTASY_WIN: number;
-      DAILY_LOGIN: number;
-      SHARE_BATTLE: number;
-    };
-    lastUpdated?: number;
-  } = {};
-  let needsUpdate = false;
-
-  if (userData?.totalPoints === undefined) {
-    updates.totalPoints = 0;
-    needsUpdate = true;
-  }
-
-  if (userData?.pointsBreakdown === undefined) {
-    updates.pointsBreakdown = {
-      CREATE_BATTLE: 0,
-      PLAY_BATTLE: 0,
-      INVITE_ACCEPTED: 0,
-      PREDICTION_CORRECT: 0,
-      FANTASY_WIN: 0,
-      DAILY_LOGIN: 0,
-      SHARE_BATTLE: 0,
-    };
-    needsUpdate = true;
-  }
-
-  if (needsUpdate) {
-    updates.lastUpdated = Date.now();
-    await userRef.update(updates);
-  }
-
-  return { exists: true, ref: userRef, data: userData };
 }
 
 // ─── Send battle invite emails ────────────────────────────────────────────────
@@ -925,7 +851,7 @@ export async function POST(req: NextRequest) {
       userEmail,
     } = body;
 
-    // ── Required field validation ──
+    // ── Required field validation ────────────────────────────────────────────
     if (!battleName || typeof battleName !== "string" || !battleName.trim()) {
       return NextResponse.json(
         { error: "battleName is required and must be a non-empty string" },
@@ -967,7 +893,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Validate invitedFriends shape if provided ──
     if (invitedFriends !== undefined) {
       if (!Array.isArray(invitedFriends)) {
         return NextResponse.json(
@@ -993,17 +918,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Get standardized user info
+    // ── Resolve display name and email ───────────────────────────────────────
     const { userName: standardizedName, userEmail: standardizedEmail } =
       await getStandardizedUserInfo(userId, userName, userEmail);
 
-    // Ensure user has points fields
-    await ensureUserHasPointsFields(userId, standardizedEmail, standardizedName);
-
-    // Create a batch for atomic operations
+    // ── Create battle + notifications (batch) ────────────────────────────────
     const batch = db.batch();
 
-    // ── Create the battle document ──
     const newBattle = {
       battleName: battleName.trim(),
       battleType,
@@ -1019,69 +940,7 @@ export async function POST(req: NextRequest) {
     const battleRef = db.collection("fanBattles").doc();
     batch.set(battleRef, newBattle);
 
-    // ── Award points for creating a battle ──
-    const pointsToAward = 10;
-
-    const transactionId = `${userId}_${Date.now()}_CREATE_BATTLE`;
-    const transactionRef = db.collection("userPointTransactions").doc(transactionId);
-
-    batch.set(transactionRef, {
-      userId,
-      userEmail: standardizedEmail,
-      userName: standardizedName,
-      points: pointsToAward,
-      reason: "CREATE_BATTLE",
-      metadata: { battleId: battleRef.id },
-      createdAt: Date.now(),
-    });
-
-    const userRef = db.collection("users").doc(userId);
-    const userSnap = await userRef.get();
-
-    if (!userSnap.exists) {
-      batch.set(userRef, {
-        userId,
-        email: standardizedEmail,
-        name: standardizedName,
-        firstName: standardizedName.split(" ")[0] || "",
-        lastName: standardizedName.split(" ")[1] || "",
-        totalPoints: pointsToAward,
-        pointsBreakdown: {
-          CREATE_BATTLE: pointsToAward,
-          PLAY_BATTLE: 0,
-          INVITE_ACCEPTED: 0,
-          PREDICTION_CORRECT: 0,
-          FANTASY_WIN: 0,
-          DAILY_LOGIN: 0,
-          SHARE_BATTLE: 0,
-        },
-        createdAt: Date.now(),
-        lastUpdated: Date.now(),
-        status: "active",
-        role: "user",
-      });
-    } else {
-      batch.update(userRef, {
-        totalPoints: FieldValue.increment(pointsToAward),
-        "pointsBreakdown.CREATE_BATTLE": FieldValue.increment(pointsToAward),
-        lastUpdated: Date.now(),
-      });
-    }
-
-    const globalLeaderboardRef = db.collection("globalLeaderboard").doc(userId);
-    batch.set(
-      globalLeaderboardRef,
-      {
-        userId,
-        userName: standardizedName,
-        userEmail: standardizedEmail,
-        totalPoints: FieldValue.increment(pointsToAward),
-        lastUpdated: Date.now(),
-      },
-      { merge: true }
-    );
-
-    // ── Create in-app notifications for each invited friend ──────────────────
+    // ── In-app notifications for each invited friend ─────────────────────────
     if (invitedFriends && invitedFriends.length > 0) {
       for (const friend of invitedFriends) {
         const notifRef = db.collection("notifications").doc();
@@ -1100,8 +959,43 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Commit all DB changes (battle + points + notifications) ──────────────
     await batch.commit();
+
+    // ── Award points for creating a battle (via shared utility) ──────────────
+    // transactionId uses battleRef.id so creating the same battle twice
+    // (e.g. double submit) never double-awards points.
+    const pointsAwarded = 10;
+    const userSnap = await db.collection("users").doc(userId).get();
+    const userExists = userSnap.exists;
+
+    // If the user doc doesn't exist yet, create it first so awardUserPoints
+    // can update it — mirrors the original behaviour of this route.
+    if (!userExists) {
+      await db.collection("users").doc(userId).set({
+        userId,
+        email: standardizedEmail,
+        name: standardizedName,
+        firstName: standardizedName.split(" ")[0] || "",
+        lastName: standardizedName.split(" ")[1] || "",
+        totalPoints: 0,
+        pointsBreakdown: {},
+        createdAt: Date.now(),
+        lastUpdated: Date.now(),
+        status: "active",
+        role: "user",
+      });
+    }
+
+    await awardUserPoints({
+      actualUserId: userId,
+      userName: standardizedName,
+      userEmail: standardizedEmail,
+      userExists: true, // either already existed or we just created it above
+      points: pointsAwarded,
+      reason: "CREATE_BATTLE",
+      transactionId: `${userId}_${battleRef.id}_CREATE_BATTLE`,
+      metadata: { battleId: battleRef.id },
+    });
 
     // ── Send invite emails AFTER commit so battleRef.id is real ─────────────
     const { sent: emailsSent, failed: emailsFailed } = await sendBattleInviteEmails(
@@ -1121,8 +1015,8 @@ export async function POST(req: NextRequest) {
         success: true,
         id: battleRef.id,
         battle: { id: battleRef.id, ...newBattle },
-        pointsAwarded: pointsToAward,
-        message: `Battle created successfully! +${pointsToAward} points awarded!`,
+        pointsAwarded,
+        message: `Battle created successfully! +${pointsAwarded} points awarded!`,
         invites: {
           sent: emailsSent,
           failed: emailsFailed,

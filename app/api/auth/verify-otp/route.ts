@@ -1,3 +1,6 @@
+//api/auth/verify-otp/route.ts
+// chandu's code
+
 // import { NextRequest, NextResponse } from "next/server";
 // import { db } from "@/lib/firebaseAdmin";
 // import { VerifyOtpRequest } from "@/types/auth";
@@ -10,31 +13,38 @@
 //       return NextResponse.json({ error: "Email & OTP required" }, { status: 400 });
 //     }
 
+//     // ── 1. Get OTP doc ────────────────────────────
+//     const otpDoc = await db.collection("otps").doc(email).get();
 
-//     const doc = await db.collection("otps").doc(email).get();
-
-//     if (!doc.exists) {
-//       return NextResponse.json({ error: "OTP not found" }, { status: 400 });
+//     if (!otpDoc.exists) {
+//       return NextResponse.json({ error: "OTP not found. Please request a new one." }, { status: 400 });
 //     }
 
-//     const data = doc.data();
+//     const data = otpDoc.data()!;
 
-//     if (data?.otp !== otp) {
+//     // ── 2. Check expiry FIRST (before checking value) ─
+//     if (Date.now() > data.expiresAt) {
+//       await db.collection("otps").doc(email).delete(); // clean up expired OTP
+//       return NextResponse.json({ error: "OTP expired. Please request a new one." }, { status: 400 });
+//     }
+
+//     // ── 3. Check OTP value ────────────────────────
+//     if (data.otp !== otp) {
 //       return NextResponse.json({ error: "Invalid OTP" }, { status: 400 });
 //     }
 
+//     // ── 4. Mark user as verified ──────────────────
+//     // ✅ set() with merge:true works whether doc exists or not
+//     await db.collection("users").doc(email).set(
+//       {
+//         email,
+//         isVerified: true,
+//         verifiedAt: Date.now(),
+//       },
+//       { merge: true }   // won't overwrite firstName, lastName, createdAt etc.
+//     );
 
-//     if (Date.now() > data.expiresAt) {
-//       return NextResponse.json({ error: "OTP expired" }, { status: 400 });
-//     }
-
-
-//     await db.collection("users").doc(email).update({
-//       isVerified: true,
-//       verifiedAt: Date.now(),
-//     });
-
-    
+//     // ── 5. Delete used OTP ────────────────────────
 //     await db.collection("otps").doc(email).delete();
 
 //     return NextResponse.json({
@@ -42,9 +52,13 @@
 //       message: "OTP verified successfully",
 //     });
 
-//   } catch (error: any) {
-//     console.error("VERIFY OTP ERROR:", error);
-//     return NextResponse.json({ error: error.message }, { status: 500 });
+//   } catch (error: unknown) {
+//     console.error("❌ ERROR:", error);
+//     const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
+//     return NextResponse.json(
+//       { error: errorMessage },
+//       { status: 500 }
+//     );
 //   }
 // }
 
@@ -53,8 +67,6 @@
 
 
 
-
-//api/auth/verify-otp/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { VerifyOtpRequest } from "@/types/auth";
@@ -107,7 +119,7 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: unknown) {
-    console.error("❌ ERROR:", error);
+    console.error("ERROR:", error);
     const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
     return NextResponse.json(
       { error: errorMessage },
