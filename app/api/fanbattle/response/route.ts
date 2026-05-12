@@ -326,8 +326,6 @@ export async function GET(req: NextRequest) {
 }
 
 // ─── POST /api/fanbattle/response ─────────────────────────────────────────────
-// User submits a single answer. Server fetches the quiz from Firestore to score it.
-//
 // Body:
 // {
 //   quizId, questionNumber, selectedAnswer,
@@ -385,15 +383,36 @@ export async function POST(req: NextRequest) {
     const pointsEarned = isCorrect ? quizQuestion.points : 0;
     const now = Date.now();
 
-    // ── Resolve user info from Firestore (shared helper) ─────────────────────
-    const { userName: resolvedName, userEmail: resolvedEmail, exists: userExists, actualUserId } =
-      await getUserInfo(body.userId, body.userName, body.userEmail);
+    // ── Two separate userId concerns ─────────────────────────────────────────
+    //
+    // sessionUserId  — the raw auth ID from the client (body.userId).
+    //                  Used for ALL session + response writes so that
+    //                  /api/fanbattle/session?userId=X can always find them.
+    //                  The frontend always queries with this same value.
+    //
+    // actualUserId   — resolved via getUserInfo (may differ for Google auth
+    //                  users found by email). Used ONLY for points writes
+    //                  (userPointTransactions, users doc, globalLeaderboard).
+    //
+    // Keeping these separate is the fix for the lock-check bug: previously
+    // sessions were stored with actualUserId but queried with body.userId,
+    // so the session GET returned null and easy looked "incomplete".
+
+    const sessionUserId = body.userId as string;
+
+    const {
+      userName: resolvedName,
+      userEmail: resolvedEmail,
+      exists: userExists,
+      actualUserId,
+    } = await getUserInfo(body.userId, body.userName, body.userEmail);
 
     // ── Save individual response ─────────────────────────────────────────────
+    // Response also stored with sessionUserId so the GET ?userId=X filter works.
     const responsePayload = {
       quizId: body.quizId,
       questionNumber: Number(body.questionNumber),
-      userId: actualUserId,
+      userId: sessionUserId,
       userName: resolvedName,
       userEmail: resolvedEmail,
       userAvatar: body?.userAvatar,
@@ -468,12 +487,12 @@ export async function POST(req: NextRequest) {
       sessionId = body.sessionId;
       sessionData = { ...existing, ...updates };
     } else {
-      // Create new session
+      // Create new session — stored with sessionUserId so GET queries match
       const isComplete = quiz.totalQuestions === 1;
 
       const newSession = {
         quizId: body.quizId,
-        userId: actualUserId,
+        userId: sessionUserId,        // ← raw auth ID, matches what the frontend queries
         userName: resolvedName,
         userEmail: resolvedEmail,
         userAvatar: body?.userAvatar,
@@ -495,10 +514,8 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Award user points via shared utility ─────────────────────────────────
-    // Only fires for correct answers (pointsEarned > 0).
-    // The deterministic transactionId prevents double-awarding on retries.
-    // Firestore increment() on a missing pointsBreakdown.TRIVIA_CORRECT field
-    // initialises it automatically — no backfill or hardcoded list needed.
+    // Uses actualUserId (the resolved canonical ID) for all Firestore point
+    // writes — separate from sessionUserId which is only for session lookups.
     if (pointsEarned > 0) {
       await awardUserPoints({
         actualUserId,
