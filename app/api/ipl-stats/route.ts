@@ -835,27 +835,22 @@ function parseMatches(html: string): {
 
 function getMockHighestScores(): HighestScoreRow[] {
   return [
-    { rank: 1, player: "Virat Kohli",    team: "RCB",  score: "127*" },
-    { rank: 2, player: "Shubman Gill",   team: "GT",   score: "119"  },
-    { rank: 3, player: "KL Rahul",       team: "DC",   score: "110*" },
-    { rank: 4, player: "Jos Buttler",    team: "RR",   score: "107"  },
-    { rank: 5, player: "Rohit Sharma",   team: "MI",   score: "98"   },
-    { rank: 6, player: "David Warner",   team: "DC",   score: "94*"  },
-    { rank: 7, player: "Ruturaj Gaikwad",team: "CSK",  score: "91"   },
-    { rank: 8, player: "Abhishek Sharma",team: "SRH",  score: "88*"  },
+    { rank: 1, player: "KL Rahul",        team: "DC",  score: "152*" },
+    { rank: 2, player: "Abhishek Sharma", team: "SRH", score: "135*" },
+    { rank: 3, player: "Ryan Rickelton",  team: "MI",  score: "123*" },
+    { rank: 4, player: "Sanju Samson",    team: "CSK", score: "115*" },
+    { rank: 5, player: "Quinton de Kock", team: "MI",  score: "112*" }
   ];
 }
 
 function getMockMostFifties(): MostFiftiesRow[] {
   return [
-    { rank: 1, player: "Virat Kohli",    team: "RCB",  fifties: 5 },
-    { rank: 2, player: "KL Rahul",       team: "DC",   fifties: 4 },
-    { rank: 3, player: "Shubman Gill",   team: "GT",   fifties: 4 },
-    { rank: 4, player: "Rohit Sharma",   team: "MI",   fifties: 3 },
-    { rank: 5, player: "Jos Buttler",    team: "RR",   fifties: 3 },
-    { rank: 6, player: "Ruturaj Gaikwad",team: "CSK",  fifties: 2 },
-    { rank: 7, player: "Abhishek Sharma",team: "SRH",  fifties: 2 },
-    { rank: 8, player: "David Warner",   team: "DC",   fifties: 2 },
+    { rank: 1, player: "Heinrich Klaasen",  team: "SRH",  fifties: 5 },
+    { rank: 1, player: "Shreyas Iyer",      team: "PBKS", fifties: 5 },
+    { rank: 3, player: "Ishan Kishan",      team: "SRH",  fifties: 4 },
+    { rank: 3, player: "Prabhsimran Singh", team: "PBKS", fifties: 4 },
+    { rank: 3, player: "Sai Sudharsan",     team: "GT",   fifties: 4 },
+    { rank: 3, player: "Shubman Gill",      team: "GT",   fifties: 4 },
   ];
 }
 
