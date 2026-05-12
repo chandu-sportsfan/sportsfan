@@ -839,7 +839,8 @@ function getMockHighestScores(): HighestScoreRow[] {
     { rank: 2, player: "Abhishek Sharma", team: "SRH", score: "135*" },
     { rank: 3, player: "Ryan Rickelton",  team: "MI",  score: "123*" },
     { rank: 4, player: "Sanju Samson",    team: "CSK", score: "115*" },
-    { rank: 5, player: "Quinton de Kock", team: "MI",  score: "112*" }
+    { rank: 5, player: "Quinton de Kock", team: "MI",  score: "112*" },
+    { rank: 6, player: "Mitchell Marsh",  team: "LSG", score: "111"  },
   ];
 }
 
