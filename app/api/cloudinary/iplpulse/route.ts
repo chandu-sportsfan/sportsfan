@@ -46,11 +46,18 @@ function extractReportDate(fileName: string): string | null {
 
 function formatReportDate(dateStr: string | null): string | null {
   if (!dateStr) return null;
-  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  try {
+    return new Date(dateStr + "T00:00:00").toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch (e:unknown) {
+    if (e instanceof Error) {
+      console.error("Error formatting report date:", e.message);
+    }
+    return dateStr;
+  }
 }
 
 export async function GET(req: NextRequest) {
@@ -73,14 +80,30 @@ export async function GET(req: NextRequest) {
 
       const files: PulseFileMeta[] = result.resources
         .map((r: CloudinaryResource) => {
-          const fileName =
-            r.display_name || r.public_id.split("/").pop() || r.public_id;
+          const fileName = r.display_name || r.public_id.split("/").pop() || r.public_id;
           const reportDate = extractReportDate(fileName);
           return {
             id: r.public_id,
             fileName,
             url: r.secure_url,
             size: r.bytes,
+            sizeFormatted: formatFileSize(r.bytes),
+            createdAt: r.created_at,
+            reportDate,
+            reportDateFormatted: formatReportDate(reportDate),
+          };
+        })
+        .sort((a: PulseFileMeta, b: PulseFileMeta) => {
+          if (!a.reportDate && !b.reportDate) return 0;
+          if (!a.reportDate) return 1;
+          if (!b.reportDate) return -1;
+          return b.reportDate.localeCompare(a.reportDate);
+        });
+
+      return NextResponse.json({
+        success: true,
+        files,
+        totalCount: files.length,
         pagination: {
           hasMore: !!result.next_cursor,
           nextCursor: result.next_cursor || null,
@@ -89,18 +112,14 @@ export async function GET(req: NextRequest) {
     }
 
     // ── MODE: latest — fetch and return the JSON content of the latest pulse ─
-    const latestUrl =
-      "https://res.cloudinary.com/dflnsufit/raw/upload/sf360/pulse/ipl_pulse_latest.json";
+    const latestUrl = "https://res.cloudinary.com/dflnsufit/raw/upload/sf360/pulse/ipl_pulse_latest.json";
 
     const res = await fetch(latestUrl, {
-      // Re-validate at most every 5 minutes
-      next: { revalidate: 300 },
+      next: { revalidate: 300 }, // Cache for 5 minutes
     });
 
     if (!res.ok) {
-      throw new Error(
-        `Cloudinary fetch failed: ${res.status} ${res.statusText}`
-      );
+      throw new Error(`Cloudinary fetch failed: ${res.status} ${res.statusText}`);
     }
 
     const data = await res.json();
