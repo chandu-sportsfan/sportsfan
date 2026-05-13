@@ -111,7 +111,7 @@ function parseFileName(fileName: string): AudioMetadata["matchInfo"] {
 export async function GET(req: NextRequest) {
     try {
         const searchParams = req.nextUrl.searchParams;
-        const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 50);
+        const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 500);
         const nextCursor = searchParams.get("nextCursor");
         const search = searchParams.get("search")?.toLowerCase();
 
