@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    const cdnUrl = "https://res.cloudinary.com/dflnsufit/raw/upload/sf360/articles/articles_2026_05_11.json";
+    const cdnUrl = "https://res.cloudinary.com/dflnsufit/raw/upload/sf360/articles/articles_2026_05_13.json";
     
     const response = await fetch(cdnUrl, {
       next: { revalidate: 3600 } 
