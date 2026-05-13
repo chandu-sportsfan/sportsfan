@@ -153,6 +153,7 @@ const NAV: NavGroup[] = [
         children: [
           { href: "/admin/fanbattle-management/add-fanbattle", label: "Add Fan Battle" },
           { href: "/admin/fanbattle-management/fanbattle-list", label: "Fan Battle List" },
+          { href: "/admin/fanbattle-management/battle-list", label: "Battles List" },
         ],
       },
       {
