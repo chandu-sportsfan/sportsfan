@@ -23,7 +23,7 @@ export async function GET() {
         'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       },
     });
-    
+    //done
   } catch (error) {
     console.error("Error fetching news center data:", error);
     return NextResponse.json(
