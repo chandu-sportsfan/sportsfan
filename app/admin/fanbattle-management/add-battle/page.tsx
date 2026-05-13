@@ -75,6 +75,7 @@ export default function AddBattlePage() {
         alert("Battle updated successfully");
       } else {
         const res = await axios.post("/api/battle", battle);
+        console.log("Create response:", res.data);
         alert("Battle created successfully");
       }
       router.push("/admin/fanbattle-management/battle-list");
