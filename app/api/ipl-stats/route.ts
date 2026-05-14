@@ -876,29 +876,6 @@ function getMockMostFifties(): MostFiftiesRow[] {
     { rank: 6, player: "Shubman Gill",      team: "GT",   fifties: 4 },
   ];
 }
-// ─── Updated Stats Data ───────────────────────────────────────────────────────
-
-function getMockHighestScores(): HighestScoreRow[] {
-  return [
-    { rank: 1, player: "K L Rahul",        team: "DC",   score: "152*" },
-    { rank: 2, player: "Abhishek Sharma",  team: "SRH",  score: "135*" },
-    { rank: 3, player: "Ryan Rickelton",   team: "MI",   score: "123*" },
-    { rank: 4, player: "Sanju Samson",     team: "CSK",  score: "115*" },
-    { rank: 5, player: "Quinton De Kock",  team: "MI",   score: "112*" },
-    { rank: 6, player: "Mitchell Marsh",   team: "LSG",  score: "111"  },
-  ];
-}
-
-function getMockMostFifties(): MostFiftiesRow[] {
-  return [
-    { rank: 1, player: "Shreyas Iyer",      team: "PBKS", fifties: 5 },
-    { rank: 1, player: "Heinrich Klaasen",  team: "SRH",  fifties: 5 },
-    { rank: 3, player: "Sai Sudharsan",     team: "GT",   fifties: 5 },
-    { rank: 4, player: "Prabhsimran Singh", team: "PBKS", fifties: 4 },
-    { rank: 5, player: "Angkrish Raghuvanshi", team: "KKR", fifties: 4 },
-    { rank: 6, player: "Shubman Gill",      team: "GT",   fifties: 4 },
-  ];
-}
 
 function getExtraStats() {
   return {
