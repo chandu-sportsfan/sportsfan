@@ -682,36 +682,47 @@ function parseAllStats(html: string, pointsTable: TeamRow[]) {
   const tables = extractTables(html);
   
   const parseGenericRows = (rows: string[][]) => {
-    return rows.filter(r => /^\d+$/.test(r[0]?.trim())).map(row => {
-      const rank = Number(row[0].trim());
+    // 1. Filter out header rows instead of requiring numbers
+    return rows.filter(r => {
+      if (r.length < 3) return false;
+      const col0 = r[0]?.trim().toLowerCase();
+      const col1 = r[1]?.trim().toLowerCase();
+      return col0 !== "#" && col0 !== "rank" && col1 !== "player" && col1 !== "team";
+    }).map((row, index) => {
+      // 2. Auto-assign the rank (fixes the missing 1, 2, 3 medal issue!)
+      const rank = index + 1; 
       let player = "", team = "", value = "", subValue = "";
 
-      const teamIdx = row.findIndex((c, i) => i > 0 && /^[A-Z]{2,5}$/.test(c.trim()) && TEAM_FULL[c.trim()]);
+      // 3. Safely isolate the text columns from the hidden image array
+      const imgStrs = row[row.length - 1] || "[]";
+      const dataCells = row.slice(0, -1); 
+
+      const teamIdx = dataCells.findIndex((c, i) => i > 0 && /^[A-Z]{2,5}$/.test(c.trim()) && TEAM_FULL[c.trim()]);
       
       if (teamIdx > 0) {
-        player = row.slice(1, teamIdx).join(" ").trim();
-        team = row[teamIdx].trim();
-        value = row[teamIdx + 1]?.trim() || "";
-        subValue = row[teamIdx + 2]?.trim() || ""; 
+        player = dataCells.slice(1, teamIdx).join(" ").trim();
+        team = dataCells[teamIdx].trim();
+        value = dataCells[teamIdx + 1]?.trim() || "";
+        subValue = dataCells[teamIdx + 2]?.trim() || ""; 
       } else {
-        const raw = row[1]?.trim() || "";
+        const raw = dataCells[1]?.trim() || "";
         const mm = raw.match(/^(.*?)\s+([A-Z]{2,5})$/);
         if (mm && TEAM_FULL[mm[2]]) {
           player = mm[1]; team = mm[2];
         } else {
           player = raw;
-          team = row[2]?.trim() || "";
+          team = dataCells[2]?.trim() || "";
         }
-        value = row[3]?.trim() || row[row.length - 1]?.trim() || "";
-        subValue = row[4]?.trim() || ""; 
+        // Smart fallback to grab the last valid text column
+        value = dataCells[3]?.trim() || dataCells[dataCells.length - 1]?.trim() || "";
+        subValue = dataCells[4]?.trim() || ""; 
       }
 
       // 🛠️ THE ULTIMATE LOGO FIX: Cross-reference stats logos with the Points Table
       if (!team || !TEAM_FULL[team]) {
         try {
-          const imgsStr = row[row.length - 1] || "[]";
-          if (imgsStr.startsWith("[")) {
-            const imgs: string[] = JSON.parse(imgsStr);
+          if (imgStrs.startsWith("[")) {
+            const imgs: string[] = JSON.parse(imgStrs);
             for (const url of imgs) {
               const urlLower = url.toLowerCase();
               const getFilename = (u: string) => u.split('/').pop()?.split('?')[0] || u;
@@ -719,7 +730,6 @@ function parseAllStats(html: string, pointsTable: TeamRow[]) {
 
               if (urlFilename.match(/(cap|up|down|trend|arrow|icon|minus|plus)/)) continue;
 
-              // 1. Cross-reference with Points Table logos
               const matchedTeam = pointsTable.find(t => {
                 if (!t.logo) return false;
                 const tFilename = getFilename(t.logo.toLowerCase());
@@ -732,7 +742,6 @@ function parseAllStats(html: string, pointsTable: TeamRow[]) {
                 break;
               }
 
-              // 2. Relaxed text fallback matching
               const foundAbbr = Object.keys(TEAM_FULL).find(abbr => {
                 const parts = TEAM_FULL[abbr].toLowerCase().split(" ");
                 return urlFilename.includes(abbr.toLowerCase()) || 
