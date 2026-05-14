@@ -97,7 +97,7 @@ function SpotlightCard({ title, subtitle, icon, players, accentColor, borderColo
   borderColor: string;
 }) {
   return (
-    <div className={`bg-[#101016] border border-[rgba(255,255,255,0.07)] rounded-2xl overflow-hidden relative group transition-all hover:border-[rgba(255,255,255,0.12)] shadow-xl`}>
+    <div className={`bg-[#101016] border ${borderColor} rounded-2xl overflow-hidden relative group transition-all hover:border-[rgba(255,255,255,0.12)] shadow-xl`}>
       <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${accentColor} to-transparent`} />
       
       <div className="p-5 pb-4 flex items-start gap-4">
