@@ -178,6 +178,13 @@ const NAV: NavGroup[] = [
 
         ],
       },
+      {
+        label: "IPL Pulse", icon: "◉",
+        children: [
+          { href: "/admin/spotlight-management/add-spotlight", label: "Add Spotlight" },
+          { href: "/admin/spotlight-management/spotlight-list", label: "Spotlight List" },
+        ],
+      },
       // { href: "/admin/content", icon: "◧", label: "Content / Posts"   },
       // { href: "/admin/orders",  icon: "◫", label: "Orders & Payments", badge: "8" },
     ],

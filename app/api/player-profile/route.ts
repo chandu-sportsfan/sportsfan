@@ -152,6 +152,7 @@ export async function POST(req: NextRequest) {
       },
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      nameLower: name.toLowerCase(),
     };
 
     // Fix: Use set() with explicit document ID instead of add()
@@ -208,8 +209,8 @@ export async function GET(req: NextRequest) {
     if (search) {
       query = query
         .orderBy("nameLower")
-        .startAt(search)
-        .endAt(search + "\uf8ff");
+        .where("nameLower", ">=", search)
+        .where("nameLower", "<=", search + "\uf8ff");
       
       // Apply cursor for search results
       if (lastDocId && lastDocValue) {
