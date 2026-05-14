@@ -678,182 +678,105 @@ function parseMatches(html: string): {
   };
 }
 
-// ─── Stats parser — helpers ───────────────────────────────────────────────────
-// NOTE: parseStats and its helpers are wired up and ready for when STATS_URL
-// comes online. Until then, getMockHighestScores / getMockMostFifties are used.
+function parseAllStats(html: string, pointsTable: TeamRow[]) {
+  const tables = extractTables(html);
+  
+  const parseGenericRows = (rows: string[][]) => {
+    return rows.filter(r => /^\d+$/.test(r[0]?.trim())).map(row => {
+      const rank = Number(row[0].trim());
+      let player = "", team = "", value = "", subValue = "";
 
-/**
- * Given rows that belong to the "Highest Score" section, extract ranked player
- * records.  Handles two column layouts:
- *   A) rank | player | ABBR | score          (team abbr is a standalone cell)
- *   B) rank | "Player Name ABBR" | score      (abbr embedded in player cell)
- */
-// function parseHighestScoresRows(rows: string[][]): HighestScoreRow[] {
-//   return rows
-//     .filter((row) => /^\d+$/.test(row[0]?.trim()))
-//     .flatMap((row): HighestScoreRow[] => {
-//       const rank = Number(row[0].trim());
+      const teamIdx = row.findIndex((c, i) => i > 0 && /^[A-Z]{2,5}$/.test(c.trim()) && TEAM_FULL[c.trim()]);
+      
+      if (teamIdx > 0) {
+        player = row.slice(1, teamIdx).join(" ").trim();
+        team = row[teamIdx].trim();
+        value = row[teamIdx + 1]?.trim() || "";
+        subValue = row[teamIdx + 2]?.trim() || ""; 
+      } else {
+        const raw = row[1]?.trim() || "";
+        const mm = raw.match(/^(.*?)\s+([A-Z]{2,5})$/);
+        if (mm && TEAM_FULL[mm[2]]) {
+          player = mm[1]; team = mm[2];
+        } else {
+          player = raw;
+          team = row[2]?.trim() || "";
+        }
+        value = row[3]?.trim() || row[row.length - 1]?.trim() || "";
+        subValue = row[4]?.trim() || ""; 
+      }
 
-//       let player = "";
-//       let team   = "";
-//       let score  = "";
+      // 🛠️ THE ULTIMATE LOGO FIX: Cross-reference stats logos with the Points Table
+      if (!team || !TEAM_FULL[team]) {
+        try {
+          const imgsStr = row[row.length - 1] || "[]";
+          if (imgsStr.startsWith("[")) {
+            const imgs: string[] = JSON.parse(imgsStr);
+            for (const url of imgs) {
+              const urlLower = url.toLowerCase();
+              const getFilename = (u: string) => u.split('/').pop()?.split('?')[0] || u;
+              const urlFilename = getFilename(urlLower);
 
-//       // Layout A: standalone team abbreviation cell
-//       const teamIdx = row.findIndex(
-//         (c, i) => i > 0 && /^[A-Z]{2,5}$/.test(c.trim()) && TEAM_FULL[c.trim()],
-//       );
+              if (urlFilename.match(/(cap|up|down|trend|arrow|icon|minus|plus)/)) continue;
 
-//       if (teamIdx > 0) {
-//         player = row.slice(1, teamIdx).join(" ").trim();
-//         team   = row[teamIdx].trim();
-//         const rest = row.slice(teamIdx + 1);
-//         // Score is the first cell matching digits with optional * or /
-//         score  = rest.find((c) => /^\d+[*/]?\d*$/.test(c.trim())) ??
-//                  rest[rest.length - 1] ?? "";
-//       } else {
-//         // Layout B: try to split "Player Name ABBR" from last cell
-//         const raw = row[1]?.trim() ?? "";
-//         const mm  = raw.match(/^(.*?)\s+([A-Z]{2,5})$/);
-//         if (mm && TEAM_FULL[mm[2]]) {
-//           player = mm[1]; team = mm[2];
-//         } else {
-//           player = raw;
-//           team   = row[2]?.trim() ?? "";
-//         }
-//         score = row[3]?.trim() ?? row[row.length - 1]?.trim() ?? "";
-//       }
+              // 1. Cross-reference with Points Table logos
+              const matchedTeam = pointsTable.find(t => {
+                if (!t.logo) return false;
+                const tFilename = getFilename(t.logo.toLowerCase());
+                return tFilename === urlFilename || 
+                       tFilename.replace(/\.[^/.]+$/, "") === urlFilename.replace(/\.[^/.]+$/, "");
+              });
 
-//       if (!player || !score) return [];
-//       return [{ rank, player, team, score }];
-//     });
-// }
+              if (matchedTeam) {
+                team = matchedTeam.abbr;
+                break;
+              }
 
-/**
- * Given rows that belong to the "Most Fifties" section, extract ranked player
- * records with the same dual-layout tolerance as parseHighestScoresRows.
- */
-// function parseMostFiftiesRows(rows: string[][]): MostFiftiesRow[] {
-//   return rows
-//     .filter((row) => /^\d+$/.test(row[0]?.trim()))
-//     .flatMap((row): MostFiftiesRow[] => {
-//       const rank = Number(row[0].trim());
+              // 2. Relaxed text fallback matching
+              const foundAbbr = Object.keys(TEAM_FULL).find(abbr => {
+                const parts = TEAM_FULL[abbr].toLowerCase().split(" ");
+                return urlFilename.includes(abbr.toLowerCase()) || 
+                       urlFilename.includes(parts[0]) || 
+                       (parts.length > 1 && parts[1].length > 3 && urlFilename.includes(parts[1]));
+              });
 
-//       let player  = "";
-//       let team    = "";
-//       let fifties = 0;
+              if (foundAbbr) {
+                team = foundAbbr;
+                break;
+              }
+            }
+          }
+        } catch {}
+      }
+      if (!team) team = "TBD";
 
-//       const teamIdx = row.findIndex(
-//         (c, i) => i > 0 && /^[A-Z]{2,5}$/.test(c.trim()) && TEAM_FULL[c.trim()],
-//       );
+      return { rank, player, team, value, subValue };
+    });
+  };
 
-//       if (teamIdx > 0) {
-//         player  = row.slice(1, teamIdx).join(" ").trim();
-//         team    = row[teamIdx].trim();
-//         const rest = row.slice(teamIdx + 1);
-//         fifties = Number(rest.find((c) => /^\d+$/.test(c.trim()))) || 0;
-//       } else {
-//         const raw = row[1]?.trim() ?? "";
-//         const mm  = raw.match(/^(.*?)\s+([A-Z]{2,5})$/);
-//         if (mm && TEAM_FULL[mm[2]]) {
-//           player = mm[1]; team = mm[2];
-//         } else {
-//           player = raw;
-//           team   = row[2]?.trim() ?? "";
-//         }
-//         fifties = Number(row[3]?.trim()) ||
-//                   Number(row[row.length - 1]?.trim()) || 0;
-//       }
+  const parsedTables = tables.map(t => parseGenericRows(extractRows(t)));
 
-//       if (!player) return [];
-//       return [{ rank, player, team, fifties }];
-//     });
-// }
+  const getTable = (idx: number, keyword: string) => {
+    const foundIdx = tables.findIndex(t => t.toLowerCase().includes(keyword.toLowerCase()));
+    const data = foundIdx !== -1 ? parsedTables[foundIdx] : parsedTables[idx];
+    return data && data.length > 0 ? data : null;
+  };
 
-// ─── Stats parser — main ──────────────────────────────────────────────────────
-
-/**
- * Parses the IPL stats HTML and returns `highestScores` and `mostFifties`.
- *
- * Section detection strategy (in order of preference):
- *   1. Two separate <table> elements → first = scores, second = fifties
- *      (cross-checked against header keywords when possible).
- *   2. One <table> with two <tbody> blocks.
- *   3. One flat list of rows — split on section-header rows containing
- *      "highest"/"score" or "fift"/"50".
- */
-// function parseStats(html: string): {
-//   highestScores: HighestScoreRow[];
-//   mostFifties: MostFiftiesRow[];
-// } {
-//   const tables = extractTables(html);
-
-//   // ── Strategy 1: two or more tables ─────────────────────────────────────────
-//   if (tables.length >= 2) {
-//     let scoresTable  = tables[0];
-//     let fiftiesTable = tables[1];
-
-//     // Swap if keyword evidence suggests the order is reversed
-//     if (
-//       tables[0].toLowerCase().includes("fift") &&
-//       !tables[1].toLowerCase().includes("fift")
-//     ) {
-//       [scoresTable, fiftiesTable] = [tables[1], tables[0]];
-//     }
-
-//     return {
-//       highestScores: parseHighestScoresRows(extractRows(scoresTable)),
-//       mostFifties:   parseMostFiftiesRows(extractRows(fiftiesTable)),
-//     };
-//   }
-
-//   // ── Strategy 2: single table with two <tbody> blocks ───────────────────────
-//   if (tables.length === 1) {
-//     const tbodyRe = /<tbody\b[^>]*>([\s\S]*?)<\/tbody>/gi;
-//     const bodies: string[] = [];
-//     let bm: RegExpExecArray | null;
-//     while ((bm = tbodyRe.exec(tables[0])) !== null) bodies.push(bm[1]);
-
-//     if (bodies.length >= 2) {
-//       return {
-//         highestScores: parseHighestScoresRows(extractRows(bodies[0])),
-//         mostFifties:   parseMostFiftiesRows(extractRows(bodies[1])),
-//       };
-//     }
-//   }
-
-//   // ── Strategy 3: flat rows — split on section-header keywords ───────────────
-//   const allRows = tables.length === 1
-//     ? extractRows(tables[0])
-//     : extractRows(html);
-
-//   let section: "scores" | "fifties" | "" = "";
-//   const scoresRows:  string[][] = [];
-//   const fiftiesRows: string[][] = [];
-
-//   for (const row of allRows) {
-//     const text = row.join(" ").toLowerCase();
-
-//     if ((text.includes("highest") || text.includes("score")) && !text.includes("fift")) {
-//       section = "scores"; continue;
-//     }
-//     if (text.includes("fift") || text.includes("50s")) {
-//       section = "fifties"; continue;
-//     }
-//     if (section === "scores")  scoresRows.push(row);
-//     if (section === "fifties") fiftiesRows.push(row);
-//   }
-
-//   return {
-//     highestScores: parseHighestScoresRows(scoresRows),
-//     mostFifties:   parseMostFiftiesRows(fiftiesRows),
-//   };
-// }
-
-// ─── Stats mock data ──────────────────────────────────────────────────────────
-// Used until STATS_URL comes online. Replace the call-site below with
-// parseStats(statsHtml) once the CDN endpoint is live.
-
-// ─── Updated Stats Data ───────────────────────────────────────────────────────
+  return {
+    highestScores: (getTable(0, "highest") || getMockHighestScores() as any).map((r: any) => ({ rank: r.rank, player: r.player, team: r.team, score: r.value || r.score })),
+    mostFifties: (getTable(1, "fift") || getMockMostFifties() as any).map((r: any) => ({ rank: r.rank, player: r.player, team: r.team, fifties: Number(r.value || r.fifties) || 0 })),
+    extraStats: {
+      maxSixes: getTable(2, "six") || getExtraStats().maxSixes,
+      maxFours: getTable(3, "four") || getExtraStats().maxFours,
+      battingAvg: getTable(4, "batting avg") || getExtraStats().battingAvg,
+      bowlingAvg: getTable(5, "bowling avg") || getExtraStats().bowlingAvg,
+      bestBowling: getTable(6, "best bowling") || getExtraStats().bestBowling,
+      mostEcon: getTable(7, "econom") || getExtraStats().mostEcon,
+      mostHundreds: getTable(8, "hundred") || getExtraStats().mostHundreds,
+      boundaries: getTable(9, "boundar") || getExtraStats().boundaries,
+    }
+  };
+}
 
 function getMockHighestScores(): HighestScoreRow[] {
   return [
@@ -938,28 +861,39 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-const POINTS_TABLE_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778548589/sf360/scripts/IPL_Points_Table_2026.html";
-const CAPS_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778548594/sf360/scripts/IPL_Caps_2026.html";
-const MATCHES_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778548635/sf360/scripts/IPL_Fixtures_2026.html";
+const POINTS_TABLE_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778729502/sf360/scripts/IPL_Points_Table_2026.html";
+const CAPS_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778729505/sf360/scripts/IPL_Caps_2026.html";
+const MATCHES_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778729517/sf360/scripts/IPL_Fixtures_2026.html";
+const STATS_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/sf360/scripts/ipl2026_dashboard.html"; // <-- Added this
 
 export async function GET() {
   try {
-    const [pointsRes, capsRes, matchesRes] = await Promise.all([
+    const [pointsRes, capsRes, matchesRes, statsRes] = await Promise.all([
       fetch(POINTS_TABLE_URL, { cache: "no-store" }),
       fetch(CAPS_URL,         { cache: "no-store" }),
       fetch(MATCHES_URL,      { cache: "no-store" }),
+      fetch(STATS_URL,        { cache: "no-store" }), // <-- Added Stats Fetch
     ]);
 
     if (!pointsRes.ok || !capsRes.ok) throw new Error("Core CDN fetch failed");
 
-    const [pointsHtml, capsHtml, matchesHtml] = await Promise.all([
-      pointsRes.text(), capsRes.text(), matchesRes.ok ? matchesRes.text() : Promise.resolve(""),
+    const [pointsHtml, capsHtml, matchesHtml, statsHtml] = await Promise.all([
+      pointsRes.text(), 
+      capsRes.text(), 
+      matchesRes.ok ? matchesRes.text() : Promise.resolve(""),
+      statsRes.ok ? statsRes.text() : Promise.resolve("") // <-- Added Stats HTML
     ]);
 
     const pointsTable = parsePointsTable(pointsHtml);
     const { orange: orangeCap, purple: purpleCap } = parseCaps(capsHtml, pointsTable);
     const matchesData = parseMatches(matchesHtml);
     
+    // <-- Added parsing hook here
+    const parsedDashboard = statsHtml ? parseAllStats(statsHtml, pointsTable) : {
+      highestScores: getMockHighestScores(),
+      mostFifties: getMockMostFifties(),
+      extraStats: getExtraStats()
+    };
     // Playoff Logic
     const getMatch = (no: number, fallbackA: string, fallbackB: string): MatchCard => {
       const match = matchesData.allCards.find(c => c.matchNo === no);
@@ -1021,9 +955,9 @@ export async function GET() {
       teamLogos, pointsTable, orangeCap, purpleCap, todayMatch, recentMatch,
       recentMatches: matchesData.recentMatches,
       upcomingMatches: matchesData.upcomingMatches,
-      highestScores: getMockHighestScores(),
-      mostFifties: getMockMostFifties(),
-      extraStats: getExtraStats(),
+      highestScores: parsedDashboard.highestScores, 
+      mostFifties: parsedDashboard.mostFifties,     
+      extraStats: parsedDashboard.extraStats,       // <-- This passes all 8 categories to the frontend!
       playoffs
     };
 
