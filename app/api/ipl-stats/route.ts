@@ -105,6 +105,7 @@ export interface IPLStatsResponse {
   highestScores: HighestScoreRow[];
   mostFifties: MostFiftiesRow[];
   playoffs: PlayoffData; // Added this
+  extraStats: ReturnType<typeof getExtraStats>;
 }
 
 // ─── Shared constants ─────────────────────────────────────────────────────────
@@ -852,26 +853,81 @@ function parseMatches(html: string): {
 // Used until STATS_URL comes online. Replace the call-site below with
 // parseStats(statsHtml) once the CDN endpoint is live.
 
+// ─── Updated Stats Data ───────────────────────────────────────────────────────
+
 function getMockHighestScores(): HighestScoreRow[] {
   return [
-    { rank: 1, player: "KL Rahul",        team: "DC",  score: "152*" },
-    { rank: 2, player: "Abhishek Sharma", team: "SRH", score: "135*" },
-    { rank: 3, player: "Ryan Rickelton",  team: "MI",  score: "123*" },
-    { rank: 4, player: "Sanju Samson",    team: "CSK", score: "115*" },
-    { rank: 5, player: "Quinton de Kock", team: "MI",  score: "112*" },
-    { rank: 6, player: "Mitchell Marsh",  team: "LSG", score: "111"  },
+    { rank: 1, player: "K L Rahul",        team: "DC",   score: "152*" },
+    { rank: 2, player: "Abhishek Sharma",  team: "SRH",  score: "135*" },
+    { rank: 3, player: "Ryan Rickelton",   team: "MI",   score: "123*" },
+    { rank: 4, player: "Sanju Samson",     team: "CSK",  score: "115*" },
+    { rank: 5, player: "Quinton De Kock",  team: "MI",   score: "112*" },
+    { rank: 6, player: "Mitchell Marsh",   team: "LSG",  score: "111"  },
   ];
 }
 
 function getMockMostFifties(): MostFiftiesRow[] {
   return [
-    { rank: 1, player: "Heinrich Klaasen",  team: "SRH",  fifties: 5 },
     { rank: 1, player: "Shreyas Iyer",      team: "PBKS", fifties: 5 },
-    { rank: 3, player: "Ishan Kishan",      team: "SRH",  fifties: 4 },
-    { rank: 3, player: "Prabhsimran Singh", team: "PBKS", fifties: 4 },
-    { rank: 3, player: "Sai Sudharsan",     team: "GT",   fifties: 4 },
-    { rank: 3, player: "Shubman Gill",      team: "GT",   fifties: 4 },
+    { rank: 1, player: "Heinrich Klaasen",  team: "SRH",  fifties: 5 },
+    { rank: 3, player: "Sai Sudharsan",     team: "GT",   fifties: 5 },
+    { rank: 4, player: "Prabhsimran Singh", team: "PBKS", fifties: 4 },
+    { rank: 5, player: "Angkrish Raghuvanshi", team: "KKR", fifties: 4 },
+    { rank: 6, player: "Shubman Gill",      team: "GT",   fifties: 4 },
   ];
+}
+
+function getExtraStats() {
+  return {
+    bestBowling: [
+      { rank: 1, player: "Mohsin Khan", team: "LSG", value: "5/23", subValue: "4 Overs" },
+      { rank: 2, player: "Josh Hazlewood", team: "RCB", value: "4/12", subValue: "3.3 Overs" },
+      { rank: 3, player: "Akeal Hosein", team: "CSK", value: "4/17", subValue: "4 Overs" },
+      { rank: 4, player: "Jamie Overton", team: "CSK", value: "4/18", subValue: "4 Overs" },
+    ],
+    battingAvg: [
+      { rank: 1, player: "Rinku Singh", team: "KKR", value: "71.50", subValue: "286 Runs" },
+      { rank: 2, player: "Prashant Veer", team: "CSK", value: "66.00", subValue: "66 Runs" },
+      { rank: 3, player: "Quinton de Kock", team: "MI", value: "66.00", subValue: "132 Runs" },
+      { rank: 4, player: "Shreyas Iyer", team: "PBKS", value: "56.00", subValue: "392 Runs" },
+    ],
+    bowlingAvg: [
+      { rank: 1, player: "Jason Holder", team: "GT", value: "10.92", subValue: "13 Wkts" },
+      { rank: 2, player: "Corbin Bosch", team: "MI", value: "12.14", subValue: "7 Wkts" },
+      { rank: 3, player: "Shashank Singh", team: "PBKS", value: "13.00", subValue: "3 Wkts" },
+      { rank: 4, player: "Mohsin Khan", team: "LSG", value: "14.90", subValue: "10 Wkts" },
+    ],
+    mostHundreds: [
+      { rank: 1, player: "Sanju Samson", team: "CSK", value: "2", subValue: "430 Runs" },
+      { rank: 2, player: "Abhishek Sharma", team: "SRH", value: "1", subValue: "481 Runs" },
+      { rank: 3, player: "Cooper Connolly", team: "PBKS", value: "1", subValue: "415 Runs" },
+      { rank: 4, player: "Finn Allen", team: "KKR", value: "1", subValue: "228 Runs" },
+    ],
+    mostEcon: [
+      { rank: 1, player: "Harpreet Brar", team: "PBKS", value: "6.25", subValue: "1 Match" },
+      { rank: 2, player: "Jason Holder", team: "GT", value: "6.36", subValue: "6 Matches" },
+      { rank: 3, player: "Sunil Narine", team: "KKR", value: "6.64", subValue: "10 Matches" },
+      { rank: 4, player: "Mohsin Khan", team: "LSG", value: "7.45", subValue: "5 Matches" },
+    ],
+    maxSixes: [
+      { rank: 1, player: "Vaibhav Sooryavanshi", team: "RR", value: "40", subValue: "440 Runs" },
+      { rank: 2, player: "Abhishek Sharma", team: "SRH", value: "37", subValue: "481 Runs" },
+      { rank: 3, player: "Ryan Rickelton", team: "MI", value: "33", subValue: "382 Runs" },
+      { rank: 4, player: "Priyansh Arya", team: "PBKS", value: "32", subValue: "342 Runs" },
+    ],
+    maxFours: [
+      { rank: 1, player: "Virat Kohli", team: "RCB", value: "53", subValue: "484 Runs" },
+      { rank: 2, player: "KL Rahul", team: "DC", value: "50", subValue: "477 Runs" },
+      { rank: 3, player: "Sai Sudharsan", team: "GT", value: "49", subValue: "501 Runs" },
+      { rank: 4, player: "Sanju Samson", team: "CSK", value: "45", subValue: "430 Runs" },
+    ],
+    boundaries: [
+      { rank: 1, player: "Abhishek Sharma", team: "SRH", value: "80", subValue: "Total" },
+      { rank: 2, player: "Vaibhav Sooryavanshi", team: "RR", value: "78", subValue: "Total" },
+      { rank: 3, player: "KL Rahul", team: "DC", value: "74", subValue: "Total" },
+      { rank: 4, player: "Sai Sudharsan", team: "GT", value: "71", subValue: "Total" },
+    ]
+  };
 }
 
 // ─── CORS headers ─────────────────────────────────────────────────────────────
@@ -882,9 +938,9 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-const POINTS_TABLE_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778729502/sf360/scripts/IPL_Points_Table_2026.html";
-const CAPS_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778729505/sf360/scripts/IPL_Caps_2026.html";
-const MATCHES_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778729517/sf360/scripts/IPL_Fixtures_2026.html";
+const POINTS_TABLE_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778548589/sf360/scripts/IPL_Points_Table_2026.html";
+const CAPS_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778548594/sf360/scripts/IPL_Caps_2026.html";
+const MATCHES_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778548635/sf360/scripts/IPL_Fixtures_2026.html";
 
 export async function GET() {
   try {
@@ -967,6 +1023,7 @@ export async function GET() {
       upcomingMatches: matchesData.upcomingMatches,
       highestScores: getMockHighestScores(),
       mostFifties: getMockMostFifties(),
+      extraStats: getExtraStats(),
       playoffs
     };
 
