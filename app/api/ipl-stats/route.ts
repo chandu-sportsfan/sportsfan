@@ -422,14 +422,14 @@ function parseCaps(html: string, pointsTable: TeamRow[]): { orange: PlayerRow[];
 
 /**
  * Attempt to parse a freeform date string such as:
- *   "May 07", "07 May", "May 07, 2026", "07/05/2026", "2026-05-07"
+ * "May 07", "07 May", "May 07, 2026", "07/05/2026", "2026-05-07"
  * Returns a Date at midnight local time, or null if unrecognised.
  */
 function parseDateStr(raw: string): Date | null {
   const s = raw.trim();
 
-  // "May 07", "May-07", "May 07, 2026"
-  let m = s.match(/([A-Za-z]{3,9})[\s-]+(\d{1,2})(?:,?\s*(\d{4}))?/);
+  // 🛠️ THE FIX: Added ^ to anchor to the start, and \b to prevent matching "20" out of "2026"
+  let m = s.match(/^([A-Za-z]{3,9})[\s-]+(\d{1,2})\b(?:,?\s*(\d{4}))?/);
   if (m) {
     const mo = MONTH_MAP[m[1].toLowerCase().slice(0, 3)];
     if (mo !== undefined) {
@@ -438,8 +438,8 @@ function parseDateStr(raw: string): Date | null {
     }
   }
 
-  // "07 May", "07-May", "7 May 2026"
-  m = s.match(/(\d{1,2})[\s-]+([A-Za-z]{3,9})(?:,?\s*(\d{4}))?/);
+  // 🛠️ THE FIX: Added ^ to anchor to the start
+  m = s.match(/^(\d{1,2})[\s-]+([A-Za-z]{3,9})(?:,?\s*(\d{4}))?/);
   if (m) {
     const mo = MONTH_MAP[m[2].toLowerCase().slice(0, 3)];
     if (mo !== undefined) {
@@ -924,12 +924,12 @@ export async function GET() {
       };
     };
 
-    const top4 = pointsTable.slice(0, 4).map(t => t.abbr);
+    // Removed dynamic top4 fallback to ensure playoffs stay strictly "TBD" until officially scheduled
     const playoffs: PlayoffData = {
-      q1: getMatch(71, top4[0] || "1st Place", top4[1] || "2nd Place"),
-      eliminator: getMatch(72, top4[2] || "3rd Place", top4[3] || "4th Place"),
-      q2: getMatch(73, "Loser Q1", "Winner Eliminator"),
-      final: getMatch(74, "Winner Q1", "Winner Q2"),
+      q1: getMatch(71, "TBD", "TBD"),
+      eliminator: getMatch(72, "TBD", "TBD"),
+      q2: getMatch(73, "TBD", "TBD"),
+      final: getMatch(74, "TBD", "TBD"),
     };
 
     // Construct Today/Recent match from matchesData
