@@ -105,6 +105,7 @@ export interface IPLStatsResponse {
   highestScores: HighestScoreRow[];
   mostFifties: MostFiftiesRow[];
   playoffs: PlayoffData; // Added this
+  extraStats: ReturnType<typeof getExtraStats>;
 }
 
 // ─── Shared constants ─────────────────────────────────────────────────────────
@@ -1045,6 +1046,7 @@ export async function GET() {
       upcomingMatches: matchesData.upcomingMatches,
       highestScores: getMockHighestScores(),
       mostFifties: getMockMostFifties(),
+      extraStats: getExtraStats(),
       playoffs
     };
 
