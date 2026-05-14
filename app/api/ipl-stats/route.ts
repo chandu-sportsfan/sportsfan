@@ -762,9 +762,19 @@ function parseAllStats(html: string, pointsTable: TeamRow[]) {
     return data && data.length > 0 ? data : null;
   };
 
+  const rawHighest = getTable(0, "highest");
+  const highestScores = rawHighest 
+    ? rawHighest.map(r => ({ rank: r.rank, player: r.player, team: r.team, score: r.value }))
+    : getMockHighestScores();
+
+  const rawFifties = getTable(1, "fift");
+  const mostFifties = rawFifties
+    ? rawFifties.map(r => ({ rank: r.rank, player: r.player, team: r.team, fifties: Number(r.value) || 0 }))
+    : getMockMostFifties();
+
   return {
-    highestScores: (getTable(0, "highest") || getMockHighestScores() as any).map((r: any) => ({ rank: r.rank, player: r.player, team: r.team, score: r.value || r.score })),
-    mostFifties: (getTable(1, "fift") || getMockMostFifties() as any).map((r: any) => ({ rank: r.rank, player: r.player, team: r.team, fifties: Number(r.value || r.fifties) || 0 })),
+    highestScores,
+    mostFifties,
     extraStats: {
       maxSixes: getTable(2, "six") || getExtraStats().maxSixes,
       maxFours: getTable(3, "four") || getExtraStats().maxFours,
