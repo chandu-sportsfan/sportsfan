@@ -14,7 +14,9 @@ export async function GET() {
     }
 
     return NextResponse.json({ success: true, data: doc.data() });
-  } catch (error) {
+  } catch (error:unknown) {
+    if (error instanceof Error) {      console.error("Error fetching spotlight data:", error.message);
+    }
     return NextResponse.json({ success: false, message: "Fetch failed" }, { status: 500 });
   }
 }
@@ -31,7 +33,10 @@ export async function POST(req: NextRequest) {
 
     await db.collection("IPL_Pulse_Spotlight").doc("current").set(spotlightData);
     return NextResponse.json({ success: true, message: "Spotlight updated successfully" });
-  } catch (error) {
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error("Error updating spotlight data:", error.message);
+    }
     return NextResponse.json({ success: false, message: "Update failed" }, { status: 500 });
   }
 }
