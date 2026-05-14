@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET() {
   try {
     const cdnUrl = "https://res.cloudinary.com/dflnsufit/raw/upload/sf360/articles/articles_2026_05_13.json";
     
     const response = await fetch(cdnUrl, {
-      next: { revalidate: 3600 } 
+      cache: 'no-store',
     });
 
     if (!response.ok) {
@@ -13,7 +16,7 @@ export async function GET() {
     }
 
     const data = await response.json();
-    
+    //done
     // Return data with CORS headers allowing your frontend to read it
     return NextResponse.json(data, {
       status: 200,
