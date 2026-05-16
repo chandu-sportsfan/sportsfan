@@ -880,10 +880,10 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-const POINTS_TABLE_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/sf360/scripts/IPL_Points_Table_2026.html";
-const CAPS_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/sf360/scripts/IPL_Caps_2026.html";
-const MATCHES_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/sf360/scripts/IPL_Fixtures_2026.html";
-const STATS_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/sf360/scripts/ipl2026_dashboard.html"; // <-- Added this
+const POINTS_TABLE_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778892093/sf360/scripts/IPL_Points_Table_2026.html";
+const CAPS_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778892095/sf360/scripts/IPL_Caps_2026.html";
+const MATCHES_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778892097/sf360/scripts/IPL_Fixtures_2026.html";
+const STATS_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778895782/sf360/scripts/ipl2026_dashboard.html"; // <-- Added this
 
 export async function GET() {
   try {
