@@ -5,7 +5,7 @@ export const revalidate = 0;
 
 export async function GET() {
   try {
-    const cdnUrl = "https://res.cloudinary.com/dflnsufit/raw/upload/sf360/articles/articles_2026_05_13.json";
+    const cdnUrl = "https://res.cloudinary.com/dflnsufit/raw/upload/v1779017461/sf360/articles/articles_2026_05_17.json";
     
     // Add cache-busting query parameter with current timestamp
     const cacheBustUrl = `${cdnUrl}?t=${Date.now()}`;
