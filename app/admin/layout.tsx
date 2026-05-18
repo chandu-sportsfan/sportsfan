@@ -129,7 +129,7 @@ const NAV: NavGroup[] = [
         ],
       },
        {
-        label: "Audio Messages Screen", icon: "◉",
+        label: "Audio Content Screen", icon: "◉",
         children: [
           // { href: "/admin/hostloginscreen-management/add-hostroomlogin", label: "Add Host Login Form" },
           { href: "/admin/audiomessages-management", label: "Audio Messages List" },
@@ -179,10 +179,17 @@ const NAV: NavGroup[] = [
         ],
       },
       {
+        label: "User Preferences", icon: "◉",
+        children: [
+          { href: "/admin/preferences-management", label: "Preferences List" },
+        ],
+      },
+      {
         label: "IPL Pulse", icon: "◉",
         children: [
           { href: "/admin/spotlight-management/add-spotlight", label: "Add Spotlight" },
           { href: "/admin/spotlight-management/spotlight-list", label: "Spotlight List" },
+          { href: "/admin/iplpulse-management", label: "IPL Pulse Reports" },
         ],
       },
       // { href: "/admin/content", icon: "◧", label: "Content / Posts"   },

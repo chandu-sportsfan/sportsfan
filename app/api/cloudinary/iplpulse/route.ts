@@ -356,3 +356,41 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const searchParams = req.nextUrl.searchParams;
+    const publicId = searchParams.get("publicId");
+
+    if (!publicId) {
+      return NextResponse.json(
+        { success: false, error: "publicId parameter is required" },
+        { status: 400 }
+      );
+    }
+
+    // Delete raw resource from Cloudinary
+    const result = await cloudinary.uploader.destroy(publicId, {
+      resource_type: "raw",
+    });
+
+    if (result.result === "ok" || result.result === "not found") {
+      return NextResponse.json({
+        success: true,
+        message: "File deleted successfully",
+      });
+    } else {
+      throw new Error(`Failed to delete from Cloudinary: ${JSON.stringify(result)}`);
+    }
+  } catch (error) {
+    console.error("Error deleting IPL Pulse file:", error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Failed to delete file",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 }
+    );
+  }
+}
