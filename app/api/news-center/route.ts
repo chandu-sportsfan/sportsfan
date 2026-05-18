@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     const feedDateTimestamp = data.feed_date ? new Date(data.feed_date).getTime() : Date.now();
     
     if (data.articles && Array.isArray(data.articles)) {
-      data.articles = data.articles.map((article: any) => ({
+      data.articles = data.articles.map((article: Record<string, unknown>) => ({
         ...article,
         createdAt: feedDateTimestamp // Frontend uses this to format the date!
       }));
