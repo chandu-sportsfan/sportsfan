@@ -50,17 +50,34 @@ export default function IPLPulseManagementPage() {
     try {
       setDeletingId(publicId);
       const res = await axios.delete(`/api/cloudinary/iplpulse?publicId=${encodeURIComponent(publicId)}`);
-      
+
       if (res.data.success) {
         setFiles(files.filter(f => f.id !== publicId));
         alert("File deleted successfully!");
       } else {
         alert(`Error deleting file: ${res.data.error}`);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to delete file", error);
-      alert(`Failed to delete file: ${error.response?.data?.error || error.message}`);
-    } finally {
+
+      // Type-safe error message extraction
+      let errorMessage = "Unknown error occurred";
+
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+
+      // Check for axios error response
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { error?: string } } };
+        if (axiosError.response?.data?.error) {
+          errorMessage = axiosError.response.data.error;
+        }
+      }
+
+      alert(`Failed to delete file: ${errorMessage}`);
+    }
+    finally {
       setDeletingId(null);
     }
   };
