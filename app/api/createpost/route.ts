@@ -130,32 +130,108 @@
 
 
 
+
+
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { v4 as uuidv4 } from "uuid";
 import { awardUserPoints } from "@/lib/userPoints";
-import type { Post, Poll, PollOption, CreatePostPayload } from "@/types/createposts";
+import cloudinary from "@/lib/cloudinary";
+import type { Post, Poll, PollOption, CreatePostPayload, MediaItem } from "@/types/createposts";
 
 const POST_POINTS_REWARD = 12;
+
+// Type for the poll data coming from frontend
+interface PollInput {
+  options: string[];
+}
 
 // ─── POST  /api/createpost  — Create a new post ───────────────────────────────
 export async function POST(req: NextRequest) {
   try {
-    const body: CreatePostPayload & {
-      userId?: string;
-      userEmail?: string;
-    } = await req.json();
-
-    const {
-      userName,
-      userHandle,
-      userAvatar,
-      content,
-      media,
-      poll,
-      userId,
-      userEmail,
-    } = body;
+    // Check if request is multipart/form-data (has files) or JSON
+    const contentType = req.headers.get("content-type") || "";
+    
+    let userName: string | undefined;
+    let userHandle: string | undefined;
+    let userAvatar: string | undefined;
+    let content: string | undefined;
+    let pollInput: PollInput | null = null;
+    let userId: string | undefined;
+    let userEmail: string | undefined;
+    let mediaItems: MediaItem[] = [];
+    
+    if (contentType.includes("multipart/form-data")) {
+      // Handle form-data with file uploads
+      const formData = await req.formData();
+      
+      userName = formData.get("userName") as string;
+      userHandle = formData.get("userHandle") as string;
+      userAvatar = formData.get("userAvatar") as string;
+      content = formData.get("content") as string;
+      userId = formData.get("userId") as string;
+      userEmail = formData.get("userEmail") as string;
+      
+      // Parse poll if exists
+      const pollStr = formData.get("poll") as string;
+      if (pollStr) {
+        try {
+          pollInput = JSON.parse(pollStr) as PollInput;
+        } catch (e) {
+          console.error("Failed to parse poll:", e);
+        }
+      }
+      
+      // Handle media files
+      const mediaFiles = formData.getAll("media") as File[];
+      if (mediaFiles && mediaFiles.length > 0) {
+        // Upload each file to Cloudinary
+        for (const file of mediaFiles) {
+          const bytes = await file.arrayBuffer();
+          const buffer = Buffer.from(bytes);
+          const base64 = `data:${file.type};base64,${buffer.toString("base64")}`;
+          
+          const uploadRes = await cloudinary.uploader.upload(base64, {
+            folder: `social-posts/${userId || "anonymous"}`,
+            resource_type: "auto",
+            transformation: [
+              { quality: "auto", fetch_format: "auto" }
+            ]
+          });
+          
+          // Store as MediaItem type
+          mediaItems.push({
+            url: uploadRes.secure_url,
+            type: file.type.startsWith("video") ? "video" : "image",
+            name: file.name
+          });
+        }
+      }
+    } else {
+      // Handle JSON request (legacy support without file uploads)
+      const body: CreatePostPayload & {
+        userId?: string;
+        userEmail?: string;
+      } = await req.json();
+      
+      userName = body.userName;
+      userHandle = body.userHandle;
+      userAvatar = body.userAvatar;
+      content = body.content;
+      
+      // Handle poll from JSON body
+      if (body.poll && typeof body.poll === 'object' && Array.isArray(body.poll.options)) {
+        pollInput = { options: body.poll.options };
+      }
+      
+      userId = body.userId;
+      userEmail = body.userEmail;
+      
+      // For JSON requests, media should already be MediaItem[]
+      if (body.media && body.media.length > 0) {
+        mediaItems = body.media;
+      }
+    }
 
     // ── Validation ────────────────────────────────────────────────────────────
     if (!userName || !userHandle) {
@@ -165,7 +241,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!content && !media?.length && !poll) {
+    if (!content && mediaItems.length === 0 && !pollInput) {
       return NextResponse.json(
         { success: false, error: "Post must have content, media, or a poll" },
         { status: 400 }
@@ -174,10 +250,14 @@ export async function POST(req: NextRequest) {
 
     // ── Build poll ────────────────────────────────────────────────────────────
     let builtPoll: Poll | null = null;
-    if (poll && Array.isArray(poll.options) && poll.options.length >= 2) {
-      const options: PollOption[] = poll.options
-        .filter((o) => o.trim() !== "")
-        .map((text) => ({ id: uuidv4(), text: text.trim(), votes: 0 }));
+    if (pollInput && Array.isArray(pollInput.options) && pollInput.options.length >= 2) {
+      const options: PollOption[] = pollInput.options
+        .filter((option: string) => option.trim() !== "")
+        .map((optionText: string) => ({ 
+          id: uuidv4(), 
+          text: optionText.trim(), 
+          votes: 0 
+        }));
 
       if (options.length < 2) {
         return NextResponse.json(
@@ -195,14 +275,14 @@ export async function POST(req: NextRequest) {
       };
     }
 
-    // ── Save post ─────────────────────────────────────────────────────────────
+    // ── Save post with Cloudinary URLs ────────────────────────────────────────
     const now = Date.now();
     const newPost: Omit<Post, "id"> = {
       userName,
       userHandle,
       userAvatar: userAvatar || "",
       content: content || "",
-      media: media || [],
+      media: mediaItems,
       poll: builtPoll,
       likes: 0,
       likedBy: [],
@@ -213,34 +293,31 @@ export async function POST(req: NextRequest) {
     const docRef = await db.collection("socialPosts").add(newPost);
 
     // ── Award +12 points ──────────────────────────────────────────────────────
-    // Only when a real userId is supplied (guests don't earn points).
-    // transactionId is deterministic — double-submits never double-award.
     let pointsAwarded = 0;
 
     if (userId) {
       try {
-        // Resolve / ensure user doc exists (mirrors battle API pattern)
         const userSnap = await db.collection("users").doc(userId).get();
         const userExists = userSnap.exists;
 
-        let resolvedName  = userName;
-        let resolvedEmail = userEmail || "";
+        let resolvedName: string = userName;
+        let resolvedEmail: string = userEmail || "";
 
         if (userExists) {
-          const data = userSnap.data()!;
-          resolvedName =
-            data.firstName
+          const data = userSnap.data();
+          if (data) {
+            resolvedName = data.firstName
               ? [data.firstName, data.lastName].filter(Boolean).join(" ")
               : data.name || userName;
-          resolvedEmail = resolvedEmail || data.email || "";
+            resolvedEmail = resolvedEmail || data.email || "";
+          }
         } else {
-          // Create a minimal user doc so awardUserPoints can update it
           await db.collection("users").doc(userId).set({
             userId,
             email: resolvedEmail,
             name: resolvedName,
             firstName: resolvedName.split(" ")[0] || "",
-            lastName:  resolvedName.split(" ")[1] || "",
+            lastName: resolvedName.split(" ")[1] || "",
             totalPoints: 0,
             pointsBreakdown: {},
             createdAt: now,
@@ -251,12 +328,12 @@ export async function POST(req: NextRequest) {
         }
 
         await awardUserPoints({
-          actualUserId:  userId,
-          userName:      resolvedName,
-          userEmail:     resolvedEmail,
-          userExists:    true, // created above if it didn't exist
-          points:        POST_POINTS_REWARD,
-          reason:        "CREATE_POST",
+          actualUserId: userId,
+          userName: resolvedName,
+          userEmail: resolvedEmail,
+          userExists: true,
+          points: POST_POINTS_REWARD,
+          reason: "CREATE_POST",
           transactionId: `${userId}_${docRef.id}_CREATE_POST`,
           metadata: { postId: docRef.id },
         });
@@ -264,7 +341,6 @@ export async function POST(req: NextRequest) {
         pointsAwarded = POST_POINTS_REWARD;
         console.log(`✅ Post created: ${docRef.id} | +${POST_POINTS_REWARD} pts awarded to ${userId}`);
       } catch (pointsErr) {
-        // Points failure is non-critical — post is already saved
         console.error("[createpost] Failed to award points:", pointsErr);
       }
     }
@@ -288,7 +364,6 @@ export async function POST(req: NextRequest) {
 }
 
 // ─── GET  /api/createpost  — Fetch posts (paginated) ─────────────────────────
-// Query params: limit, lastDocId, lastDocCreatedAt
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
