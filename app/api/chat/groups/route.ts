@@ -1,0 +1,1 @@
+// app/api/chat/groups/route.ts
