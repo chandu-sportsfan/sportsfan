@@ -21,9 +21,9 @@ export type MediaItem = {
 
 export type Post = {
   id?: string;
-  authorName: string;
-  authorAvatar?: string;
-  authorHandle: string;
+  userName: string;
+  userAvatar?: string;
+  userHandle: string;
   content: string;
   media?: MediaItem[];
   poll?: Poll | null;
@@ -34,9 +34,9 @@ export type Post = {
 };
 
 export type CreatePostPayload = {
-  authorName: string;
-  authorAvatar?: string;
-  authorHandle: string;
+  userName: string;
+  userAvatar?: string;
+  userHandle: string;
   content: string;
   media?: MediaItem[];
   poll?: {

@@ -147,9 +147,9 @@ export async function POST(req: NextRequest) {
     } = await req.json();
 
     const {
-      authorName,
-      authorHandle,
-      authorAvatar,
+      userName,
+      userHandle,
+      userAvatar,
       content,
       media,
       poll,
@@ -158,9 +158,9 @@ export async function POST(req: NextRequest) {
     } = body;
 
     // ── Validation ────────────────────────────────────────────────────────────
-    if (!authorName || !authorHandle) {
+    if (!userName || !userHandle) {
       return NextResponse.json(
-        { success: false, error: "authorName and authorHandle are required" },
+        { success: false, error: "userName and userHandle are required" },
         { status: 400 }
       );
     }
@@ -198,9 +198,9 @@ export async function POST(req: NextRequest) {
     // ── Save post ─────────────────────────────────────────────────────────────
     const now = Date.now();
     const newPost: Omit<Post, "id"> = {
-      authorName,
-      authorHandle,
-      authorAvatar: authorAvatar || "",
+      userName,
+      userHandle,
+      userAvatar: userAvatar || "",
       content: content || "",
       media: media || [],
       poll: builtPoll,
@@ -223,7 +223,7 @@ export async function POST(req: NextRequest) {
         const userSnap = await db.collection("users").doc(userId).get();
         const userExists = userSnap.exists;
 
-        let resolvedName  = authorName;
+        let resolvedName  = userName;
         let resolvedEmail = userEmail || "";
 
         if (userExists) {
@@ -231,7 +231,7 @@ export async function POST(req: NextRequest) {
           resolvedName =
             data.firstName
               ? [data.firstName, data.lastName].filter(Boolean).join(" ")
-              : data.name || authorName;
+              : data.name || userName;
           resolvedEmail = resolvedEmail || data.email || "";
         } else {
           // Create a minimal user doc so awardUserPoints can update it
