@@ -880,18 +880,37 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-const POINTS_TABLE_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1779240421/sf360/scripts/IPL_Points_Table_2026_05_20.html";
-const CAPS_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1779240628/sf360/scripts/IPL_Caps_2026_05_20.html";
-const MATCHES_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1779240423/sf360/scripts/IPL_Fixtures_2026_05_20.html";
-const STATS_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1779240428/sf360/scripts/ipl2026_dashboard_2026_05_20.html"; // <-- Added this
+// const POINTS_TABLE_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778977742/sf360/scripts/IPL_Points_Table_2026.html";
+// const CAPS_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778977754/sf360/scripts/IPL_Caps_2026.html";
+// const MATCHES_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778978436/sf360/scripts/IPL_Fixtures_2026.html";
+// const STATS_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778977593/sf360/scripts/ipl2026_dashboard.html"; // <-- Added this
 
 export async function GET() {
   try {
+    // 1. Calculate today's UTC Date.
+    // At exactly 5:30 AM IST, this will automatically roll over to the next day!
+    const nnow = new Date();
+    const yyyy = nnow.getUTCFullYear();
+    const mm = String(nnow.getUTCMonth() + 1).padStart(2, "0");
+    const dd = String(nnow.getUTCDate()).padStart(2, "0");
+    
+    // Result looks like "2026_05_19"
+    const dateStr = `${yyyy}_${mm}_${dd}`; 
+
+    // 2. Build the 4 dynamic URLs pointing to your existing Cloudinary folder
+    const baseUrl = "https://res.cloudinary.com/dflnsufit/raw/upload/sf360/scripts";
+    
+    const POINTS_TABLE_URL = `${baseUrl}/IPL_Points_Table_${dateStr}.html`;
+    const CAPS_URL = `${baseUrl}/IPL_Caps_${dateStr}.html`;
+    const MATCHES_URL = `${baseUrl}/IPL_Fixtures_${dateStr}.html`;
+    const STATS_URL = `${baseUrl}/ipl2026_dashboard_${dateStr}.html`;
+
+    // 3. Fetch all four dynamic URLs concurrently
     const [pointsRes, capsRes, matchesRes, statsRes] = await Promise.all([
       fetch(POINTS_TABLE_URL, { cache: "no-store" }),
       fetch(CAPS_URL,         { cache: "no-store" }),
       fetch(MATCHES_URL,      { cache: "no-store" }),
-      fetch(STATS_URL,        { cache: "no-store" }), // <-- Added Stats Fetch
+      fetch(STATS_URL,        { cache: "no-store" }),
     ]);
 
     if (!pointsRes.ok || !capsRes.ok) throw new Error("Core CDN fetch failed");
@@ -900,7 +919,7 @@ export async function GET() {
       pointsRes.text(), 
       capsRes.text(), 
       matchesRes.ok ? matchesRes.text() : Promise.resolve(""),
-      statsRes.ok ? statsRes.text() : Promise.resolve("") // <-- Added Stats HTML
+      statsRes.ok ? statsRes.text() : Promise.resolve("") 
     ]);
 
     const pointsTable = parsePointsTable(pointsHtml);
