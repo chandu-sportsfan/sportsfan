@@ -1,5 +1,5 @@
 //api/auth/google-signup/route.ts
-// chnadu's code
+// chandu's code
 
 // import { NextRequest, NextResponse } from "next/server";
 // import { db } from "@/lib/firebaseAdmin";
@@ -77,9 +77,15 @@
 
 
 
-
+//api/auth/google-signup/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
+
+// Helper function to generate consistent user ID
+function generateConsistentUserId(email: string): string {
+  // Remove special characters and make it consistent
+  return email.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_");
+}
 
 export async function POST(req: NextRequest) {
     try {
@@ -91,55 +97,79 @@ export async function POST(req: NextRequest) {
 
         const userRef = db.collection("users").doc(email);
         const userDoc = await userRef.get();
+        
+        const consistentUserId = generateConsistentUserId(email);
+        const nameParts = (name ?? "").split(" ");
+        const firstName = nameParts[0] ?? "";
+        const lastName = nameParts.slice(1).join(" ") ?? "";
 
         if (!userDoc.exists) {
-            // New user — save to Firebase
-            const nameParts = (name ?? "").split(" ");
-            const userId = `google_${email.replace(/[^a-zA-Z0-9]/g, "_")}_${Date.now()}`;
-
+            // New user — create with consistent ID
             await userRef.set({
                 email,
-                userId,
-                firstName: nameParts[0] ?? "",
-                lastName: nameParts.slice(1).join(" ") ?? "",
+                userId: consistentUserId, // Use consistent ID, not google_xxx
+                firstName,
+                lastName,
                 avatar: avatar ?? "",
                 provider: "google",
+                authProviders: { google: true, emailPassword: false },
                 isVerified: true,
                 status: "active",
                 role: "user",
+                totalPoints: 0,
+                pointsBreakdown: {},
                 createdAt: Date.now(),
                 updatedAt: Date.now(),
+                lastLoginAt: Date.now(),
             });
 
             return NextResponse.json({
                 success: true,
                 isNewUser: true,
-                userId,
-                firstName: nameParts[0] ?? "",
-                lastName: nameParts.slice(1).join(" ") ?? "",
+                userId: consistentUserId,
+                firstName,
+                lastName,
                 role: "user",
                 status: "active",
             });
         }
 
-        // Existing user
+        // Existing user — just update, don't change userId
         const data = userDoc.data()!;
 
         if (data.status === "disabled") {
             return NextResponse.json({ error: "Account disabled" }, { status: 403 });
         }
 
-        await userRef.update({
+        // If user exists but doesn't have google provider flag, add it
+        const updateData: Record<string, unknown> = {
             lastLoginAt: Date.now(),
             updatedAt: Date.now(),
-        });
+        };
+        
+        if (!data.authProviders?.google) {
+            updateData['authProviders.google'] = true;
+        }
+        
+        // If user exists but missing firstName/lastName, update them
+        if (!data.firstName && firstName) {
+            updateData.firstName = firstName;
+            updateData.lastName = lastName;
+        }
+        
+        // If user exists but no avatar and we have one
+        if (!data.avatar && avatar) {
+            updateData.avatar = avatar;
+        }
+
+        await userRef.update(updateData);
 
         return NextResponse.json({
             success: true,
             isNewUser: false,
-            userId: data.userId,
-            firstName: data.firstName,
-            lastName: data.lastName,
+            userId: data.userId || consistentUserId, // Use existing userId
+            firstName: data.firstName || firstName,
+            lastName: data.lastName || lastName,
             role: data.role || "user",
             status: data.status || "active",
         });
