@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-
+import { NextRequest, NextResponse } from "next/server";
+import cloudinary from "@/lib/cloudinary"; // <-- Add this
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface TeamRow {
@@ -108,6 +108,62 @@ export interface IPLStatsResponse {
   extraStats: ReturnType<typeof getExtraStats>;
 }
 
+// ─── Admin List Helpers ───────────────────────────────────────────────────────
+interface CloudinaryApiParams {
+  resource_type: string;
+  type: string;
+  prefix: string;
+  max_results: number;
+  next_cursor?: string;
+}
+
+interface CloudinaryResource {
+  public_id: string;
+  secure_url: string;
+  created_at: string;
+  bytes: number;
+  format: string;
+  display_name: string;
+}
+
+interface ScriptFileMeta {
+  id: string;
+  fileName: string;
+  url: string;
+  size: number;
+  sizeFormatted: string;
+  createdAt: string;
+  reportDate: string | null;
+  reportDateFormatted: string | null;
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function extractReportDate(fileName: string): string | null {
+  const underscoreMatch = fileName.match(/(\d{4})_(\d{2})_(\d{2})(?:\.|$)/);
+  if (underscoreMatch) {
+    return `${underscoreMatch[1]}-${underscoreMatch[2]}-${underscoreMatch[3]}`;
+  }
+  const dashMatch = fileName.match(/(\d{4}-\d{2}-\d{2})/);
+  return dashMatch ? dashMatch[1] : null;
+}
+
+function formatReportDate(dateStr: string | null): string | null {
+  if (!dateStr) return null;
+  try {
+    return new Date(dateStr + "T00:00:00").toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return dateStr;
+  }
+}
 // ─── Shared constants ─────────────────────────────────────────────────────────
 
 const MONTH_ABBR = [
@@ -664,7 +720,7 @@ function parseMatches(html: string): {
   }
 
   const cards = Array.from(cardsMap.values());
-  cards.sort((a, b) => a.matchNo - b.matchNo);
+  cards.sort((a: InternalMatchCard, b: InternalMatchCard) => a.matchNo - b.matchNo);
 
   const cleanCards: MatchCard[] = cards.map(({ _isDesktop, _hasRealResult, _scoreA, _scoreB, _oversA, _oversB, ...rest }) => rest as MatchCard);
 
@@ -672,8 +728,8 @@ function parseMatches(html: string): {
     todayMatch: {} as TodayMatch,
     recentMatch: {} as RecentMatch,
     allCards: cleanCards,
-    rawCompletedMatches: cards.filter(c => c.status === "completed").sort((a, b) => b.matchNo - a.matchNo),
-    recentMatches: cleanCards.filter(c => c.status === "completed").sort((a, b) => b.matchNo - a.matchNo),
+    rawCompletedMatches: cards.filter(c => c.status === "completed").sort((a: InternalMatchCard, b: InternalMatchCard) => b.matchNo - a.matchNo),
+    recentMatches: cleanCards.filter(c => c.status === "completed").sort((a: MatchCard, b: MatchCard) => b.matchNo - a.matchNo),
     upcomingMatches: cleanCards.filter(c => c.status !== "completed") 
   };
 }
@@ -880,32 +936,151 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-const POINTS_TABLE_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1779151982/sf360/scripts/IPL_Points_Table_2026.html";
-const CAPS_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1779151984/sf360/scripts/IPL_Caps_2026.html";
-const MATCHES_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1779151988/sf360/scripts/IPL_Fixtures_2026.html";
-const STATS_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1779151993/sf360/scripts/ipl2026_dashboard.html"; // <-- Added this
+// const POINTS_TABLE_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778977742/sf360/scripts/IPL_Points_Table_2026.html";
+// const CAPS_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778977754/sf360/scripts/IPL_Caps_2026.html";
+// const MATCHES_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778978436/sf360/scripts/IPL_Fixtures_2026.html";
+// const STATS_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778977593/sf360/scripts/ipl2026_dashboard.html"; // <-- Added this
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const [pointsRes, capsRes, matchesRes, statsRes] = await Promise.all([
-      fetch(POINTS_TABLE_URL, { cache: "no-store" }),
-      fetch(CAPS_URL,         { cache: "no-store" }),
-      fetch(MATCHES_URL,      { cache: "no-store" }),
-      fetch(STATS_URL,        { cache: "no-store" }), // <-- Added Stats Fetch
-    ]);
+    const searchParams = req.nextUrl.searchParams;
+    const mode = searchParams.get("mode") || "latest"; // "latest" is default for frontend
+    const nextCursor = searchParams.get("nextCursor");
 
-    if (!pointsRes.ok || !capsRes.ok) throw new Error("Core CDN fetch failed");
+    // ── MODE: LIST (For the Admin Panel) ──────────────────────────────────────
+    if (mode === "list") {
+      const params: CloudinaryApiParams = {
+        resource_type: "raw",
+        type: "upload",
+        prefix: "sf360/scripts", // Looks inside your scripts folder
+        max_results: 100,        // Raised to 100 because there are 4 files per day
+      };
+      if (nextCursor) params.next_cursor = nextCursor;
 
+      const result = await cloudinary.api.resources(params);
+
+      const files: ScriptFileMeta[] = result.resources
+        .map((r: CloudinaryResource) => {
+          const fileName = r.display_name || r.public_id.split("/").pop() || r.public_id;
+          const reportDate = extractReportDate(fileName);
+          return {
+            id: r.public_id,
+            fileName,
+            url: r.secure_url,
+            size: r.bytes,
+            sizeFormatted: formatFileSize(r.bytes),
+            createdAt: r.created_at,
+            reportDate,
+            reportDateFormatted: formatReportDate(reportDate),
+          };
+        })
+        // 👇 Add the explicit types here
+        .sort((a: ScriptFileMeta, b: ScriptFileMeta) => {
+          // Sorts newest to oldest based on the date in the filename
+          if (!a.reportDate && !b.reportDate) return 0;
+          if (!a.reportDate) return 1;
+          if (!b.reportDate) return -1;
+          return b.reportDate.localeCompare(a.reportDate);
+        });
+
+      const datedFiles = files.filter(f => !!f.reportDate);
+
+      return NextResponse.json({
+        success: true,
+        files: datedFiles,
+        totalCount: datedFiles.length,
+        pagination: {
+          hasMore: !!result.next_cursor,
+          nextCursor: result.next_cursor || null,
+        },
+      });
+    }
+
+    // ── MODE: LATEST (Standard 5:30 AM IST Rollover with Smart Fallback) ──────
+
+    // ── MODE: LATEST (Test Mode - 11:50 AM Rollover with Smart Fallback) ──────
+
+    const nnow = new Date();
+    
+    // 1. Calculate current IST time for our trigger check
+    const istTime = new Date(nnow.getTime() + (5.5 * 60 * 60 * 1000));
+    
+    // 2. Check if the clock has hit 11:50 AM IST (or later)
+    const isPastTestTime = istTime.getUTCHours() > 11 || (istTime.getUTCHours() === 11 && istTime.getUTCMinutes() >= 50);
+    
+    // 3. If it's 11:50 AM or later, push the date forward by 1 day!
+    if (isPastTestTime) {
+      nnow.setUTCDate(nnow.getUTCDate() + 1);
+    }
+
+    const yyyy = nnow.getUTCFullYear();
+    const mm = String(nnow.getUTCMonth() + 1).padStart(2, "0");
+    const dd = String(nnow.getUTCDate()).padStart(2, "0");
+    
+    let targetDateStr = `${yyyy}_${mm}_${dd}`; 
+    const baseUrl = "https://res.cloudinary.com/dflnsufit/raw/upload/sf360/scripts";
+
+    // 2. Helper function to fetch all 4 files for a given date
+    const fetchAllData = async (dateStr: string) => {
+    // ... KEEP YOUR EXISTING SMART FALLBACK CODE BELOW THIS LINE ...
+      const [pointsRes, capsRes, matchesRes, statsRes] = await Promise.all([
+        fetch(`${baseUrl}/IPL_Points_Table_${dateStr}.html`, { cache: "no-store" }),
+        fetch(`${baseUrl}/IPL_Caps_${dateStr}.html`,         { cache: "no-store" }),
+        fetch(`${baseUrl}/IPL_Fixtures_${dateStr}.html`,      { cache: "no-store" }),
+        fetch(`${baseUrl}/ipl2026_dashboard_${dateStr}.html`, { cache: "no-store" }),
+      ]);
+      return { pointsRes, capsRes, matchesRes, statsRes, isOk: pointsRes.ok && capsRes.ok };
+    };
+
+    // 3. First attempt: Try today's date
+    let fetchResults = await fetchAllData(targetDateStr);
+
+    // 4. THE FALLBACK: If today's files aren't found, find the most recent ones!
+    if (!fetchResults.isOk) {
+      const listParams: CloudinaryApiParams = {
+        resource_type: "raw",
+        type: "upload",
+        prefix: "sf360/scripts/IPL_Points_Table", // Just check points tables to find the latest date
+        max_results: 10,
+      };
+
+      const result = await cloudinary.api.resources(listParams);
+      
+      const validDates = result.resources
+        .map((r: CloudinaryResource) => {
+          const fileName = r.display_name || r.public_id.split("/").pop() || r.public_id;
+          return extractReportDate(fileName);
+        })
+        .filter((date: string | null): date is string => !!date)
+        .sort((a: string, b: string) => b.localeCompare(a)); // Sort newest first
+
+      if (validDates.length > 0) {
+        // extractReportDate returns YYYY-MM-DD. We convert it back to YYYY_MM_DD for the URLs.
+        targetDateStr = validDates[0].replace(/-/g, "_");
+        
+        // Second attempt: Fetch using the verified latest date
+        fetchResults = await fetchAllData(targetDateStr);
+      }
+
+      // If it STILL fails after the fallback, then we throw the error
+      if (!fetchResults.isOk) {
+        throw new Error("Core CDN fetch failed for both current and fallback dates.");
+      }
+    }
+
+    // 5. Extract the HTML from our successful fetch
     const [pointsHtml, capsHtml, matchesHtml, statsHtml] = await Promise.all([
-      pointsRes.text(), 
-      capsRes.text(), 
-      matchesRes.ok ? matchesRes.text() : Promise.resolve(""),
-      statsRes.ok ? statsRes.text() : Promise.resolve("") // <-- Added Stats HTML
+      fetchResults.pointsRes.text(), 
+      fetchResults.capsRes.text(), 
+      fetchResults.matchesRes.ok ? fetchResults.matchesRes.text() : Promise.resolve(""),
+      fetchResults.statsRes.ok ? fetchResults.statsRes.text() : Promise.resolve("") 
     ]);
 
     const pointsTable = parsePointsTable(pointsHtml);
     const { orange: orangeCap, purple: purpleCap } = parseCaps(capsHtml, pointsTable);
-    const matchesData = parseMatches(matchesHtml);
+    
+    // 👇 ADD THIS LINE BACK IN
+    const matchesData = parseMatches(matchesHtml); 
     
     // <-- Added parsing hook here
     const parsedDashboard = statsHtml ? parseAllStats(statsHtml, pointsTable) : {
