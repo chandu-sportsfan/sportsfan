@@ -720,7 +720,7 @@ function parseMatches(html: string): {
   }
 
   const cards = Array.from(cardsMap.values());
-  cards.sort((a, b) => a.matchNo - b.matchNo);
+  cards.sort((a: InternalMatchCard, b: InternalMatchCard) => a.matchNo - b.matchNo);
 
   const cleanCards: MatchCard[] = cards.map(({ _isDesktop, _hasRealResult, _scoreA, _scoreB, _oversA, _oversB, ...rest }) => rest as MatchCard);
 
@@ -728,8 +728,8 @@ function parseMatches(html: string): {
     todayMatch: {} as TodayMatch,
     recentMatch: {} as RecentMatch,
     allCards: cleanCards,
-    rawCompletedMatches: cards.filter(c => c.status === "completed").sort((a, b) => b.matchNo - a.matchNo),
-    recentMatches: cleanCards.filter(c => c.status === "completed").sort((a, b) => b.matchNo - a.matchNo),
+    rawCompletedMatches: cards.filter(c => c.status === "completed").sort((a: InternalMatchCard, b: InternalMatchCard) => b.matchNo - a.matchNo),
+    recentMatches: cleanCards.filter(c => c.status === "completed").sort((a: MatchCard, b: MatchCard) => b.matchNo - a.matchNo),
     upcomingMatches: cleanCards.filter(c => c.status !== "completed") 
   };
 }
@@ -974,7 +974,8 @@ export async function GET(req: NextRequest) {
             reportDateFormatted: formatReportDate(reportDate),
           };
         })
-        .sort((a, b) => {
+        // 👇 Add the explicit types here
+        .sort((a: ScriptFileMeta, b: ScriptFileMeta) => {
           // Sorts newest to oldest based on the date in the filename
           if (!a.reportDate && !b.reportDate) return 0;
           if (!a.reportDate) return 1;
@@ -1000,17 +1001,17 @@ export async function GET(req: NextRequest) {
     // 1. Calculate today's UTC Date.
     // ── MODE: LATEST (Test Mode - 9:40 AM Rollover) ───────────────
     
-    // ── MODE: LATEST (Test Mode - 10:00 AM Rollover) ───────────────
+    // ── MODE: LATEST (Test Mode - 11:25 AM Rollover) ───────────────
     
     const nnow = new Date();
     
     // 1. Calculate current IST time for our trigger check
     const istTime = new Date(nnow.getTime() + (5.5 * 60 * 60 * 1000));
     
-    // 2. Check if the clock has hit 10:00 AM IST (or later)
-    const isPastTestTime = istTime.getUTCHours() >= 10;
+    // 2. Check if the clock has hit 11:25 AM IST (or later)
+    const isPastTestTime = istTime.getUTCHours() > 11 || (istTime.getUTCHours() === 11 && istTime.getUTCMinutes() >= 25);
     
-    // 3. If it's 10:00 AM or later, push the date forward by 1 day!
+    // 3. If it's 11:25 AM or later, push the date forward by 1 day!
     if (isPastTestTime) {
       nnow.setUTCDate(nnow.getUTCDate() + 1);
     }
