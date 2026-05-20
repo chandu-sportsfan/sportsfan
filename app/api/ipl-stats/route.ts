@@ -880,10 +880,10 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-const POINTS_TABLE_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1779151982/sf360/scripts/IPL_Points_Table_2026.html";
-const CAPS_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1779151984/sf360/scripts/IPL_Caps_2026.html";
-const MATCHES_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1779151988/sf360/scripts/IPL_Fixtures_2026.html";
-const STATS_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1779151993/sf360/scripts/ipl2026_dashboard.html"; // <-- Added this
+const POINTS_TABLE_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1779240421/sf360/scripts/IPL_Points_Table_2026_05_20.html";
+const CAPS_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1779240628/sf360/scripts/IPL_Caps_2026_05_20.html";
+const MATCHES_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1779240423/sf360/scripts/IPL_Fixtures_2026_05_20.html";
+const STATS_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1779240428/sf360/scripts/ipl2026_dashboard_2026_05_20.html"; // <-- Added this
 
 export async function GET() {
   try {
