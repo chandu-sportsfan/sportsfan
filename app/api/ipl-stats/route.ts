@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-
+import { NextRequest, NextResponse } from "next/server";
+import cloudinary from "@/lib/cloudinary"; // <-- Add this
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface TeamRow {
@@ -108,6 +108,55 @@ export interface IPLStatsResponse {
   extraStats: ReturnType<typeof getExtraStats>;
 }
 
+// ─── Admin List Helpers ───────────────────────────────────────────────────────
+
+interface CloudinaryResource {
+  public_id: string;
+  secure_url: string;
+  created_at: string;
+  bytes: number;
+  format: string;
+  display_name: string;
+}
+
+interface ScriptFileMeta {
+  id: string;
+  fileName: string;
+  url: string;
+  size: number;
+  sizeFormatted: string;
+  createdAt: string;
+  reportDate: string | null;
+  reportDateFormatted: string | null;
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function extractReportDate(fileName: string): string | null {
+  const underscoreMatch = fileName.match(/(\d{4})_(\d{2})_(\d{2})(?:\.|$)/);
+  if (underscoreMatch) {
+    return `${underscoreMatch[1]}-${underscoreMatch[2]}-${underscoreMatch[3]}`;
+  }
+  const dashMatch = fileName.match(/(\d{4}-\d{2}-\d{2})/);
+  return dashMatch ? dashMatch[1] : null;
+}
+
+function formatReportDate(dateStr: string | null): string | null {
+  if (!dateStr) return null;
+  try {
+    return new Date(dateStr + "T00:00:00").toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return dateStr;
+  }
+}
 // ─── Shared constants ─────────────────────────────────────────────────────────
 
 const MONTH_ABBR = [
@@ -885,19 +934,85 @@ const CORS_HEADERS = {
 // const MATCHES_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778978436/sf360/scripts/IPL_Fixtures_2026.html";
 // const STATS_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778977593/sf360/scripts/ipl2026_dashboard.html"; // <-- Added this
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const searchParams = req.nextUrl.searchParams;
+    const mode = searchParams.get("mode") || "latest"; // "latest" is default for frontend
+    const nextCursor = searchParams.get("nextCursor");
+
+    // ── MODE: LIST (For the Admin Panel) ──────────────────────────────────────
+    if (mode === "list") {
+      const params: CloudinaryApiParams = {
+        resource_type: "raw",
+        type: "upload",
+        prefix: "sf360/scripts", // Looks inside your scripts folder
+        max_results: 100,        // Raised to 100 because there are 4 files per day
+      };
+      if (nextCursor) params.next_cursor = nextCursor;
+
+      const result = await cloudinary.api.resources(params);
+
+      const files: ScriptFileMeta[] = result.resources
+        .map((r: CloudinaryResource) => {
+          const fileName = r.display_name || r.public_id.split("/").pop() || r.public_id;
+          const reportDate = extractReportDate(fileName);
+          return {
+            id: r.public_id,
+            fileName,
+            url: r.secure_url,
+            size: r.bytes,
+            sizeFormatted: formatFileSize(r.bytes),
+            createdAt: r.created_at,
+            reportDate,
+            reportDateFormatted: formatReportDate(reportDate),
+          };
+        })
+        .sort((a, b) => {
+          // Sorts newest to oldest based on the date in the filename
+          if (!a.reportDate && !b.reportDate) return 0;
+          if (!a.reportDate) return 1;
+          if (!b.reportDate) return -1;
+          return b.reportDate.localeCompare(a.reportDate);
+        });
+
+      const datedFiles = files.filter(f => !!f.reportDate);
+
+      return NextResponse.json({
+        success: true,
+        files: datedFiles,
+        totalCount: datedFiles.length,
+        pagination: {
+          hasMore: !!result.next_cursor,
+          nextCursor: result.next_cursor || null,
+        },
+      });
+    }
+
+    // ── MODE: LATEST (Your existing 5:30 AM Match Center Logic) ───────────────
+    
     // 1. Calculate today's UTC Date.
-    // At exactly 5:30 AM IST, this will automatically roll over to the next day!
+    // ── MODE: LATEST (Test Mode - 9:40 AM Rollover) ───────────────
+    
+    // ── MODE: LATEST (Test Mode - 10:00 AM Rollover) ───────────────
+    
     const nnow = new Date();
+    
+    // 1. Calculate current IST time for our trigger check
+    const istTime = new Date(nnow.getTime() + (5.5 * 60 * 60 * 1000));
+    
+    // 2. Check if the clock has hit 10:00 AM IST (or later)
+    const isPastTestTime = istTime.getUTCHours() >= 10;
+    
+    // 3. If it's 10:00 AM or later, push the date forward by 1 day!
+    if (isPastTestTime) {
+      nnow.setUTCDate(nnow.getUTCDate() + 1);
+    }
+
     const yyyy = nnow.getUTCFullYear();
     const mm = String(nnow.getUTCMonth() + 1).padStart(2, "0");
     const dd = String(nnow.getUTCDate()).padStart(2, "0");
     
-    // Result looks like "2026_05_19"
     const dateStr = `${yyyy}_${mm}_${dd}`; 
-
-    // 2. Build the 4 dynamic URLs pointing to your existing Cloudinary folder
     const baseUrl = "https://res.cloudinary.com/dflnsufit/raw/upload/sf360/scripts";
     
     const POINTS_TABLE_URL = `${baseUrl}/IPL_Points_Table_${dateStr}.html`;
