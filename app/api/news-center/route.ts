@@ -5,46 +5,55 @@ export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   try {
-    // 1. Get requested date or default to the newest one
     const searchParams = req.nextUrl.searchParams;
-    const dateParam = searchParams.get('date') || '2026-05-17'; 
+    // Default to a fallback date if none provided
+    const dateParam = searchParams.get('date') || '2026-05-19'; 
     
-    // Convert '2026-05-17' into '2026_05_17' for the CDN filename
-    const formattedDate = dateParam.replace(/-/g, '_');
+    // Split the date string into an array (handles single dates or comma-separated lists)
+    const dates = dateParam.split(',');
     
-    // Cloudinary raw URLs work without the version (v1779...) number!
-    const cdnUrl = `https://res.cloudinary.com/dflnsufit/raw/upload/sf360/articles/articles_${formattedDate}.json`;
-    
-    // Add cache-busting query parameter with current timestamp
-    const cacheBustUrl = `${cdnUrl}?t=${Date.now()}`;
-    
-    const response = await fetch(cacheBustUrl, {
-      cache: 'no-store',
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
+    // Fetch all requested date files in parallel
+    const fetchPromises = dates.map(async (dateStr) => {
+      const formattedDate = dateStr.trim().replace(/-/g, '_');
+      const cdnUrl = `https://res.cloudinary.com/dflnsufit/raw/upload/sf360/articles/articles_${formattedDate}.json`;
+      const cacheBustUrl = `${cdnUrl}?t=${Date.now()}`;
+      
+      try {
+        const response = await fetch(cacheBustUrl, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+          }
+        });
+        
+        if (!response.ok) return null; // If a day is missing, skip it gracefully
+        return await response.json();
+      } catch (err) {
+        console.warn(`Failed to fetch news for ${formattedDate}`, err);
+        return null;
       }
     });
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch from CDN');
-    }
-
-    const data = await response.json();
+    const results = await Promise.all(fetchPromises);
     
-    // 2. FIX THE DATES: Extract the feed_date and attach it to each article
-    const feedDateTimestamp = data.feed_date ? new Date(data.feed_date).getTime() : Date.now();
+    // Merge all successful article arrays together
+    const allArticles: Record<string, unknown>[] = [];
     
-    if (data.articles && Array.isArray(data.articles)) {
-      data.articles = data.articles.map((article: Record<string, unknown>) => ({
-        ...article,
-        createdAt: feedDateTimestamp // Frontend uses this to format the date!
-      }));
-    }
+    results.forEach((data) => {
+      if (data && data.articles && Array.isArray(data.articles)) {
+        // Extract the feed_date and attach it to each article for sorting
+        const feedDateTimestamp = data.feed_date ? new Date(data.feed_date).getTime() : Date.now();
+        const mappedArticles = data.articles.map((article: Record<string, unknown>) => ({
+          ...article,
+          createdAt: feedDateTimestamp
+        }));
+        allArticles.push(...mappedArticles);
+      }
+    });
     
-    // Return data with strong cache-busting headers
-    return NextResponse.json(data, {
+    return NextResponse.json({ articles: allArticles }, {
       status: 200,
       headers: {
         'Access-Control-Allow-Origin': '*',

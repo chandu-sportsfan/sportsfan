@@ -120,7 +120,7 @@
 
 
 
-
+// api/auth/login/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import bcrypt from "bcryptjs";
@@ -179,11 +179,17 @@ export async function POST(req: NextRequest) {
     const requiresPasswordChange = user.role === "host" && user.isFirstLogin === true;
 
     // ── 4.5 Backfill userId if missing ─────────────── ← ADD THIS BLOCK
-    if (!user.userId) {
-      const generatedUserId = `${user.firstName.toLowerCase()}_${email.replace(/[^a-zA-Z0-9]/g, "_")}`;
-      await userRef.update({ userId: generatedUserId });
-      user.userId = generatedUserId;
-    }
+    // if (!user.userId) {
+    //   const generatedUserId = `${user.firstName.toLowerCase()}_${email.replace(/[^a-zA-Z0-9]/g, "_")}`;
+    //   await userRef.update({ userId: generatedUserId });
+    //   user.userId = generatedUserId;
+    // }
+    if (!user.userId || user.userId.startsWith("google_")) {
+    // Generate consistent ID
+    const consistentUserId = email.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_");
+    await userRef.update({ userId: consistentUserId });
+    user.userId = consistentUserId;
+}
 
 
     // ── 5. Create JWT token ───────────────────────

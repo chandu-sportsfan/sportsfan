@@ -51,6 +51,14 @@ export interface MatchCard {
   result?: string;
 }
 
+export interface ExtraStatRow {
+  rank: number;
+  player: string;
+  team: string;
+  value: string;
+  subValue: string;
+}
+
 export interface PlayoffData {
   q1: MatchCard;
   eliminator: MatchCard;
@@ -65,12 +73,6 @@ export interface HighestScoreRow {
   score: string;
 }
 
-export interface MostFiftiesRow {
-  rank: number;
-  player: string;
-  team: string;
-  fifties: number;
-}
 
 export interface TodayMatch {
   teamA: string;
@@ -103,9 +105,16 @@ export interface IPLStatsResponse {
   upcomingMatches: MatchCard[];
   recentMatches: MatchCard[];
   highestScores: HighestScoreRow[];
-  mostFifties: MostFiftiesRow[];
   playoffs: PlayoffData; // Added this
-  extraStats: ReturnType<typeof getExtraStats>;
+  extraStats: {
+    battingAvg: ExtraStatRow[];
+    bowlingAvg: ExtraStatRow[];
+    bestBowling: ExtraStatRow[];
+    mostEcon: ExtraStatRow[];
+    maxSixes: ExtraStatRow[];
+    maxFours: ExtraStatRow[];
+    boundaries: ExtraStatRow[];
+  };
 }
 
 // ─── Admin List Helpers ───────────────────────────────────────────────────────
@@ -738,18 +747,14 @@ function parseAllStats(html: string, pointsTable: TeamRow[]) {
   const tables = extractTables(html);
   
   const parseGenericRows = (rows: string[][]) => {
-    // 1. Filter out header rows instead of requiring numbers
     return rows.filter(r => {
       if (r.length < 3) return false;
       const col0 = r[0]?.trim().toLowerCase();
       const col1 = r[1]?.trim().toLowerCase();
       return col0 !== "#" && col0 !== "rank" && col1 !== "player" && col1 !== "team";
     }).map((row, index) => {
-      // 2. Auto-assign the rank (fixes the missing 1, 2, 3 medal issue!)
       const rank = index + 1; 
       let player = "", team = "", value = "", subValue = "";
-
-      // 3. Safely isolate the text columns from the hidden image array
       const imgStrs = row[row.length - 1] || "[]";
       const dataCells = row.slice(0, -1); 
 
@@ -769,12 +774,10 @@ function parseAllStats(html: string, pointsTable: TeamRow[]) {
           player = raw;
           team = dataCells[2]?.trim() || "";
         }
-        // Smart fallback to grab the last valid text column
         value = dataCells[3]?.trim() || dataCells[dataCells.length - 1]?.trim() || "";
         subValue = dataCells[4]?.trim() || ""; 
       }
 
-      // 🛠️ THE ULTIMATE LOGO FIX: Cross-reference stats logos with the Points Table
       if (!team || !TEAM_FULL[team]) {
         try {
           if (imgStrs.startsWith("[")) {
@@ -783,150 +786,49 @@ function parseAllStats(html: string, pointsTable: TeamRow[]) {
               const urlLower = url.toLowerCase();
               const getFilename = (u: string) => u.split('/').pop()?.split('?')[0] || u;
               const urlFilename = getFilename(urlLower);
-
               if (urlFilename.match(/(cap|up|down|trend|arrow|icon|minus|plus)/)) continue;
-
               const matchedTeam = pointsTable.find(t => {
                 if (!t.logo) return false;
                 const tFilename = getFilename(t.logo.toLowerCase());
-                return tFilename === urlFilename || 
-                       tFilename.replace(/\.[^/.]+$/, "") === urlFilename.replace(/\.[^/.]+$/, "");
+                return tFilename === urlFilename || tFilename.replace(/\.[^/.]+$/, "") === urlFilename.replace(/\.[^/.]+$/, "");
               });
-
-              if (matchedTeam) {
-                team = matchedTeam.abbr;
-                break;
-              }
-
+              if (matchedTeam) { team = matchedTeam.abbr; break; }
               const foundAbbr = Object.keys(TEAM_FULL).find(abbr => {
                 const parts = TEAM_FULL[abbr].toLowerCase().split(" ");
-                return urlFilename.includes(abbr.toLowerCase()) || 
-                       urlFilename.includes(parts[0]) || 
-                       (parts.length > 1 && parts[1].length > 3 && urlFilename.includes(parts[1]));
+                return urlFilename.includes(abbr.toLowerCase()) || urlFilename.includes(parts[0]) || (parts.length > 1 && parts[1].length > 3 && urlFilename.includes(parts[1]));
               });
-
-              if (foundAbbr) {
-                team = foundAbbr;
-                break;
-              }
+              if (foundAbbr) { team = foundAbbr; break; }
             }
           }
         } catch {}
       }
       if (!team) team = "TBD";
-
       return { rank, player, team, value, subValue };
     });
   };
 
   const parsedTables = tables.map(t => parseGenericRows(extractRows(t)));
 
-  const getTable = (idx: number, keyword: string) => {
-    const foundIdx = tables.findIndex(t => t.toLowerCase().includes(keyword.toLowerCase()));
-    const data = foundIdx !== -1 ? parsedTables[foundIdx] : parsedTables[idx];
-    return data && data.length > 0 ? data : null;
-  };
-
-  const rawHighest = getTable(0, "highest");
-  const highestScores = rawHighest 
-    ? rawHighest.map(r => ({ rank: r.rank, player: r.player, team: r.team, score: r.value }))
-    : getMockHighestScores();
-
-  const rawFifties = getTable(1, "fift");
-  const mostFifties = rawFifties
-    ? rawFifties.map(r => ({ rank: r.rank, player: r.player, team: r.team, fifties: Number(r.value) || 0 }))
-    : getMockMostFifties();
+  // Exact map to your 8 CDN tables, zero guesswork.
+  const rawHighest = parsedTables[0] || [];
+  const highestScores = rawHighest.map(r => ({ rank: r.rank, player: r.player, team: r.team, score: r.value }));
 
   return {
     highestScores,
-    mostFifties,
     extraStats: {
-      maxSixes: getTable(2, "six") || getExtraStats().maxSixes,
-      maxFours: getTable(3, "four") || getExtraStats().maxFours,
-      battingAvg: getTable(4, "batting avg") || getExtraStats().battingAvg,
-      bowlingAvg: getTable(5, "bowling avg") || getExtraStats().bowlingAvg,
-      bestBowling: getTable(6, "best bowling") || getExtraStats().bestBowling,
-      mostEcon: getTable(7, "econom") || getExtraStats().mostEcon,
-      mostHundreds: getTable(8, "hundred") || getExtraStats().mostHundreds,
-      boundaries: getTable(9, "boundar") || getExtraStats().boundaries,
+      battingAvg: parsedTables[1] || [],
+      bowlingAvg: parsedTables[2] || [],
+      bestBowling: parsedTables[3] || [],
+      mostEcon: parsedTables[4] || [],
+      maxSixes: parsedTables[5] || [],
+      maxFours: parsedTables[6] || [],
+      boundaries: parsedTables[7] || [],
     }
   };
 }
 
-function getMockHighestScores(): HighestScoreRow[] {
-  return [
-    { rank: 1, player: "K L Rahul",        team: "DC",   score: "152*" },
-    { rank: 2, player: "Abhishek Sharma",  team: "SRH",  score: "135*" },
-    { rank: 3, player: "Ryan Rickelton",   team: "MI",   score: "123*" },
-    { rank: 4, player: "Sanju Samson",     team: "CSK",  score: "115*" },
-    { rank: 5, player: "Quinton De Kock",  team: "MI",   score: "112*" },
-    { rank: 6, player: "Mitchell Marsh",   team: "LSG",  score: "111"  },
-  ];
-}
 
-function getMockMostFifties(): MostFiftiesRow[] {
-  return [
-    { rank: 1, player: "Shreyas Iyer",      team: "PBKS", fifties: 5 },
-    { rank: 1, player: "Heinrich Klaasen",  team: "SRH",  fifties: 5 },
-    { rank: 3, player: "Sai Sudharsan",     team: "GT",   fifties: 5 },
-    { rank: 4, player: "Prabhsimran Singh", team: "PBKS", fifties: 4 },
-    { rank: 5, player: "Angkrish Raghuvanshi", team: "KKR", fifties: 4 },
-    { rank: 6, player: "Shubman Gill",      team: "GT",   fifties: 4 },
-  ];
-}
 
-function getExtraStats() {
-  return {
-    bestBowling: [
-      { rank: 1, player: "Mohsin Khan", team: "LSG", value: "5/23", subValue: "4 Overs" },
-      { rank: 2, player: "Josh Hazlewood", team: "RCB", value: "4/12", subValue: "3.3 Overs" },
-      { rank: 3, player: "Akeal Hosein", team: "CSK", value: "4/17", subValue: "4 Overs" },
-      { rank: 4, player: "Jamie Overton", team: "CSK", value: "4/18", subValue: "4 Overs" },
-    ],
-    battingAvg: [
-      { rank: 1, player: "Rinku Singh", team: "KKR", value: "71.50", subValue: "286 Runs" },
-      { rank: 2, player: "Prashant Veer", team: "CSK", value: "66.00", subValue: "66 Runs" },
-      { rank: 3, player: "Quinton de Kock", team: "MI", value: "66.00", subValue: "132 Runs" },
-      { rank: 4, player: "Shreyas Iyer", team: "PBKS", value: "56.00", subValue: "392 Runs" },
-    ],
-    bowlingAvg: [
-      { rank: 1, player: "Jason Holder", team: "GT", value: "10.92", subValue: "13 Wkts" },
-      { rank: 2, player: "Corbin Bosch", team: "MI", value: "12.14", subValue: "7 Wkts" },
-      { rank: 3, player: "Shashank Singh", team: "PBKS", value: "13.00", subValue: "3 Wkts" },
-      { rank: 4, player: "Mohsin Khan", team: "LSG", value: "14.90", subValue: "10 Wkts" },
-    ],
-    mostHundreds: [
-      { rank: 1, player: "Sanju Samson", team: "CSK", value: "2", subValue: "430 Runs" },
-      { rank: 2, player: "Abhishek Sharma", team: "SRH", value: "1", subValue: "481 Runs" },
-      { rank: 3, player: "Cooper Connolly", team: "PBKS", value: "1", subValue: "415 Runs" },
-      { rank: 4, player: "Finn Allen", team: "KKR", value: "1", subValue: "228 Runs" },
-    ],
-    mostEcon: [
-      { rank: 1, player: "Harpreet Brar", team: "PBKS", value: "6.25", subValue: "1 Match" },
-      { rank: 2, player: "Jason Holder", team: "GT", value: "6.36", subValue: "6 Matches" },
-      { rank: 3, player: "Sunil Narine", team: "KKR", value: "6.64", subValue: "10 Matches" },
-      { rank: 4, player: "Mohsin Khan", team: "LSG", value: "7.45", subValue: "5 Matches" },
-    ],
-    maxSixes: [
-      { rank: 1, player: "Vaibhav Sooryavanshi", team: "RR", value: "40", subValue: "440 Runs" },
-      { rank: 2, player: "Abhishek Sharma", team: "SRH", value: "37", subValue: "481 Runs" },
-      { rank: 3, player: "Ryan Rickelton", team: "MI", value: "33", subValue: "382 Runs" },
-      { rank: 4, player: "Priyansh Arya", team: "PBKS", value: "32", subValue: "342 Runs" },
-    ],
-    maxFours: [
-      { rank: 1, player: "Virat Kohli", team: "RCB", value: "53", subValue: "484 Runs" },
-      { rank: 2, player: "KL Rahul", team: "DC", value: "50", subValue: "477 Runs" },
-      { rank: 3, player: "Sai Sudharsan", team: "GT", value: "49", subValue: "501 Runs" },
-      { rank: 4, player: "Sanju Samson", team: "CSK", value: "45", subValue: "430 Runs" },
-    ],
-    boundaries: [
-      { rank: 1, player: "Abhishek Sharma", team: "SRH", value: "80", subValue: "Total" },
-      { rank: 2, player: "Vaibhav Sooryavanshi", team: "RR", value: "78", subValue: "Total" },
-      { rank: 3, player: "KL Rahul", team: "DC", value: "74", subValue: "Total" },
-      { rank: 4, player: "Sai Sudharsan", team: "GT", value: "71", subValue: "Total" },
-    ]
-  };
-}
 
 // ─── CORS headers ─────────────────────────────────────────────────────────────
 
@@ -1082,11 +984,13 @@ export async function GET(req: NextRequest) {
     // 👇 ADD THIS LINE BACK IN
     const matchesData = parseMatches(matchesHtml); 
     
-    // <-- Added parsing hook here
+    // Replace the old parsedDashboard with this:
     const parsedDashboard = statsHtml ? parseAllStats(statsHtml, pointsTable) : {
-      highestScores: getMockHighestScores(),
-      mostFifties: getMockMostFifties(),
-      extraStats: getExtraStats()
+      highestScores: [],
+      extraStats: {
+        battingAvg: [], bowlingAvg: [], bestBowling: [],
+        mostEcon: [], maxSixes: [], maxFours: [], boundaries: []
+      }
     };
     // Playoff Logic
     const getMatch = (no: number, fallbackA: string, fallbackB: string): MatchCard => {
@@ -1149,8 +1053,7 @@ export async function GET(req: NextRequest) {
       teamLogos, pointsTable, orangeCap, purpleCap, todayMatch, recentMatch,
       recentMatches: matchesData.recentMatches,
       upcomingMatches: matchesData.upcomingMatches,
-      highestScores: parsedDashboard.highestScores, 
-      mostFifties: parsedDashboard.mostFifties,     
+      highestScores: parsedDashboard.highestScores,  
       extraStats: parsedDashboard.extraStats,       // <-- This passes all 8 categories to the frontend!
       playoffs
     };
