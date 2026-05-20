@@ -109,6 +109,13 @@ export interface IPLStatsResponse {
 }
 
 // ─── Admin List Helpers ───────────────────────────────────────────────────────
+interface CloudinaryApiParams {
+  resource_type: string;
+  type: string;
+  prefix: string;
+  max_results: number;
+  next_cursor?: string;
+}
 
 interface CloudinaryResource {
   public_id: string;
