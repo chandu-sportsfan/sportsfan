@@ -996,22 +996,19 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // ── MODE: LATEST (Your existing 5:30 AM Match Center Logic) ───────────────
-    
-    // 1. Calculate today's UTC Date.
-    // ── MODE: LATEST (Test Mode - 9:40 AM Rollover) ───────────────
-    
-    // ── MODE: LATEST (Test Mode - 11:25 AM Rollover) ───────────────
-    
+    // ── MODE: LATEST (Standard 5:30 AM IST Rollover with Smart Fallback) ──────
+
+    // ── MODE: LATEST (Test Mode - 11:50 AM Rollover with Smart Fallback) ──────
+
     const nnow = new Date();
     
     // 1. Calculate current IST time for our trigger check
     const istTime = new Date(nnow.getTime() + (5.5 * 60 * 60 * 1000));
     
-    // 2. Check if the clock has hit 11:25 AM IST (or later)
-    const isPastTestTime = istTime.getUTCHours() > 11 || (istTime.getUTCHours() === 11 && istTime.getUTCMinutes() >= 25);
+    // 2. Check if the clock has hit 11:50 AM IST (or later)
+    const isPastTestTime = istTime.getUTCHours() > 11 || (istTime.getUTCHours() === 11 && istTime.getUTCMinutes() >= 50);
     
-    // 3. If it's 11:25 AM or later, push the date forward by 1 day!
+    // 3. If it's 11:50 AM or later, push the date forward by 1 day!
     if (isPastTestTime) {
       nnow.setUTCDate(nnow.getUTCDate() + 1);
     }
@@ -1020,34 +1017,70 @@ export async function GET(req: NextRequest) {
     const mm = String(nnow.getUTCMonth() + 1).padStart(2, "0");
     const dd = String(nnow.getUTCDate()).padStart(2, "0");
     
-    const dateStr = `${yyyy}_${mm}_${dd}`; 
+    let targetDateStr = `${yyyy}_${mm}_${dd}`; 
     const baseUrl = "https://res.cloudinary.com/dflnsufit/raw/upload/sf360/scripts";
-    
-    const POINTS_TABLE_URL = `${baseUrl}/IPL_Points_Table_${dateStr}.html`;
-    const CAPS_URL = `${baseUrl}/IPL_Caps_${dateStr}.html`;
-    const MATCHES_URL = `${baseUrl}/IPL_Fixtures_${dateStr}.html`;
-    const STATS_URL = `${baseUrl}/ipl2026_dashboard_${dateStr}.html`;
 
-    // 3. Fetch all four dynamic URLs concurrently
-    const [pointsRes, capsRes, matchesRes, statsRes] = await Promise.all([
-      fetch(POINTS_TABLE_URL, { cache: "no-store" }),
-      fetch(CAPS_URL,         { cache: "no-store" }),
-      fetch(MATCHES_URL,      { cache: "no-store" }),
-      fetch(STATS_URL,        { cache: "no-store" }),
-    ]);
+    // 2. Helper function to fetch all 4 files for a given date
+    const fetchAllData = async (dateStr: string) => {
+    // ... KEEP YOUR EXISTING SMART FALLBACK CODE BELOW THIS LINE ...
+      const [pointsRes, capsRes, matchesRes, statsRes] = await Promise.all([
+        fetch(`${baseUrl}/IPL_Points_Table_${dateStr}.html`, { cache: "no-store" }),
+        fetch(`${baseUrl}/IPL_Caps_${dateStr}.html`,         { cache: "no-store" }),
+        fetch(`${baseUrl}/IPL_Fixtures_${dateStr}.html`,      { cache: "no-store" }),
+        fetch(`${baseUrl}/ipl2026_dashboard_${dateStr}.html`, { cache: "no-store" }),
+      ]);
+      return { pointsRes, capsRes, matchesRes, statsRes, isOk: pointsRes.ok && capsRes.ok };
+    };
 
-    if (!pointsRes.ok || !capsRes.ok) throw new Error("Core CDN fetch failed");
+    // 3. First attempt: Try today's date
+    let fetchResults = await fetchAllData(targetDateStr);
 
+    // 4. THE FALLBACK: If today's files aren't found, find the most recent ones!
+    if (!fetchResults.isOk) {
+      const listParams: CloudinaryApiParams = {
+        resource_type: "raw",
+        type: "upload",
+        prefix: "sf360/scripts/IPL_Points_Table", // Just check points tables to find the latest date
+        max_results: 10,
+      };
+
+      const result = await cloudinary.api.resources(listParams);
+      
+      const validDates = result.resources
+        .map((r: CloudinaryResource) => {
+          const fileName = r.display_name || r.public_id.split("/").pop() || r.public_id;
+          return extractReportDate(fileName);
+        })
+        .filter((date: string | null): date is string => !!date)
+        .sort((a: string, b: string) => b.localeCompare(a)); // Sort newest first
+
+      if (validDates.length > 0) {
+        // extractReportDate returns YYYY-MM-DD. We convert it back to YYYY_MM_DD for the URLs.
+        targetDateStr = validDates[0].replace(/-/g, "_");
+        
+        // Second attempt: Fetch using the verified latest date
+        fetchResults = await fetchAllData(targetDateStr);
+      }
+
+      // If it STILL fails after the fallback, then we throw the error
+      if (!fetchResults.isOk) {
+        throw new Error("Core CDN fetch failed for both current and fallback dates.");
+      }
+    }
+
+    // 5. Extract the HTML from our successful fetch
     const [pointsHtml, capsHtml, matchesHtml, statsHtml] = await Promise.all([
-      pointsRes.text(), 
-      capsRes.text(), 
-      matchesRes.ok ? matchesRes.text() : Promise.resolve(""),
-      statsRes.ok ? statsRes.text() : Promise.resolve("") 
+      fetchResults.pointsRes.text(), 
+      fetchResults.capsRes.text(), 
+      fetchResults.matchesRes.ok ? fetchResults.matchesRes.text() : Promise.resolve(""),
+      fetchResults.statsRes.ok ? fetchResults.statsRes.text() : Promise.resolve("") 
     ]);
 
     const pointsTable = parsePointsTable(pointsHtml);
     const { orange: orangeCap, purple: purpleCap } = parseCaps(capsHtml, pointsTable);
-    const matchesData = parseMatches(matchesHtml);
+    
+    // 👇 ADD THIS LINE BACK IN
+    const matchesData = parseMatches(matchesHtml); 
     
     // <-- Added parsing hook here
     const parsedDashboard = statsHtml ? parseAllStats(statsHtml, pointsTable) : {
