@@ -2,17 +2,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from "@/lib/firebaseAdmin";
 
+// Helper: extract ID from URL
+function getIdFromUrl(req: NextRequest): string {
+  const url = new URL(req.url);
+  const parts = url.pathname.split("/");
+  return parts[parts.length - 1];
+}
+
 // GET: Get a specific session by ID
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(req: NextRequest) {
   try {
     const userId = req.headers.get('X-User-Id');
-    const sessionId = params.id;
+    const sessionId = getIdFromUrl(req);
     
     if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized - User ID missing' }, { status: 401 });
+    }
+    
+    if (!sessionId) {
+      return NextResponse.json({ error: 'Session ID is required' }, { status: 400 });
     }
     
     // Verify this session belongs to this user
@@ -44,6 +52,7 @@ export async function GET(
       session: { id: sessionDoc.id, ...sessionDoc.data() },
       messages
     });
+    
   } catch (error) {
     console.error('[ask-ai GET session] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -51,16 +60,17 @@ export async function GET(
 }
 
 // DELETE: Delete a specific session
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(req: NextRequest) {
   try {
     const userId = req.headers.get('X-User-Id');
-    const sessionId = params.id;
+    const sessionId = getIdFromUrl(req);
     
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    if (!sessionId) {
+      return NextResponse.json({ error: 'Session ID is required' }, { status: 400 });
     }
     
     const sessionRef = db
@@ -84,10 +94,8 @@ export async function DELETE(
     batch.delete(sessionRef);
     await batch.commit();
     
-    // Clear cache for this user (cache is in main route)
-    // We'll let it expire naturally or clear on next request
-    
     return NextResponse.json({ success: true, message: 'Session deleted' });
+    
   } catch (error) {
     console.error('[ask-ai DELETE session] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
