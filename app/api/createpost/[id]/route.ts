@@ -59,15 +59,38 @@ export async function PATCH(req: NextRequest) {
         }
 
 
+        // if ("likeAction" in body && body.likeAction && "userId" in body && body.userId) {
+        //     const { likeAction, userId } = body as { likeAction: "like" | "unlike"; userId: string };
+        //     await ref.update({
+        //         likes: FieldValue.increment(likeAction === "like" ? 1 : -1),
+        //         likedBy: likeAction === "like"
+        //             ? FieldValue.arrayUnion(userId)
+        //             : FieldValue.arrayRemove(userId),
+        //         updatedAt: Date.now(),
+        //     });
+        //     const updated = await ref.get();
+        //     return NextResponse.json({ success: true, data: { id: updated.id, ...updated.data() } });
+        // }
+        // AFTER — destructure reaction and write it via dot-notation
         if ("likeAction" in body && body.likeAction && "userId" in body && body.userId) {
-            const { likeAction, userId } = body as { likeAction: "like" | "unlike"; userId: string };
+            const { likeAction, userId, reaction } = body as {
+                likeAction: "like" | "unlike";
+                userId: string;
+                reaction?: string;
+            };
+
             await ref.update({
                 likes: FieldValue.increment(likeAction === "like" ? 1 : -1),
                 likedBy: likeAction === "like"
                     ? FieldValue.arrayUnion(userId)
                     : FieldValue.arrayRemove(userId),
+                // dot-notation writes/deletes a single key inside the reactions map
+                [`reactions.${userId}`]: likeAction === "like" && reaction
+                    ? reaction
+                    : FieldValue.delete(),
                 updatedAt: Date.now(),
             });
+
             const updated = await ref.get();
             return NextResponse.json({ success: true, data: { id: updated.id, ...updated.data() } });
         }

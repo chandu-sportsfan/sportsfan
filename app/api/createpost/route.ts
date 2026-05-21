@@ -131,7 +131,7 @@
 
 
 
-
+//api/createpost/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { v4 as uuidv4 } from "uuid";
@@ -283,6 +283,7 @@ export async function POST(req: NextRequest) {
       userAvatar: userAvatar || "",
       content: content || "",
       media: mediaItems,
+      userEmail: userEmail || "",
       poll: builtPoll,
       likes: 0,
       likedBy: [],

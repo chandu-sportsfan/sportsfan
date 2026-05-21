@@ -27,6 +27,7 @@ export type Post = {
   content: string;
   media?: MediaItem[];
   poll?: Poll | null;
+  userEmail: string;
   likes: 0;
   likedBy: [];
   createdAt: number;
