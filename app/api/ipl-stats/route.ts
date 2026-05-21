@@ -916,15 +916,17 @@ export async function GET(req: NextRequest) {
 
     // ── MODE: LATEST (Test Mode - 11:50 AM Rollover with Smart Fallback) ──────
 
+    // ── MODE: LATEST (Test Mode - 11:23 AM Rollover with Smart Fallback) ──────
+
     const nnow = new Date();
     
     // 1. Calculate current IST time for our trigger check
     const istTime = new Date(nnow.getTime() + (5.5 * 60 * 60 * 1000));
     
-    // 2. Check if the clock has hit 11:50 AM IST (or later)
-    const isPastTestTime = istTime.getUTCHours() > 11 || (istTime.getUTCHours() === 11 && istTime.getUTCMinutes() >= 50);
+    // 2. Check if the clock has hit 11:23 AM IST (or later)
+    const isPastTestTime = istTime.getUTCHours() > 12 || (istTime.getUTCHours() === 12 && istTime.getUTCMinutes() >= 17);
     
-    // 3. If it's 11:50 AM or later, push the date forward by 1 day!
+    // 3. If it's 11:23 AM or later, push the date forward by 1 day!
     if (isPastTestTime) {
       nnow.setUTCDate(nnow.getUTCDate() + 1);
     }
@@ -1051,8 +1053,8 @@ export async function GET(req: NextRequest) {
       matchNo: todaySource?.matchNo || 1, totalMatches: 74
     };
 
-    // Use the raw matches here to ensure the scores aren't stripped!
-    const lastComp = matchesData.rawCompletedMatches[0];
+   const realCompleted = matchesData.rawCompletedMatches.filter(m => m._hasRealResult);
+    const lastComp = realCompleted.length > 0 ? realCompleted[0] : matchesData.rawCompletedMatches[0];
     const recentMatch = {
       teamA: lastComp?.teamA || "TBD", teamB: lastComp?.teamB || "TBD",
       result: lastComp?.result || "No recent match",
@@ -1065,7 +1067,7 @@ export async function GET(req: NextRequest) {
 
     const response: IPLStatsResponse = {
       teamLogos, pointsTable, orangeCap, purpleCap, todayMatch, recentMatch,
-      recentMatches: matchesData.recentMatches,
+      recentMatches: matchesData.recentMatches.filter(m => m.result !== "Match Completed"),
       upcomingMatches: matchesData.upcomingMatches,
       highestScores: parsedDashboard.highestScores,  
       extraStats: parsedDashboard.extraStats,       // <-- This passes all 8 categories to the frontend!
