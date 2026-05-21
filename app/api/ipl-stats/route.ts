@@ -28,14 +28,22 @@ export interface PlayerRow {
   hs?: string;
   econ?: string;
 }
-export interface InternalMatchCard extends MatchCard {
-  _isDesktop?: boolean;
-  _hasRealDate?: boolean;
-  _hasRealResult?: boolean;
-  _scoreA?: string;
-  _scoreB?: string;
-  _oversA?: string;
-  _oversB?: string;
+export interface MatchCard {
+  matchNo: number;
+  date: string;
+  day: string;
+  time: string;
+  teamA: string;
+  teamAFull: string;
+  teamB: string;
+  teamBFull: string;
+  venue: string;
+  status: "upcoming" | "live" | "completed";
+  result?: string;
+  scoreA?: string;   // <-- Add this
+  scoreB?: string;   // <-- Add this
+  oversA?: string;   // <-- Add this
+  oversB?: string;   // <-- Add this
 }
 export interface MatchCard {
   matchNo: number;
@@ -579,6 +587,8 @@ function parseMatches(html: string): {
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
     .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")  // <-- Add this line to fix hidden spaces
+    .replace(/&amp;/g, "&")   // <-- Add this line for safe decoding
     .replace(/\s+/g, " ")
     .trim();
 
@@ -731,7 +741,13 @@ function parseMatches(html: string): {
   const cards = Array.from(cardsMap.values());
   cards.sort((a: InternalMatchCard, b: InternalMatchCard) => a.matchNo - b.matchNo);
 
-  const cleanCards: MatchCard[] = cards.map(({ _isDesktop, _hasRealResult, _scoreA, _scoreB, _oversA, _oversB, ...rest }) => rest as MatchCard);
+  const cleanCards: MatchCard[] = cards.map(({ _isDesktop, _hasRealResult, _scoreA, _scoreB, _oversA, _oversB, ...rest }) => ({
+    ...rest,
+    scoreA: _scoreA,
+    scoreB: _scoreB,
+    oversA: _oversA,
+    oversB: _oversB
+  }) as MatchCard);
 
   return { 
     todayMatch: {} as TodayMatch,
