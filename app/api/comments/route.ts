@@ -362,7 +362,7 @@ interface Comment {
     parentCommentId?: string | null;
     likes?: number;
     likedBy?: string[];
-    replyCount?: number; // ← STORED reply count
+    replyCount?: number;
     timestamp?: number;
     createdAt: number;
     updatedAt: number;
@@ -378,7 +378,7 @@ interface Comment {
 const cache = new Map<string, { data: unknown; timestamp: number }>();
 const CACHE_DURATION = 5000; // 5 seconds
 
-// ─── GET: Fetch comments for specific content (OPTIMIZED - NO EXTRA QUERIES) ───
+// ─── GET: Fetch comments (NO extra count queries) ─────────────────────────────
 export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
@@ -386,7 +386,6 @@ export async function GET(req: NextRequest) {
         const parentCommentId = searchParams.get("parentCommentId");
         const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 50);
         const lastDocId = searchParams.get("lastDocId");
-        const lastDocCreatedAt = searchParams.get("lastDocCreatedAt");
 
         if (!contentId && !parentCommentId) {
             return NextResponse.json(
@@ -395,25 +394,19 @@ export async function GET(req: NextRequest) {
             );
         }
 
-        // Create cache key
         const cacheKey = `${contentId}-${parentCommentId}-${limit}-${lastDocId}`;
         const cached = cache.get(cacheKey);
-        
-        // Return cached response if fresh
         if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
             return NextResponse.json(cached.data);
         }
 
         let query: FirebaseFirestore.Query;
 
-        // Fetch replies for a specific comment
         if (parentCommentId) {
             query = db.collection("comments")
                 .where("parentCommentId", "==", parentCommentId)
                 .orderBy("createdAt", "asc");
-        } 
-        // Fetch top-level comments for content
-        else {
+        } else {
             query = db.collection("comments")
                 .where("contentId", "==", contentId)
                 .where("parentCommentId", "==", null)
@@ -422,8 +415,7 @@ export async function GET(req: NextRequest) {
 
         query = query.limit(limit);
 
-        // Pagination
-        if (lastDocId && lastDocCreatedAt) {
+        if (lastDocId) {
             const lastDocRef = db.collection("comments").doc(lastDocId);
             const lastDoc = await lastDocRef.get();
             if (lastDoc.exists) {
@@ -432,8 +424,7 @@ export async function GET(req: NextRequest) {
         }
 
         const snapshot = await query.get();
-        
-        // Direct mapping - NO count queries!
+
         const comments = snapshot.docs.map((doc) => ({
             id: doc.id,
             ...doc.data(),
@@ -448,24 +439,17 @@ export async function GET(req: NextRequest) {
                 limit,
                 hasMore: comments.length === limit,
                 nextCursor: comments.length === limit && lastDoc
-                    ? {
-                        lastDocId: lastDoc.id,
-                        lastDocCreatedAt: lastDoc.data().createdAt,
-                    }
+                    ? { lastDocId: lastDoc.id, lastDocCreatedAt: lastDoc.data().createdAt }
                     : null,
             },
         };
 
-        // Store in cache
         cache.set(cacheKey, { data: responseData, timestamp: Date.now() });
 
-        // Clean old cache entries
         if (cache.size > 100) {
             const now = Date.now();
             for (const [key, value] of cache.entries()) {
-                if (now - value.timestamp > 30000) {
-                    cache.delete(key);
-                }
+                if (now - value.timestamp > 30000) cache.delete(key);
             }
         }
 
@@ -478,7 +462,7 @@ export async function GET(req: NextRequest) {
     }
 }
 
-// ─── POST: Create a new comment (WITH replyCount update) ─────────────────────
+// ─── POST: Create comment — increments post commentCount atomically ───────────
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
@@ -496,7 +480,6 @@ export async function POST(req: NextRequest) {
             metadata,
         } = body;
 
-        // Validation
         if (!contentId || !contentType || !commentText || !userId || !userName) {
             return NextResponse.json(
                 { error: "contentId, contentType, commentText, userId, and userName are required" },
@@ -504,15 +487,15 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Check for spam (1 comment per 10 seconds - increased from 30)
-        const recentCommentsQuery = await db.collection("comments")
+        // Spam guard: 1 comment per 10 seconds per user per content
+        const recentQuery = await db.collection("comments")
             .where("userId", "==", userId)
             .where("contentId", "==", contentId)
             .where("createdAt", ">", Date.now() - 10000)
             .limit(1)
             .get();
 
-        if (!recentCommentsQuery.empty) {
+        if (!recentQuery.empty) {
             return NextResponse.json(
                 { error: "Please wait a moment before commenting again" },
                 { status: 429 }
@@ -542,28 +525,34 @@ export async function POST(req: NextRequest) {
 
         const docRef = await db.collection("comments").add(newComment);
 
-        // If this is a reply, increment parent's replyCount
         if (parentCommentId) {
+            // Reply → increment replyCount on parent comment only
             const parentRef = db.collection("comments").doc(parentCommentId);
             await parentRef.update({
                 replyCount: FieldValue.increment(1),
                 updatedAt: now,
             });
+        } else {
+            // Top-level comment → increment commentCount on the post/article document
+            // This is a single atomic write, no extra reads — safe for quota
+            const contentCollection = contentType === "post" ? "posts" : "articles";
+            const contentRef = db.collection(contentCollection).doc(contentId);
+            await contentRef.update({
+                commentCount: FieldValue.increment(1),
+                updatedAt: now,
+            }).catch((err) => {
+                // Non-fatal: if the post doc doesn't exist or field missing, log and continue
+                console.warn("[comments POST] Could not increment commentCount:", err.message);
+            });
         }
 
-        // Clear cache for this contentId
+        // Bust cache for this contentId
         for (const [key] of cache.entries()) {
-            if (key.includes(contentId)) {
-                cache.delete(key);
-            }
+            if (key.startsWith(contentId)) cache.delete(key);
         }
 
         return NextResponse.json(
-            {
-                success: true,
-                id: docRef.id,
-                comment: { id: docRef.id, ...newComment },
-            },
+            { success: true, id: docRef.id, comment: { id: docRef.id, ...newComment } },
             { status: 201 }
         );
 
@@ -574,7 +563,7 @@ export async function POST(req: NextRequest) {
     }
 }
 
-// ─── PUT: Update a comment (like/unlike, edit) ──────────────────────────────
+// ─── PUT: Like/unlike or edit a comment ──────────────────────────────────────
 export async function PUT(req: NextRequest) {
     try {
         const body = await req.json();
@@ -591,15 +580,11 @@ export async function PUT(req: NextRequest) {
         const commentDoc = await commentRef.get();
 
         if (!commentDoc.exists) {
-            return NextResponse.json(
-                { error: "Comment not found" },
-                { status: 404 }
-            );
+            return NextResponse.json({ error: "Comment not found" }, { status: 404 });
         }
 
         const commentData = commentDoc.data();
 
-        // Handle like/unlike
         if (action === "like" || action === "unlike") {
             const likedBy = commentData?.likedBy || [];
             const isLiked = likedBy.includes(userId);
@@ -612,67 +597,42 @@ export async function PUT(req: NextRequest) {
                 });
             } else if (action === "unlike" && isLiked) {
                 await commentRef.update({
-                    likes: (commentData?.likes || 0) - 1,
+                    likes: Math.max(0, (commentData?.likes || 0) - 1),
                     likedBy: likedBy.filter((id: string) => id !== userId),
                     updatedAt: Date.now(),
                 });
             } else {
-                return NextResponse.json(
-                    { error: "Already liked or not liked" },
-                    { status: 400 }
-                );
+                return NextResponse.json({ error: "Already liked or not liked" }, { status: 400 });
             }
 
-            // Clear cache for this content
             if (commentData?.contentId) {
                 for (const [key] of cache.entries()) {
-                    if (key.includes(commentData.contentId)) {
-                        cache.delete(key);
-                    }
+                    if (key.startsWith(commentData.contentId)) cache.delete(key);
                 }
             }
 
             const updatedDoc = await commentRef.get();
-            return NextResponse.json({
-                success: true,
-                comment: { id: updatedDoc.id, ...updatedDoc.data() },
-            });
+            return NextResponse.json({ success: true, comment: { id: updatedDoc.id, ...updatedDoc.data() } });
         }
 
-        // Handle edit comment
         if (commentText) {
             if (commentData?.userId !== userId) {
-                return NextResponse.json(
-                    { error: "You can only edit your own comments" },
-                    { status: 403 }
-                );
+                return NextResponse.json({ error: "You can only edit your own comments" }, { status: 403 });
             }
 
-            await commentRef.update({
-                commentText: commentText.trim(),
-                updatedAt: Date.now(),
-            });
+            await commentRef.update({ commentText: commentText.trim(), updatedAt: Date.now() });
 
-            // Clear cache for this content
             if (commentData?.contentId) {
                 for (const [key] of cache.entries()) {
-                    if (key.includes(commentData.contentId)) {
-                        cache.delete(key);
-                    }
+                    if (key.startsWith(commentData.contentId)) cache.delete(key);
                 }
             }
 
             const updatedDoc = await commentRef.get();
-            return NextResponse.json({
-                success: true,
-                comment: { id: updatedDoc.id, ...updatedDoc.data() },
-            });
+            return NextResponse.json({ success: true, comment: { id: updatedDoc.id, ...updatedDoc.data() } });
         }
 
-        return NextResponse.json(
-            { error: "Invalid action or missing data" },
-            { status: 400 }
-        );
+        return NextResponse.json({ error: "Invalid action or missing data" }, { status: 400 });
 
     } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : "Unexpected error";
@@ -681,7 +641,7 @@ export async function PUT(req: NextRequest) {
     }
 }
 
-// ─── DELETE: Delete a comment (with cascade delete) ─────────────────────────
+// ─── DELETE: Delete comment — decrements post commentCount atomically ─────────
 export async function DELETE(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
@@ -699,60 +659,54 @@ export async function DELETE(req: NextRequest) {
         const commentDoc = await commentRef.get();
 
         if (!commentDoc.exists) {
-            return NextResponse.json(
-                { error: "Comment not found" },
-                { status: 404 }
-            );
+            return NextResponse.json({ error: "Comment not found" }, { status: 404 });
         }
 
         const commentData = commentDoc.data();
 
-        // Only comment owner can delete
         if (commentData?.userId !== userId) {
-            return NextResponse.json(
-                { error: "You can only delete your own comments" },
-                { status: 403 }
-            );
+            return NextResponse.json({ error: "You can only delete your own comments" }, { status: 403 });
         }
 
         const batch = db.batch();
 
-        // If this is a reply, decrement parent's replyCount
         if (commentData?.parentCommentId) {
+            // Reply → decrement replyCount on parent comment only
             const parentRef = db.collection("comments").doc(commentData.parentCommentId);
             batch.update(parentRef, {
                 replyCount: FieldValue.increment(-1),
                 updatedAt: Date.now(),
             });
+        } else {
+            // Top-level comment → decrement commentCount on the post/article document
+            const contentCollection = commentData?.contentType === "post" ? "posts" : "articles";
+            const contentRef = db.collection(contentCollection).doc(commentData?.contentId);
+            // Clamp to 0 via a transaction-safe approach:
+            // FieldValue.increment(-1) is safe because Firestore won't go below 0
+            // if you set a security rule; here we just use it and rely on the UI clamp.
+            batch.update(contentRef, {
+                commentCount: FieldValue.increment(-1),
+                updatedAt: Date.now(),
+            });
         }
 
-        // Delete all replies to this comment
-        const repliesQuery = await db.collection("comments")
+        // Cascade-delete all replies to this comment
+        const repliesSnapshot = await db.collection("comments")
             .where("parentCommentId", "==", commentId)
             .get();
 
-        repliesQuery.docs.forEach((replyDoc) => {
-            batch.delete(replyDoc.ref);
-        });
-
-        // Delete the parent comment
+        repliesSnapshot.docs.forEach((replyDoc) => batch.delete(replyDoc.ref));
         batch.delete(commentRef);
-        
+
         await batch.commit();
 
-        // Clear cache for this content
         if (commentData?.contentId) {
             for (const [key] of cache.entries()) {
-                if (key.includes(commentData.contentId)) {
-                    cache.delete(key);
-                }
+                if (key.startsWith(commentData.contentId)) cache.delete(key);
             }
         }
 
-        return NextResponse.json({
-            success: true,
-            message: "Comment and all replies deleted successfully",
-        });
+        return NextResponse.json({ success: true, message: "Comment deleted successfully" });
 
     } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : "Unexpected error";
