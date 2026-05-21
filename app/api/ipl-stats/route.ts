@@ -45,18 +45,13 @@ export interface MatchCard {
   oversA?: string;   // <-- Add this
   oversB?: string;   // <-- Add this
 }
-export interface MatchCard {
-  matchNo: number;
-  date: string;
-  day: string;
-  time: string;
-  teamA: string;
-  teamAFull: string;
-  teamB: string;
-  teamBFull: string;
-  venue: string;
-  status: "upcoming" | "live" | "completed";
-  result?: string;
+export interface InternalMatchCard extends MatchCard {
+  _isDesktop: boolean;
+  _hasRealResult: boolean;
+  _scoreA?: string;
+  _scoreB?: string;
+  _oversA?: string;
+  _oversB?: string;
 }
 
 export interface ExtraStatRow {
