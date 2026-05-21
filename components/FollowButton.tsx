@@ -1,6 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 
+type FollowItem = {
+  followingplayername?: string | null;
+};
+
 type Props = {
   userId: string;
   userEmail: string;
@@ -20,8 +24,8 @@ export default function FollowButton({ userId, userEmail, playerName, className,
     fetch(`/api/following?userId=${encodeURIComponent(userId)}`)
       .then((r) => r.json())
       .then((data) => {
-        const list = data?.following || [];
-        const found = list.some((f: any) =>
+        const list: FollowItem[] = data?.following || [];
+        const found = list.some((f: FollowItem) =>
           (f.followingplayername || "").toLowerCase() === playerName.toLowerCase()
         );
         setIsFollowing(Boolean(found));
