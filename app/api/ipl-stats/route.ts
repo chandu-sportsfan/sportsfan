@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import cloudinary from "@/lib/cloudinary"; // <-- Add this
+export const dynamic = "force-dynamic"; // <-- ADD THIS LINE TO DISABLE VERCEL CACHE
+export const revalidate = 0;            // <-- ADD THIS LINE FOR EXTRA SAFETY
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface TeamRow {
@@ -28,15 +30,6 @@ export interface PlayerRow {
   hs?: string;
   econ?: string;
 }
-export interface InternalMatchCard extends MatchCard {
-  _isDesktop?: boolean;
-  _hasRealDate?: boolean;
-  _hasRealResult?: boolean;
-  _scoreA?: string;
-  _scoreB?: string;
-  _oversA?: string;
-  _oversB?: string;
-}
 export interface MatchCard {
   matchNo: number;
   date: string;
@@ -49,6 +42,18 @@ export interface MatchCard {
   venue: string;
   status: "upcoming" | "live" | "completed";
   result?: string;
+  scoreA?: string;   // <-- Add this
+  scoreB?: string;   // <-- Add this
+  oversA?: string;   // <-- Add this
+  oversB?: string;   // <-- Add this
+}
+export interface InternalMatchCard extends MatchCard {
+  _isDesktop: boolean;
+  _hasRealResult: boolean;
+  _scoreA?: string;
+  _scoreB?: string;
+  _oversA?: string;
+  _oversB?: string;
 }
 
 export interface ExtraStatRow {
@@ -579,6 +584,8 @@ function parseMatches(html: string): {
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
     .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")  // <-- Add this line to fix hidden spaces
+    .replace(/&amp;/g, "&")   // <-- Add this line for safe decoding
     .replace(/\s+/g, " ")
     .trim();
 
@@ -731,7 +738,13 @@ function parseMatches(html: string): {
   const cards = Array.from(cardsMap.values());
   cards.sort((a: InternalMatchCard, b: InternalMatchCard) => a.matchNo - b.matchNo);
 
-  const cleanCards: MatchCard[] = cards.map(({ _isDesktop, _hasRealResult, _scoreA, _scoreB, _oversA, _oversB, ...rest }) => rest as MatchCard);
+  const cleanCards: MatchCard[] = cards.map(({ _isDesktop, _hasRealResult, _scoreA, _scoreB, _oversA, _oversB, ...rest }) => ({
+    ...rest,
+    scoreA: _scoreA,
+    scoreB: _scoreB,
+    oversA: _oversA,
+    oversB: _oversB
+  }) as MatchCard);
 
   return { 
     todayMatch: {} as TodayMatch,
@@ -836,6 +849,7 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Origin":  "*",
   "Access-Control-Allow-Methods": "GET, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
+  "Cache-Control": "no-store, no-cache, must-revalidate", // <-- ADD THIS LINE
 };
 
 // const POINTS_TABLE_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778977742/sf360/scripts/IPL_Points_Table_2026.html";
@@ -902,15 +916,17 @@ export async function GET(req: NextRequest) {
 
     // ── MODE: LATEST (Test Mode - 11:50 AM Rollover with Smart Fallback) ──────
 
+    // ── MODE: LATEST (Test Mode - 11:23 AM Rollover with Smart Fallback) ──────
+
     const nnow = new Date();
     
     // 1. Calculate current IST time for our trigger check
     const istTime = new Date(nnow.getTime() + (5.5 * 60 * 60 * 1000));
     
-    // 2. Check if the clock has hit 11:50 AM IST (or later)
-    const isPastTestTime = istTime.getUTCHours() > 11 || (istTime.getUTCHours() === 11 && istTime.getUTCMinutes() >= 50);
+    // 2. Check if the clock has hit 11:23 AM IST (or later)
+    const isPastTestTime = istTime.getUTCHours() > 12 || (istTime.getUTCHours() === 12 && istTime.getUTCMinutes() >= 17);
     
-    // 3. If it's 11:50 AM or later, push the date forward by 1 day!
+    // 3. If it's 11:23 AM or later, push the date forward by 1 day!
     if (isPastTestTime) {
       nnow.setUTCDate(nnow.getUTCDate() + 1);
     }
@@ -1037,8 +1053,8 @@ export async function GET(req: NextRequest) {
       matchNo: todaySource?.matchNo || 1, totalMatches: 74
     };
 
-    // Use the raw matches here to ensure the scores aren't stripped!
-    const lastComp = matchesData.rawCompletedMatches[0];
+   const realCompleted = matchesData.rawCompletedMatches.filter(m => m._hasRealResult);
+    const lastComp = realCompleted.length > 0 ? realCompleted[0] : matchesData.rawCompletedMatches[0];
     const recentMatch = {
       teamA: lastComp?.teamA || "TBD", teamB: lastComp?.teamB || "TBD",
       result: lastComp?.result || "No recent match",
@@ -1051,7 +1067,7 @@ export async function GET(req: NextRequest) {
 
     const response: IPLStatsResponse = {
       teamLogos, pointsTable, orangeCap, purpleCap, todayMatch, recentMatch,
-      recentMatches: matchesData.recentMatches,
+      recentMatches: matchesData.recentMatches.filter(m => m.result !== "Match Completed"),
       upcomingMatches: matchesData.upcomingMatches,
       highestScores: parsedDashboard.highestScores,  
       extraStats: parsedDashboard.extraStats,       // <-- This passes all 8 categories to the frontend!
