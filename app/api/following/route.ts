@@ -115,3 +115,41 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    let userId = searchParams.get("userId") || undefined;
+    let followingplayername = searchParams.get("followingplayername") || undefined;
+
+    if (!userId || !followingplayername) {
+      // Try JSON body as fallback
+      const body = await req.json().catch(() => ({}));
+      userId = userId || normalizeText(body.userId);
+      followingplayername = followingplayername || normalizeText(body.followingplayername);
+    }
+
+    if (!userId || !followingplayername) {
+      return NextResponse.json(
+        { error: "userId and followingplayername are required to unfollow" },
+        { status: 400 }
+      );
+    }
+
+    const docId = buildFollowDocId(userId, followingplayername);
+    const docRef = db.collection(COLLECTION).doc(docId);
+    const existing = await docRef.get();
+
+    if (!existing.exists) {
+      return NextResponse.json({ error: "Follow record not found" }, { status: 404 });
+    }
+
+    await docRef.delete();
+
+    return NextResponse.json({ success: true });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Unexpected error";
+    console.error("Error deleting following record:", error);
+    return NextResponse.json({ success: false, error: msg }, { status: 500 });
+  }
+}
