@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import cloudinary from "@/lib/cloudinary"; // <-- Add this
+export const dynamic = "force-dynamic"; // <-- ADD THIS LINE TO DISABLE VERCEL CACHE
+export const revalidate = 0;            // <-- ADD THIS LINE FOR EXTRA SAFETY
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface TeamRow {
@@ -847,6 +849,7 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Origin":  "*",
   "Access-Control-Allow-Methods": "GET, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
+  "Cache-Control": "no-store, no-cache, must-revalidate", // <-- ADD THIS LINE
 };
 
 // const POINTS_TABLE_URL = "https://res.cloudinary.com/dflnsufit/raw/upload/v1778977742/sf360/scripts/IPL_Points_Table_2026.html";
