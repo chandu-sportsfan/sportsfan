@@ -597,10 +597,10 @@ function parseMatches(html: string): {
     const matchNoMatch = block.match(/MATCH\s+(\d+)/i);
     const matchNo = matchNoMatch ? Number(matchNoMatch[1]) : 0;
 
-    // 🛠️ FIX 1: More flexible regex to catch all result types
+    // Result regex: catches all result formats - team abbr/name + won by N runs/wickets
     let resultText: string | undefined;
-    const resultMatch = block.match(/([A-Za-z\s]+won\s+(?:the match\s+)?by\s+\d+\s+(?:runs?|wickets?|wkts?|wkt)|no result|match tied|tied|abandoned)/i);
-    if (resultMatch) resultText = resultMatch[0].trim();
+    const resultMatch = block.match(/([A-Za-z][A-Za-z\s]{1,28}?won\s+(?:the\s+match\s+)?by\s+\d+\s+(?:runs?|wickets?|wkts?|wkt)|no\s+result|match\s+tied|tied|abandoned)/i);
+    if (resultMatch) resultText = resultMatch[0].replace(/\s+/g, " ").trim();
 
     // 🛠️ THE FIX: More forgiving regex for spaces, hyphens, and formatting variations
    // 🛠️ THE ULTIMATE FIX: Handles scores with OR without overs safely
@@ -693,7 +693,11 @@ function parseMatches(html: string): {
     } else {
       const merged: InternalMatchCard = { ...existingCard };
 
-      if (newCard._hasRealResult) {
+      // Always prefer a real result over "Match Completed" placeholder
+      if (newCard._hasRealResult && newCard.result && newCard.result !== "Match Completed") {
+        merged.result = newCard.result;
+        merged._hasRealResult = true;
+      } else if (newCard._hasRealResult && !merged._hasRealResult) {
         merged.result = newCard.result;
         merged._hasRealResult = true;
       }
@@ -720,8 +724,9 @@ function parseMatches(html: string): {
       const mergedIsPast = mergedDateObj ? midnight(mergedDateObj).getTime() < todayMidnight.getTime() : false;
       
       merged.status = (merged._hasRealResult || mergedIsPast) ? "completed" : "upcoming";
-      
-      if (merged.status === "completed" && !merged._hasRealResult) {
+
+      // Only set fallback text if we truly have no result at all
+      if (merged.status === "completed" && !merged._hasRealResult && !merged.result) {
         merged.result = "Match Completed";
       } else if (merged.status === "upcoming" && !merged._hasRealResult) {
         merged.result = undefined;
@@ -1045,10 +1050,12 @@ export async function GET(req: NextRequest) {
       matchNo: todaySource?.matchNo || 1, totalMatches: 74
     };
 
-    // Pick the most recent completed match (highest matchNo with a real result)
-    const realCompleted = matchesData.rawCompletedMatches.filter(m => m._hasRealResult);
-    const lastCompArr = realCompleted.length > 0 ? realCompleted : matchesData.rawCompletedMatches;
-    const lastComp = lastCompArr[0];
+    // Pick the most recent completed match: prefer highest matchNo with a real result,
+    // fall back to highest matchNo overall (so GT/CSK match 66 shows even if result parse failed)
+    const allCompleted = matchesData.rawCompletedMatches; // already sorted by matchNo DESC
+    const realCompleted = allCompleted.filter(m => m._hasRealResult);
+    // Prefer real result; if none parsed, use the most recent completed card anyway
+    const lastComp = realCompleted[0] ?? allCompleted[0];
     const recentMatch = {
       teamA: lastComp?.teamA || "TBD", teamB: lastComp?.teamB || "TBD",
       result: lastComp?.result || "No recent match",
