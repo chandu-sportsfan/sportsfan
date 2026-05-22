@@ -597,9 +597,10 @@ function parseMatches(html: string): {
     const matchNoMatch = block.match(/MATCH\s+(\d+)/i);
     const matchNo = matchNoMatch ? Number(matchNoMatch[1]) : 0;
 
+    // 🛠️ FIX 1: More flexible regex to catch all result types
     let resultText: string | undefined;
-    const resultMatch = block.match(/([a-z\s]+won by \d+\s+(?:runs?|wickets?|wkts?|wkt)(?:\s*\([^)]+\))?|no result|tied|abandoned|match tied)/i);
-    if (resultMatch) resultText = resultMatch[1].trim();
+    const resultMatch = block.match(/([A-Za-z\s]+won\s+(?:the match\s+)?by\s+\d+\s+(?:runs?|wickets?|wkts?|wkt)|no result|match tied|tied|abandoned)/i);
+    if (resultMatch) resultText = resultMatch.trim();
 
     // 🛠️ THE FIX: More forgiving regex for spaces, hyphens, and formatting variations
    // 🛠️ THE ULTIMATE FIX: Handles scores with OR without overs safely
@@ -860,7 +861,7 @@ const CORS_HEADERS = {
 export async function GET(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams;
-    const mode = searchParams.get("mode") || "latest"; // "latest" is default for frontend
+    const mode = searchParams.get("mode") || "latest";
     const nextCursor = searchParams.get("nextCursor");
 
     // ── MODE: LIST (For the Admin Panel) ──────────────────────────────────────
@@ -868,8 +869,8 @@ export async function GET(req: NextRequest) {
       const params: CloudinaryApiParams = {
         resource_type: "raw",
         type: "upload",
-        prefix: "sf360/scripts", // Looks inside your scripts folder
-        max_results: 100,        // Raised to 100 because there are 4 files per day
+        prefix: "sf360/scripts",
+        max_results: 100,
       };
       if (nextCursor) params.next_cursor = nextCursor;
 
@@ -890,9 +891,7 @@ export async function GET(req: NextRequest) {
             reportDateFormatted: formatReportDate(reportDate),
           };
         })
-        // 👇 Add the explicit types here
         .sort((a: ScriptFileMeta, b: ScriptFileMeta) => {
-          // Sorts newest to oldest based on the date in the filename
           if (!a.reportDate && !b.reportDate) return 0;
           if (!a.reportDate) return 1;
           if (!b.reportDate) return -1;
@@ -912,21 +911,11 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // ── MODE: LATEST (Standard 5:30 AM IST Rollover with Smart Fallback) ──────
-
-    // ── MODE: LATEST (Test Mode - 11:50 AM Rollover with Smart Fallback) ──────
-
-    // ── MODE: LATEST (Test Mode - 11:23 AM Rollover with Smart Fallback) ──────
-
+    // ── MODE: LATEST (Data Fetching) ──────────────────────────────────────────
     const nnow = new Date();
-    
-    // 1. Calculate current IST time for our trigger check
     const istTime = new Date(nnow.getTime() + (5.5 * 60 * 60 * 1000));
-    
-    // 2. Check if the clock has hit 11:23 AM IST (or later)
     const isPastTestTime = istTime.getUTCHours() > 12 || (istTime.getUTCHours() === 12 && istTime.getUTCMinutes() >= 17);
     
-    // 3. If it's 11:23 AM or later, push the date forward by 1 day!
     if (isPastTestTime) {
       nnow.setUTCDate(nnow.getUTCDate() + 1);
     }
@@ -938,28 +927,32 @@ export async function GET(req: NextRequest) {
     let targetDateStr = `${yyyy}_${mm}_${dd}`; 
     const baseUrl = "https://res.cloudinary.com/dflnsufit/raw/upload/sf360/scripts";
 
-    // 2. Helper function to fetch all 4 files for a given date
+    // 🛠️ FIX 2: Cache Buster & Strict "isOk" Requirement
     const fetchAllData = async (dateStr: string) => {
-    // ... KEEP YOUR EXISTING SMART FALLBACK CODE BELOW THIS LINE ...
+      const cacheBuster = `?t=${Date.now()}`; // Forces fresh fetch
       const [pointsRes, capsRes, matchesRes, statsRes] = await Promise.all([
-        fetch(`${baseUrl}/IPL_Points_Table_${dateStr}.html`, { cache: "no-store" }),
-        fetch(`${baseUrl}/IPL_Caps_${dateStr}.html`,         { cache: "no-store" }),
-        fetch(`${baseUrl}/IPL_Fixtures_${dateStr}.html`,      { cache: "no-store" }),
-        fetch(`${baseUrl}/ipl2026_dashboard_${dateStr}.html`, { cache: "no-store" }),
+        fetch(`${baseUrl}/IPL_Points_Table_${dateStr}.html${cacheBuster}`, { cache: "no-store" }),
+        fetch(`${baseUrl}/IPL_Caps_${dateStr}.html${cacheBuster}`,         { cache: "no-store" }),
+        fetch(`${baseUrl}/IPL_Fixtures_${dateStr}.html${cacheBuster}`,      { cache: "no-store" }),
+        fetch(`${baseUrl}/ipl2026_dashboard_${dateStr}.html${cacheBuster}`, { cache: "no-store" }),
       ]);
-      return { pointsRes, capsRes, matchesRes, statsRes, isOk: pointsRes.ok && capsRes.ok };
+      
+      // CRITICAL: We now explicitly require matchesRes to be OK!
+      return { 
+        pointsRes, capsRes, matchesRes, statsRes, 
+        isOk: pointsRes.ok && matchesRes.ok 
+      };
     };
 
-    // 3. First attempt: Try today's date
     let fetchResults = await fetchAllData(targetDateStr);
 
-    // 4. THE FALLBACK: If today's files aren't found, find the most recent ones!
+    // 🛠️ FIX 3: Robust Fallback Loop
     if (!fetchResults.isOk) {
       const listParams: CloudinaryApiParams = {
         resource_type: "raw",
         type: "upload",
-        prefix: "sf360/scripts/IPL_Points_Table", // Just check points tables to find the latest date
-        max_results: 10,
+        prefix: "sf360/scripts/IPL_Points_Table", 
+        max_results: 15,
       };
 
       const result = await cloudinary.api.resources(listParams);
@@ -970,37 +963,36 @@ export async function GET(req: NextRequest) {
           return extractReportDate(fileName);
         })
         .filter((date: string | null): date is string => !!date)
-        .sort((a: string, b: string) => b.localeCompare(a)); // Sort newest first
+        .sort((a: string, b: string) => b.localeCompare(a)); 
 
-      if (validDates.length > 0) {
-        // extractReportDate returns YYYY-MM-DD. We convert it back to YYYY_MM_DD for the URLs.
-        targetDateStr = validDates[0].replace(/-/g, "_");
-        
-        // Second attempt: Fetch using the verified latest date
+      let foundWorkingDate = false;
+      
+      // Loop through past dates until we find one that has BOTH points and matches
+      for (const pastDate of validDates) {
+        targetDateStr = pastDate.replace(/-/g, "_");
         fetchResults = await fetchAllData(targetDateStr);
+        if (fetchResults.isOk) {
+          foundWorkingDate = true;
+          break;
+        }
       }
 
-      // If it STILL fails after the fallback, then we throw the error
-      if (!fetchResults.isOk) {
-        throw new Error("Core CDN fetch failed for both current and fallback dates.");
+      if (!foundWorkingDate) {
+        throw new Error("Core CDN fetch failed. Could not find a recent date with both Points and Fixtures files.");
       }
     }
 
-    // 5. Extract the HTML from our successful fetch
     const [pointsHtml, capsHtml, matchesHtml, statsHtml] = await Promise.all([
       fetchResults.pointsRes.text(), 
       fetchResults.capsRes.text(), 
-      fetchResults.matchesRes.ok ? fetchResults.matchesRes.text() : Promise.resolve(""),
+      fetchResults.matchesRes.text(), // Guaranteed to exist now
       fetchResults.statsRes.ok ? fetchResults.statsRes.text() : Promise.resolve("") 
     ]);
 
     const pointsTable = parsePointsTable(pointsHtml);
     const { orange: orangeCap, purple: purpleCap } = parseCaps(capsHtml, pointsTable);
-    
-    // 👇 ADD THIS LINE BACK IN
     const matchesData = parseMatches(matchesHtml); 
     
-    // Replace the old parsedDashboard with this:
     const parsedDashboard = statsHtml ? parseAllStats(statsHtml, pointsTable) : {
       highestScores: [],
       extraStats: {
@@ -1008,7 +1000,7 @@ export async function GET(req: NextRequest) {
         mostEcon: [], maxSixes: [], maxFours: [], boundaries: []
       }
     };
-    // Playoff Logic
+
     const getMatch = (no: number, fallbackA: string, fallbackB: string): MatchCard => {
       const match = matchesData.allCards.find(c => c.matchNo === no);
       const tA = (match?.teamA && match.teamA !== "TBD") ? match.teamA : fallbackA;
@@ -1018,17 +1010,14 @@ export async function GET(req: NextRequest) {
         date: match?.date || "TBD",
         day: match?.day || "TBD",
         time: match?.time || "7:30 PM IST",
-        teamA: tA,
-        teamAFull: TEAM_FULL[tA] || tA,
-        teamB: tB,
-        teamBFull: TEAM_FULL[tB] || tB,
+        teamA: tA, teamAFull: TEAM_FULL[tA] || tA,
+        teamB: tB, teamBFull: TEAM_FULL[tB] || tB,
         venue: match?.venue || "TBD",
         status: match?.status || "upcoming",
         result: match?.result
       };
     };
 
-    // Removed dynamic top4 fallback to ensure playoffs stay strictly "TBD" until officially scheduled
     const playoffs: PlayoffData = {
       q1: getMatch(71, "TBD", "TBD"),
       eliminator: getMatch(72, "TBD", "TBD"),
@@ -1036,16 +1025,17 @@ export async function GET(req: NextRequest) {
       final: getMatch(74, "TBD", "TBD"),
     };
 
-    // Construct Today/Recent match from matchesData
     const now = new Date();
     if (now.getFullYear() < 2026) now.setFullYear(2026);
     const todayMidnight = midnight(now);
     const upcoming = matchesData.allCards.filter(c => c.status !== "completed");
+    
     const todayCards = upcoming.filter(c => {
       const d = parseDateStr(c.date + ` 2026`);
       return d && midnight(d).getTime() === todayMidnight.getTime();
     });
-    const todaySource = todayCards[0] ?? upcoming[0];
+    
+    const todaySource = todayCards ?? upcoming;
     const todayMatch = {
       teamA: todaySource?.teamA || "TBD", teamAFull: todaySource?.teamAFull || "TBD",
       teamB: todaySource?.teamB || "TBD", teamBFull: todaySource?.teamBFull || "TBD",
@@ -1053,8 +1043,8 @@ export async function GET(req: NextRequest) {
       matchNo: todaySource?.matchNo || 1, totalMatches: 74
     };
 
-   const realCompleted = matchesData.rawCompletedMatches.filter(m => m._hasRealResult);
-    const lastComp = realCompleted.length > 0 ? realCompleted[0] : matchesData.rawCompletedMatches[0];
+    const realCompleted = matchesData.rawCompletedMatches.filter(m => m._hasRealResult);
+    const lastComp = realCompleted.length > 0 ? realCompleted : matchesData.rawCompletedMatches;
     const recentMatch = {
       teamA: lastComp?.teamA || "TBD", teamB: lastComp?.teamB || "TBD",
       result: lastComp?.result || "No recent match",
@@ -1067,15 +1057,17 @@ export async function GET(req: NextRequest) {
 
     const response: IPLStatsResponse = {
       teamLogos, pointsTable, orangeCap, purpleCap, todayMatch, recentMatch,
-      recentMatches: matchesData.recentMatches.filter(m => m.result !== "Match Completed"),
+      // 🛠️ FIX 4: Removed the aggressive filter. We want to see all completed matches!
+      recentMatches: matchesData.recentMatches, 
       upcomingMatches: matchesData.upcomingMatches,
       highestScores: parsedDashboard.highestScores,  
-      extraStats: parsedDashboard.extraStats,       // <-- This passes all 8 categories to the frontend!
+      extraStats: parsedDashboard.extraStats,       
       playoffs
     };
 
     return NextResponse.json(response, { status: 200, headers: CORS_HEADERS });
-  } catch  {
+  } catch (error) {
+    console.error("API Error:", error);
     return NextResponse.json({ error: "Failed to load stats" }, { status: 500, headers: CORS_HEADERS });
   }
 }
