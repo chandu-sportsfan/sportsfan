@@ -920,7 +920,7 @@ export async function GET(req: NextRequest) {
     const istTime = new Date(nnow.getTime() + (5.5 * 60 * 60 * 1000));
     
     // 2. Check if the clock has hit 10:42 AM IST (or later)
-    const isPastTestTime = istTime.getUTCHours() > 10 || (istTime.getUTCHours() === 10 && istTime.getUTCMinutes() >= 42);
+    const isPastTestTime = istTime.getUTCHours() > 10 || (istTime.getUTCHours() === 10 && istTime.getUTCMinutes() >= 50);
     
     // 3. If it's 10:42 AM or later, push the date forward by 1 day!
     if (isPastTestTime) {
