@@ -671,7 +671,7 @@ function parseMatches(html: string): {
     const isPast = matchDate ? midnight(matchDate).getTime() < todayMidnight.getTime() : false;
     const hasRealResult = !!resultText;
     const status = (hasRealResult || isPast) ? "completed" : "upcoming";
-    const finalResult = resultText || (isPast ? "Match Completed" : undefined);
+    const finalResult = resultText || (isPast ? "Pending Score" : undefined);
 
     const newCard: InternalMatchCard = {
       matchNo, date: dateStr, day: dayName, time: timeStr,
@@ -721,7 +721,7 @@ function parseMatches(html: string): {
       merged.status = (merged._hasRealResult || mergedIsPast) ? "completed" : "upcoming";
       
       if (merged.status === "completed" && !merged._hasRealResult) {
-        merged.result = "Match Completed";
+        merged.result = "Pending Score";
       } else if (merged.status === "upcoming" && !merged._hasRealResult) {
         merged.result = undefined;
       }
@@ -920,7 +920,7 @@ export async function GET(req: NextRequest) {
     const istTime = new Date(nnow.getTime() + (5.5 * 60 * 60 * 1000));
     
     // 2. Check if the clock has hit 10:42 AM IST (or later)
-    const isPastTestTime = istTime.getUTCHours() > 10 || (istTime.getUTCHours() === 10 && istTime.getUTCMinutes() >= 50);
+    const isPastTestTime = istTime.getUTCHours() > 11 || (istTime.getUTCHours() === 11 && istTime.getUTCMinutes() >= 5);
     
     // 3. If it's 10:42 AM or later, push the date forward by 1 day!
     if (isPastTestTime) {
@@ -1063,7 +1063,8 @@ export async function GET(req: NextRequest) {
 
     const response: IPLStatsResponse = {
       teamLogos, pointsTable, orangeCap, purpleCap, todayMatch, recentMatch,
-      recentMatches: matchesData.recentMatches.filter(m => m.result !== "Match Completed"),
+      // Removed the filter so all past matches stay in the list!
+      recentMatches: matchesData.recentMatches,
       upcomingMatches: matchesData.upcomingMatches,
       highestScores: parsedDashboard.highestScores,  
       extraStats: parsedDashboard.extraStats,       // <-- This passes all 8 categories to the frontend!
