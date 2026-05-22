@@ -449,8 +449,8 @@ function mapPlayerRow(row: string[], type: "orange" | "purple", pointsTable: Tea
 function parseCaps(html: string, pointsTable: TeamRow[]): { orange: PlayerRow[]; purple: PlayerRow[] } {
   const tables = extractTables(html);
   if (tables.length >= 2) {
-    const orange = extractRows(tables[0]).map((r) => mapPlayerRow(r, "orange", pointsTable)).filter(Boolean) as PlayerRow[];
-    const purple = extractRows(tables[1]).map((r) => mapPlayerRow(r, "purple", pointsTable)).filter(Boolean) as PlayerRow[];
+    const orange = extractRows(tables[0]).map((r) => mapPlayerRow(r, "orange", pointsTable)).filter((p): p is PlayerRow => p !== null);
+    const purple = extractRows(tables[1]).map((r) => mapPlayerRow(r, "purple", pointsTable)).filter((p): p is PlayerRow => p !== null);
     return { orange, purple };
   }
 
@@ -461,8 +461,8 @@ function parseCaps(html: string, pointsTable: TeamRow[]): { orange: PlayerRow[];
     while ((bm = tbodyRe.exec(tables[0])) !== null) bodies.push(bm[1]);
 
     if (bodies.length >= 2) {
-      const orange = extractRows(bodies[0]).map((r) => mapPlayerRow(r, "orange", pointsTable)).filter(Boolean) as PlayerRow[];
-      const purple = extractRows(bodies[1]).map((r) => mapPlayerRow(r, "purple", pointsTable)).filter(Boolean) as PlayerRow[];
+      const orange = extractRows(bodies[0]).map((r) => mapPlayerRow(r, "orange", pointsTable)).filter((p): p is PlayerRow => p !== null);
+      const purple = extractRows(bodies[1]).map((r) => mapPlayerRow(r, "purple", pointsTable)).filter((p): p is PlayerRow => p !== null);
       return { orange, purple };
     }
   }
@@ -600,7 +600,7 @@ function parseMatches(html: string): {
     // 🛠️ FIX 1: More flexible regex to catch all result types
     let resultText: string | undefined;
     const resultMatch = block.match(/([A-Za-z\s]+won\s+(?:the match\s+)?by\s+\d+\s+(?:runs?|wickets?|wkts?|wkt)|no result|match tied|tied|abandoned)/i);
-    if (resultMatch) resultText = resultMatch.trim();
+    if (resultMatch) resultText = resultMatch[0].trim();
 
     // 🛠️ THE FIX: More forgiving regex for spaces, hyphens, and formatting variations
    // 🛠️ THE ULTIMATE FIX: Handles scores with OR without overs safely
@@ -739,17 +739,21 @@ function parseMatches(html: string): {
   const cards = Array.from(cardsMap.values());
   cards.sort((a: InternalMatchCard, b: InternalMatchCard) => a.matchNo - b.matchNo);
 
-  const cleanCards: MatchCard[] = cards.map(({ _isDesktop, _hasRealResult, _scoreA, _scoreB, _oversA, _oversB, ...rest }) => ({
-    ...rest,
-    scoreA: _scoreA,
-    scoreB: _scoreB,
-    oversA: _oversA,
-    oversB: _oversB
-  }) as MatchCard);
+  const cleanCards: MatchCard[] = cards.map(({ _isDesktop: _unused, _hasRealResult, _scoreA, _scoreB, _oversA, _oversB, ...rest }) => {
+    void _unused;
+    void _hasRealResult;
+    return {
+      ...rest,
+      scoreA: _scoreA,
+      scoreB: _scoreB,
+      oversA: _oversA,
+      oversB: _oversB,
+    };
+  });
 
   return { 
-    todayMatch: {} as TodayMatch,
-    recentMatch: {} as RecentMatch,
+    todayMatch: { teamA: "", teamAFull: "", teamB: "", teamBFull: "", time: "", venue: "", matchNo: 0, totalMatches: 74 },
+    recentMatch: { teamA: "", teamB: "", result: "" },
     allCards: cleanCards,
     rawCompletedMatches: cards.filter(c => c.status === "completed").sort((a: InternalMatchCard, b: InternalMatchCard) => b.matchNo - a.matchNo),
     recentMatches: cleanCards.filter(c => c.status === "completed").sort((a: MatchCard, b: MatchCard) => b.matchNo - a.matchNo),
@@ -814,7 +818,7 @@ function parseAllStats(html: string, pointsTable: TeamRow[]) {
               if (foundAbbr) { team = foundAbbr; break; }
             }
           }
-        } catch {}
+        } catch (_e) { void _e; }
       }
       if (!team) team = "TBD";
       return { rank, player, team, value, subValue };
@@ -912,18 +916,15 @@ export async function GET(req: NextRequest) {
     }
 
     // ── MODE: LATEST (Data Fetching) ──────────────────────────────────────────
+    // Always use today's IST date as the first target. The fallback loop below
+    // will walk backwards through available CDN files if today's file is missing.
     const nnow = new Date();
     const istTime = new Date(nnow.getTime() + (5.5 * 60 * 60 * 1000));
-    const isPastTestTime = istTime.getUTCHours() > 12 || (istTime.getUTCHours() === 12 && istTime.getUTCMinutes() >= 17);
-    
-    if (isPastTestTime) {
-      nnow.setUTCDate(nnow.getUTCDate() + 1);
-    }
 
-    const yyyy = nnow.getUTCFullYear();
-    const mm = String(nnow.getUTCMonth() + 1).padStart(2, "0");
-    const dd = String(nnow.getUTCDate()).padStart(2, "0");
-    
+    const yyyy = istTime.getUTCFullYear();
+    const mm = String(istTime.getUTCMonth() + 1).padStart(2, "0");
+    const dd = String(istTime.getUTCDate()).padStart(2, "0");
+
     let targetDateStr = `${yyyy}_${mm}_${dd}`; 
     const baseUrl = "https://res.cloudinary.com/dflnsufit/raw/upload/sf360/scripts";
 
@@ -1035,7 +1036,8 @@ export async function GET(req: NextRequest) {
       return d && midnight(d).getTime() === todayMidnight.getTime();
     });
     
-    const todaySource = todayCards ?? upcoming;
+    // Pick the first match card for today, or fall back to the next upcoming match
+    const todaySource = todayCards[0] ?? upcoming[0];
     const todayMatch = {
       teamA: todaySource?.teamA || "TBD", teamAFull: todaySource?.teamAFull || "TBD",
       teamB: todaySource?.teamB || "TBD", teamBFull: todaySource?.teamBFull || "TBD",
@@ -1043,8 +1045,10 @@ export async function GET(req: NextRequest) {
       matchNo: todaySource?.matchNo || 1, totalMatches: 74
     };
 
+    // Pick the most recent completed match (highest matchNo with a real result)
     const realCompleted = matchesData.rawCompletedMatches.filter(m => m._hasRealResult);
-    const lastComp = realCompleted.length > 0 ? realCompleted : matchesData.rawCompletedMatches;
+    const lastCompArr = realCompleted.length > 0 ? realCompleted : matchesData.rawCompletedMatches;
+    const lastComp = lastCompArr[0];
     const recentMatch = {
       teamA: lastComp?.teamA || "TBD", teamB: lastComp?.teamB || "TBD",
       result: lastComp?.result || "No recent match",
