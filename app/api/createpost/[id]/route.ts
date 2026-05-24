@@ -12,7 +12,7 @@ function getIdFromUrl(req: NextRequest): string | null {
 }
 
 
-// GET  /api/posts/[id]
+// GET  /api/createpost/[id]
 
 export async function GET(req: NextRequest) {
 

@@ -330,7 +330,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// ─── GET — Fetch global leaderboard ───────────────────────────────────────────
+// ─── GET — Fetch global leaderboard 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
