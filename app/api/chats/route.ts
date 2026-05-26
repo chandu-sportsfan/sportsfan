@@ -188,14 +188,30 @@
 
 
 
-
-
 // app/api/chats/route.ts
 // Powers the "My Chats" tab — list of DMs and group chats
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
-import { getCurrentUser } from "@/lib/getCurrentUser";
+
+// ─── Auth helper — mirrors /api/auth/host/me, same pattern as LiveRoomsCard ──
+async function getUser(req: NextRequest) {
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_ADMIN_URL}/api/auth/host/me`, {
+      headers: {
+        cookie:        req.headers.get("cookie")        ?? "",
+        authorization: req.headers.get("authorization") ?? "",
+      },
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json.success || !json.user) return null;
+    return json.user as { userId?: string; email: string; name: string; role: string };
+  } catch {
+    return null;
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/chats
@@ -206,11 +222,11 @@ import { getCurrentUser } from "@/lib/getCurrentUser";
 // ─────────────────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   try {
-    const currentUser = await getCurrentUser(req);
-    if (!currentUser) {
+    const user = await getUser(req);
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const CURRENT_USER_ID = currentUser.userId;
+    const CURRENT_USER_ID = user.userId ?? user.email;
 
     const { searchParams } = new URL(req.url);
     const type             = searchParams.get("type");
@@ -277,11 +293,11 @@ export async function GET(req: NextRequest) {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
-    const currentUser = await getCurrentUser(req);
-    if (!currentUser) {
+    const user = await getUser(req);
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const CURRENT_USER_ID = currentUser.userId;
+    const CURRENT_USER_ID = user.userId ?? user.email;
 
     const body = await req.json();
     const { type, participantId, participantIds, name } = body;
@@ -315,8 +331,8 @@ export async function POST(req: NextRequest) {
       if (alreadyExists) {
         return NextResponse.json({
           success: true,
-          id:   alreadyExists.id,
-          chat: { id: alreadyExists.id, ...alreadyExists.data() },
+          id:      alreadyExists.id,
+          chat:    { id: alreadyExists.id, ...alreadyExists.data() },
           message: "Existing DM returned",
         });
       }
@@ -324,7 +340,7 @@ export async function POST(req: NextRequest) {
       const now     = Date.now();
       const newChat = {
         type:               "dm",
-        name:               "",   // UI derives name from the other participant's profile
+        name:               "",
         participantIds:     [CURRENT_USER_ID, participantId],
         lastMessageContent: "",
         lastMessageAt:      now,

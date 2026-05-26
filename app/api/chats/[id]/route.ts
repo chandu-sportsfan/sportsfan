@@ -159,12 +159,29 @@
 
 
 
-
 // app/api/chats/[chatId]/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
-import { getCurrentUser } from "@/lib/getCurrentUser";
+
+// ─── Auth helper — mirrors /api/auth/host/me, same pattern as LiveRoomsCard ──
+async function getUser(req: NextRequest) {
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_ADMIN_URL}/api/auth/host/me`, {
+      headers: {
+        cookie:        req.headers.get("cookie")        ?? "",
+        authorization: req.headers.get("authorization") ?? "",
+      },
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json.success || !json.user) return null;
+    return json.user as { userId?: string; email: string; name: string; role: string };
+  } catch {
+    return null;
+  }
+}
 
 function getIdFromUrl(req: NextRequest): string {
   const parts = new URL(req.url).pathname.split("/");
@@ -176,11 +193,11 @@ function getIdFromUrl(req: NextRequest): string {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   try {
-    const currentUser = await getCurrentUser(req);
-    if (!currentUser) {
+    const user = await getUser(req);
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const CURRENT_USER_ID = currentUser.userId;
+    const CURRENT_USER_ID = user.userId ?? user.email;
 
     const id = getIdFromUrl(req);
     if (!id) {
@@ -216,11 +233,11 @@ export async function GET(req: NextRequest) {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function PATCH(req: NextRequest) {
   try {
-    const currentUser = await getCurrentUser(req);
-    if (!currentUser) {
+    const user = await getUser(req);
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const CURRENT_USER_ID = currentUser.userId;
+    const CURRENT_USER_ID = user.userId ?? user.email;
 
     const id = getIdFromUrl(req);
     if (!id) {
@@ -255,7 +272,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "isPinned must be a boolean" }, { status: 400 });
     }
 
-    const allowedFields                  = ["name", "isMuted", "isPinned", "avatarUrl"];
+    const allowedFields                    = ["name", "isMuted", "isPinned", "avatarUrl"];
     const updates: Record<string, unknown> = { updatedAt: Date.now() };
     allowedFields.forEach((field) => {
       if (body[field] !== undefined) updates[field] = body[field];
@@ -282,11 +299,11 @@ export async function PATCH(req: NextRequest) {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function DELETE(req: NextRequest) {
   try {
-    const currentUser = await getCurrentUser(req);
-    if (!currentUser) {
+    const user = await getUser(req);
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const CURRENT_USER_ID = currentUser.userId;
+    const CURRENT_USER_ID = user.userId ?? user.email;
 
     const id = getIdFromUrl(req);
     if (!id) {
