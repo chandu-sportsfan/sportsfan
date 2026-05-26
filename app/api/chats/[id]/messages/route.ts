@@ -194,53 +194,39 @@ import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { db } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
-import { auth } from "@/lib/auth.config";   // ← NextAuth helper for Google users
 
 // ─── Auth helper ──────────────────────────────────────────────────────────────
-// Handles BOTH login flows:
-//   • Email/password → sets an httpOnly "token" JWT cookie via /api/auth/login
-//   • Google         → uses NextAuth session (no "token" cookie, different mechanism)
+// Path A — Email/password: httpOnly "token" cookie set by /api/auth/login
+// Path B — Google users:   "Authorization: Bearer <token>" sent by chatApi.ts
 // ─────────────────────────────────────────────────────────────────────────────
 async function getUser(req: NextRequest) {
-  // ── 1. JWT cookie (email/password users) ────────────────────────────────────
   const cookieToken = req.cookies.get("token")?.value;
   if (cookieToken) {
     try {
       const payload = jwt.verify(cookieToken, process.env.JWT_SECRET!) as {
         email?: string; userId?: string; uid?: string; id?: string;
-        name?:  string; role?:  string;
+        name?: string; role?: string;
       };
       const userId = payload.userId ?? payload.uid ?? payload.id ?? payload.email;
       if (userId && payload.email) {
-        return {
-          userId,
-          email: payload.email,
-          name:  payload.name ?? "",
-          role:  payload.role ?? "user",
-        };
+        return { userId, email: payload.email, name: payload.name ?? "", role: payload.role ?? "user" };
       }
-    } catch {
-      // Expired or tampered — fall through to NextAuth
-    }
+    } catch {}
   }
 
-  // ── 2. NextAuth session (Google users) ──────────────────────────────────────
-  try {
-    const session = await auth();
-    const u = session?.user as {
-      email?: string; userId?: string; name?: string; role?: string;
-    } | undefined;
-
-    if (u?.email) {
-      return {
-        userId: u.userId ?? u.email.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_"),
-        email:  u.email,
-        name:   u.name  ?? "",
-        role:   u.role  ?? "user",
+  const authHeader = req.headers.get("authorization") ?? "";
+  if (authHeader.startsWith("Bearer ")) {
+    const bearerToken = authHeader.slice(7).trim();
+    try {
+      const payload = jwt.verify(bearerToken, process.env.JWT_SECRET!) as {
+        email?: string; userId?: string; uid?: string; id?: string;
+        name?: string; role?: string;
       };
-    }
-  } catch {
-    // NextAuth not available or session invalid
+      const userId = payload.userId ?? payload.uid ?? payload.id ?? payload.email;
+      if (userId && payload.email) {
+        return { userId, email: payload.email, name: payload.name ?? "", role: payload.role ?? "user" };
+      }
+    } catch {}
   }
 
   return null;
@@ -248,7 +234,6 @@ async function getUser(req: NextRequest) {
 
 function getChatIdFromUrl(req: NextRequest): string {
   const parts = new URL(req.url).pathname.split("/");
-  // /api/chats/[chatId]/messages  →  chatId is second-to-last segment
   return parts[parts.length - 2];
 }
 
@@ -256,18 +241,11 @@ const VALID_TYPES = ["text", "image", "video", "audio", "file"] as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/chats/[chatId]/messages
-//   ?limit=50
-//   ?lastDocId=<id>
-//   ?lastDocCreatedAt=<ms>
-// Returns messages in chronological order (oldest → newest).
-// Also resets unreadCount on the chat to 0 for the current user.
 // ─────────────────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   try {
     const user = await getUser(req);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const CURRENT_USER_ID = user.userId;
 
     const chatId           = getChatIdFromUrl(req);
@@ -276,18 +254,14 @@ export async function GET(req: NextRequest) {
     const lastDocId        = searchParams.get("lastDocId");
     const lastDocCreatedAt = searchParams.get("lastDocCreatedAt");
 
-    // Verify chat + access
     const chatRef = db.collection("chats").doc(chatId);
     const chatDoc = await chatRef.get();
 
-    if (!chatDoc.exists) {
-      return NextResponse.json({ error: "Chat not found" }, { status: 404 });
-    }
+    if (!chatDoc.exists) return NextResponse.json({ error: "Chat not found" }, { status: 404 });
     if (!(chatDoc.data()?.participantIds as string[]).includes(CURRENT_USER_ID)) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    // Fetch messages newest-first (for efficient pagination), then reverse
     let query = db
       .collection("messages")
       .where("chatId", "==", chatId)
@@ -301,15 +275,9 @@ export async function GET(req: NextRequest) {
     }
 
     const snapshot = await query.get();
+    const messages = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })).reverse();
+    const lastDoc  = snapshot.docs[snapshot.docs.length - 1];
 
-    // Chronological order for UI rendering
-    const messages = snapshot.docs
-      .map((doc) => ({ id: doc.id, ...doc.data() }))
-      .reverse();
-
-    const lastDoc = snapshot.docs[snapshot.docs.length - 1];
-
-    // Batch: mark unread messages as read + reset chat unreadCount
     const unreadDocs = snapshot.docs.filter(
       (doc) => !doc.data().isRead && doc.data().senderId !== CURRENT_USER_ID
     );
@@ -328,10 +296,7 @@ export async function GET(req: NextRequest) {
         hasMore: snapshot.docs.length === limit,
         nextCursor:
           snapshot.docs.length === limit
-            ? {
-                lastDocId:        lastDoc?.id,
-                lastDocCreatedAt: lastDoc?.data()?.createdAt,
-              }
+            ? { lastDocId: lastDoc?.id, lastDocCreatedAt: lastDoc?.data()?.createdAt }
             : null,
       },
     });
@@ -344,16 +309,11 @@ export async function GET(req: NextRequest) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/chats/[chatId]/messages
-// Send a message. Also updates the chat's lastMessageContent + lastMessageAt.
-//
-// Body: { content: string, type?: MessageType, replyToId?: string, mediaUrl?: string }
 // ─────────────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
     const user = await getUser(req);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const CURRENT_USER_ID = user.userId;
 
     const chatId                                           = getChatIdFromUrl(req);
@@ -363,53 +323,35 @@ export async function POST(req: NextRequest) {
     if (!content || typeof content !== "string" || !content.trim()) {
       return NextResponse.json({ error: "content is required" }, { status: 400 });
     }
-
     if (!VALID_TYPES.includes(type)) {
-      return NextResponse.json(
-        { error: `type must be one of: ${VALID_TYPES.join(", ")}` },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: `type must be one of: ${VALID_TYPES.join(", ")}` }, { status: 400 });
     }
 
-    // Verify chat + access
     const chatRef = db.collection("chats").doc(chatId);
     const chatDoc = await chatRef.get();
 
-    if (!chatDoc.exists) {
-      return NextResponse.json({ error: "Chat not found" }, { status: 404 });
-    }
+    if (!chatDoc.exists) return NextResponse.json({ error: "Chat not found" }, { status: 404 });
     if (!(chatDoc.data()?.participantIds as string[]).includes(CURRENT_USER_ID)) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    // Validate replyToId belongs to this chat
     if (replyToId) {
       const replyDoc = await db.collection("messages").doc(replyToId).get();
       if (!replyDoc.exists || replyDoc.data()?.chatId !== chatId) {
-        return NextResponse.json(
-          { error: "Replied-to message not found in this chat" },
-          { status: 404 }
-        );
+        return NextResponse.json({ error: "Replied-to message not found in this chat" }, { status: 404 });
       }
     }
 
     const now = Date.now();
     const newMessage: Record<string, unknown> = {
-      chatId,
-      senderId:  CURRENT_USER_ID,
-      type,
-      content:   content.trim(),
-      isRead:    false,
-      createdAt: now,
-      updatedAt: now,
+      chatId, senderId: CURRENT_USER_ID, type,
+      content: content.trim(), isRead: false,
+      createdAt: now, updatedAt: now,
     };
-
     if (replyToId) newMessage.replyToId = replyToId;
     if (mediaUrl)  newMessage.mediaUrl  = mediaUrl;
 
-    const msgRef = await db.collection("messages").add(newMessage);
-
-    // Update chat snapshot visible in the My Chats list row
+    const msgRef     = await db.collection("messages").add(newMessage);
     const otherCount = (chatDoc.data()?.participantIds as string[]).filter(
       (id) => id !== CURRENT_USER_ID
     ).length;
@@ -422,11 +364,7 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json(
-      {
-        success: true,
-        id:      msgRef.id,
-        message: { id: msgRef.id, ...newMessage },
-      },
+      { success: true, id: msgRef.id, message: { id: msgRef.id, ...newMessage } },
       { status: 201 }
     );
   } catch (error: unknown) {

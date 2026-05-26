@@ -158,59 +158,44 @@
 
 
 
-
 // app/api/chats/[chatId]/route.ts  — BACKEND
 
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { db } from "@/lib/firebaseAdmin";
-import { auth } from "@/lib/auth.config";   // ← NextAuth helper for Google users
 
 // ─── Auth helper ──────────────────────────────────────────────────────────────
-// Handles BOTH login flows:
-//   • Email/password → sets an httpOnly "token" JWT cookie via /api/auth/login
-//   • Google         → uses NextAuth session (no "token" cookie, different mechanism)
+// Path A — Email/password: httpOnly "token" cookie set by /api/auth/login
+// Path B — Google users:   "Authorization: Bearer <token>" sent by chatApi.ts
 // ─────────────────────────────────────────────────────────────────────────────
 async function getUser(req: NextRequest) {
-  // ── 1. JWT cookie (email/password users) ────────────────────────────────────
   const cookieToken = req.cookies.get("token")?.value;
   if (cookieToken) {
     try {
       const payload = jwt.verify(cookieToken, process.env.JWT_SECRET!) as {
         email?: string; userId?: string; uid?: string; id?: string;
-        name?:  string; role?:  string;
+        name?: string; role?: string;
       };
       const userId = payload.userId ?? payload.uid ?? payload.id ?? payload.email;
       if (userId && payload.email) {
-        return {
-          userId,
-          email: payload.email,
-          name:  payload.name ?? "",
-          role:  payload.role ?? "user",
-        };
+        return { userId, email: payload.email, name: payload.name ?? "", role: payload.role ?? "user" };
       }
-    } catch {
-      // Expired or tampered — fall through to NextAuth
-    }
+    } catch {}
   }
 
-  // ── 2. NextAuth session (Google users) ──────────────────────────────────────
-  try {
-    const session = await auth();
-    const u = session?.user as {
-      email?: string; userId?: string; name?: string; role?: string;
-    } | undefined;
-
-    if (u?.email) {
-      return {
-        userId: u.userId ?? u.email.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_"),
-        email:  u.email,
-        name:   u.name  ?? "",
-        role:   u.role  ?? "user",
+  const authHeader = req.headers.get("authorization") ?? "";
+  if (authHeader.startsWith("Bearer ")) {
+    const bearerToken = authHeader.slice(7).trim();
+    try {
+      const payload = jwt.verify(bearerToken, process.env.JWT_SECRET!) as {
+        email?: string; userId?: string; uid?: string; id?: string;
+        name?: string; role?: string;
       };
-    }
-  } catch {
-    // NextAuth not available or session invalid
+      const userId = payload.userId ?? payload.uid ?? payload.id ?? payload.email;
+      if (userId && payload.email) {
+        return { userId, email: payload.email, name: payload.name ?? "", role: payload.role ?? "user" };
+      }
+    } catch {}
   }
 
   return null;
@@ -227,32 +212,23 @@ function getIdFromUrl(req: NextRequest): string {
 export async function GET(req: NextRequest) {
   try {
     const user = await getUser(req);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const CURRENT_USER_ID = user.userId;
 
     const id = getIdFromUrl(req);
-    if (!id) {
-      return NextResponse.json({ error: "Chat ID is required" }, { status: 400 });
-    }
+    if (!id) return NextResponse.json({ error: "Chat ID is required" }, { status: 400 });
 
     const docRef = db.collection("chats").doc(id);
     const doc    = await docRef.get();
 
-    if (!doc.exists) {
-      return NextResponse.json({ error: "Chat not found" }, { status: 404 });
-    }
+    if (!doc.exists) return NextResponse.json({ error: "Chat not found" }, { status: 404 });
 
     const data = doc.data()!;
     if (!(data.participantIds as string[]).includes(CURRENT_USER_ID)) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    return NextResponse.json({
-      success: true,
-      chat:    { id: doc.id, ...data },
-    });
+    return NextResponse.json({ success: true, chat: { id: doc.id, ...data } });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
     console.error("GET /api/chats/[chatId] error:", error);
@@ -262,28 +238,21 @@ export async function GET(req: NextRequest) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PATCH /api/chats/[chatId]
-// Updatable fields: name (group only), isMuted, isPinned, avatarUrl
 // ─────────────────────────────────────────────────────────────────────────────
 export async function PATCH(req: NextRequest) {
   try {
     const user = await getUser(req);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const CURRENT_USER_ID = user.userId;
 
     const id = getIdFromUrl(req);
-    if (!id) {
-      return NextResponse.json({ error: "Chat ID is required" }, { status: 400 });
-    }
+    if (!id) return NextResponse.json({ error: "Chat ID is required" }, { status: 400 });
 
     const body   = await req.json();
     const docRef = db.collection("chats").doc(id);
     const doc    = await docRef.get();
 
-    if (!doc.exists) {
-      return NextResponse.json({ error: "Chat not found" }, { status: 404 });
-    }
+    if (!doc.exists) return NextResponse.json({ error: "Chat not found" }, { status: 404 });
 
     const data = doc.data()!;
     if (!(data.participantIds as string[]).includes(CURRENT_USER_ID)) {
@@ -291,16 +260,11 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (body.name !== undefined && data.type !== "group") {
-      return NextResponse.json(
-        { error: "Cannot rename a DM conversation" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Cannot rename a DM conversation" }, { status: 400 });
     }
-
     if (body.isMuted !== undefined && typeof body.isMuted !== "boolean") {
       return NextResponse.json({ error: "isMuted must be a boolean" }, { status: 400 });
     }
-
     if (body.isPinned !== undefined && typeof body.isPinned !== "boolean") {
       return NextResponse.json({ error: "isPinned must be a boolean" }, { status: 400 });
     }
@@ -314,10 +278,7 @@ export async function PATCH(req: NextRequest) {
     await docRef.update(updates);
     const updated = await docRef.get();
 
-    return NextResponse.json({
-      success: true,
-      chat:    { id: updated.id, ...updated.data() },
-    });
+    return NextResponse.json({ success: true, chat: { id: updated.id, ...updated.data() } });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
     console.error("PATCH /api/chats/[chatId] error:", error);
@@ -333,42 +294,29 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await getUser(req);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const CURRENT_USER_ID = user.userId;
 
     const id = getIdFromUrl(req);
-    if (!id) {
-      return NextResponse.json({ error: "Chat ID is required" }, { status: 400 });
-    }
+    if (!id) return NextResponse.json({ error: "Chat ID is required" }, { status: 400 });
 
     const docRef = db.collection("chats").doc(id);
     const doc    = await docRef.get();
 
-    if (!doc.exists) {
-      return NextResponse.json({ error: "Chat not found" }, { status: 404 });
-    }
+    if (!doc.exists) return NextResponse.json({ error: "Chat not found" }, { status: 404 });
 
     const data = doc.data()!;
     if (!(data.participantIds as string[]).includes(CURRENT_USER_ID)) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    // DM or owner of a group chat → delete entirely
     if (data.type === "dm" || data.createdBy === CURRENT_USER_ID) {
       await docRef.delete();
-      return NextResponse.json({
-        success: true,
-        message: `Chat ${id} deleted successfully`,
-      });
+      return NextResponse.json({ success: true, message: `Chat ${id} deleted successfully` });
     }
 
-    // Regular group member → leave (remove self from participants)
     await docRef.update({
-      participantIds: (data.participantIds as string[]).filter(
-        (uid) => uid !== CURRENT_USER_ID
-      ),
+      participantIds: (data.participantIds as string[]).filter((uid) => uid !== CURRENT_USER_ID),
       updatedAt: Date.now(),
     });
 

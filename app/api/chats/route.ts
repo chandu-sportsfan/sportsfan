@@ -187,65 +187,56 @@
 
 
 
-
 // app/api/chats/route.ts  — BACKEND
 // Powers the "My Chats" tab — list of DMs and group chats
 
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { db } from "@/lib/firebaseAdmin";
-import { auth } from "@/lib/auth.config";   // ← NextAuth helper for Google users
 
 // ─── Auth helper ──────────────────────────────────────────────────────────────
-// Handles BOTH login flows:
-//   • Email/password → sets an httpOnly "token" JWT cookie via /api/auth/login
-//   • Google         → uses NextAuth session (no "token" cookie, different mechanism)
+// Path A — Email/password: httpOnly "token" cookie set by /api/auth/login
+// Path B — Google users:   "Authorization: Bearer <token>" sent by chatApi.ts
+//           Token is issued by frontend's /api/session-token route,
+//           signed with the same JWT_SECRET — verified identically here.
 //
-// This mirrors exactly what AuthContext.tsx does on the frontend:
-//   1. Try /api/auth/host/me (JWT cookie)  →  2. Fall back to useSession (NextAuth)
+// NOTE: No auth() / NextAuth import needed. The Bearer token approach works
+// cross-domain because it's just a JWT in a header, not a cookie.
 // ─────────────────────────────────────────────────────────────────────────────
 async function getUser(req: NextRequest) {
-  // ── 1. JWT cookie (email/password users) ────────────────────────────────────
+  // ── Path A: JWT cookie (email/password users) ─────────────────────────────
   const cookieToken = req.cookies.get("token")?.value;
   if (cookieToken) {
     try {
       const payload = jwt.verify(cookieToken, process.env.JWT_SECRET!) as {
         email?: string; userId?: string; uid?: string; id?: string;
-        name?:  string; role?:  string;
+        name?: string; role?: string;
       };
       const userId = payload.userId ?? payload.uid ?? payload.id ?? payload.email;
       if (userId && payload.email) {
-        return {
-          userId,
-          email: payload.email,
-          name:  payload.name ?? "",
-          role:  payload.role ?? "user",
-        };
+        return { userId, email: payload.email, name: payload.name ?? "", role: payload.role ?? "user" };
       }
     } catch {
-      // Expired or tampered — fall through to NextAuth
+      // Expired or tampered — fall through to Bearer
     }
   }
 
-  // ── 2. NextAuth session (Google users) ──────────────────────────────────────
-  // Google users never get a "token" cookie; their identity lives in a
-  // NextAuth-encrypted session cookie. auth() reads it server-side.
-  try {
-    const session = await auth();
-    const u = session?.user as {
-      email?: string; userId?: string; name?: string; role?: string;
-    } | undefined;
-
-    if (u?.email) {
-      return {
-        userId: u.userId ?? u.email.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_"),
-        email:  u.email,
-        name:   u.name  ?? "",
-        role:   u.role  ?? "user",
+  // ── Path B: Bearer token (Google users) ───────────────────────────────────
+  const authHeader = req.headers.get("authorization") ?? "";
+  if (authHeader.startsWith("Bearer ")) {
+    const bearerToken = authHeader.slice(7).trim();
+    try {
+      const payload = jwt.verify(bearerToken, process.env.JWT_SECRET!) as {
+        email?: string; userId?: string; uid?: string; id?: string;
+        name?: string; role?: string;
       };
+      const userId = payload.userId ?? payload.uid ?? payload.id ?? payload.email;
+      if (userId && payload.email) {
+        return { userId, email: payload.email, name: payload.name ?? "", role: payload.role ?? "user" };
+      }
+    } catch {
+      // Invalid token
     }
-  } catch {
-    // NextAuth not available or session invalid
   }
 
   return null;
@@ -272,13 +263,11 @@ export async function GET(req: NextRequest) {
     const lastDocId        = searchParams.get("lastDocId");
     const lastDocUpdatedAt = searchParams.get("lastDocUpdatedAt");
 
-    // Base query — current user must be a participant
     let query = db
       .collection("chats")
       .where("participantIds", "array-contains", CURRENT_USER_ID)
       .orderBy("updatedAt", "desc");
 
-    // Optionally narrow to DMs or group chats
     if (type === "dm" || type === "group") {
       query = db
         .collection("chats")
@@ -289,7 +278,6 @@ export async function GET(req: NextRequest) {
 
     query = query.limit(limit);
 
-    // Cursor pagination
     if (lastDocId && lastDocUpdatedAt) {
       const lastRef = db.collection("chats").doc(lastDocId);
       const lastDoc = await lastRef.get();
@@ -308,10 +296,7 @@ export async function GET(req: NextRequest) {
         hasMore: chats.length === limit,
         nextCursor:
           chats.length === limit
-            ? {
-                lastDocId:        lastDoc?.id,
-                lastDocUpdatedAt: lastDoc?.data()?.updatedAt,
-              }
+            ? { lastDocId: lastDoc?.id, lastDocUpdatedAt: lastDoc?.data()?.updatedAt }
             : null,
       },
     });
@@ -324,8 +309,6 @@ export async function GET(req: NextRequest) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/chats
-// Create a DM or a group chat
-//
 // DM body:    { type: "dm",    participantId: string }
 // Group body: { type: "group", name: string, participantIds?: string[] }
 // ─────────────────────────────────────────────────────────────────────────────
@@ -341,22 +324,15 @@ export async function POST(req: NextRequest) {
     const { type, participantId, participantIds, name } = body;
 
     if (!type || !["dm", "group"].includes(type)) {
-      return NextResponse.json(
-        { error: "type must be 'dm' or 'group'" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "type must be 'dm' or 'group'" }, { status: 400 });
     }
 
-    // ── DM ──────────────────────────────────────────────────────────────────
+    // ── DM ───────────────────────────────────────────────────────────────────
     if (type === "dm") {
       if (!participantId) {
-        return NextResponse.json(
-          { error: "participantId is required for DMs" },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: "participantId is required for DMs" }, { status: 400 });
       }
 
-      // Return existing DM if one already exists between the two users
       const existing = await db
         .collection("chats")
         .where("type", "==", "dm")
@@ -377,19 +353,11 @@ export async function POST(req: NextRequest) {
 
       const now     = Date.now();
       const newChat = {
-        type:               "dm",
-        name:               "",
+        type: "dm", name: "",
         participantIds:     [CURRENT_USER_ID, participantId],
-        lastMessageContent: "",
-        lastMessageAt:      now,
-        unreadCount:        0,
-        isOnline:           false,
-        isVerified:         false,
-        isPinned:           false,
-        isMuted:            false,
-        createdBy:          CURRENT_USER_ID,
-        createdAt:          now,
-        updatedAt:          now,
+        lastMessageContent: "", lastMessageAt: now, unreadCount: 0,
+        isOnline: false, isVerified: false, isPinned: false, isMuted: false,
+        createdBy: CURRENT_USER_ID, createdAt: now, updatedAt: now,
       };
 
       const docRef = await db.collection("chats").add(newChat);
@@ -399,12 +367,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── Group chat ───────────────────────────────────────────────────────────
+    // ── Group ────────────────────────────────────────────────────────────────
     if (!name || !name.trim()) {
-      return NextResponse.json(
-        { error: "name is required for group chats" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "name is required for group chats" }, { status: 400 });
     }
 
     const members = Array.isArray(participantIds)
@@ -413,19 +378,11 @@ export async function POST(req: NextRequest) {
 
     const now     = Date.now();
     const newChat = {
-      type:               "group",
-      name:               name.trim(),
+      type: "group", name: name.trim(),
       participantIds:     members,
-      lastMessageContent: "",
-      lastMessageAt:      now,
-      unreadCount:        0,
-      isOnline:           false,
-      isVerified:         false,
-      isPinned:           false,
-      isMuted:            false,
-      createdBy:          CURRENT_USER_ID,
-      createdAt:          now,
-      updatedAt:          now,
+      lastMessageContent: "", lastMessageAt: now, unreadCount: 0,
+      isOnline: false, isVerified: false, isPinned: false, isMuted: false,
+      createdBy: CURRENT_USER_ID, createdAt: now, updatedAt: now,
     };
 
     const docRef = await db.collection("chats").add(newChat);
