@@ -3,13 +3,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { MatchUpdateSchema } from "@/lib/validations/cricket";
 
-// GET - Get single match by ID
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+//  Helper: extract ID from URL 
+function getIdFromUrl(req: NextRequest): string {
+  const url = new URL(req.url);
+  const parts = url.pathname.split("/");
+  return parts[parts.length - 1];
+}
+
+// GET - Fetch single article by ID
+export async function GET(req: NextRequest) {
   try {
-    const { id } = params;
+    const id = getIdFromUrl(req);
+
+    if (!id) {
+      return NextResponse.json({ error: "Matches ID is required" }, { status: 400 });
+    }
     
     const docRef = db.collection("matches").doc(id);
     const doc = await docRef.get();
@@ -33,13 +41,14 @@ export async function GET(
   }
 }
 
-// PUT - Update match
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+// GET - Fetch single article by ID
+export async function PUT(req: NextRequest) {
   try {
-    const { id } = params;
+    const id = getIdFromUrl(req);
+
+    if (!id) {
+      return NextResponse.json({ error: "Matches ID is required" }, { status: 400 });
+    }
     const body = await req.json();
     
     const docRef = db.collection("matches").doc(id);
@@ -88,13 +97,14 @@ export async function PUT(
   }
 }
 
-// DELETE - Delete match
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+// GET - Fetch single article by ID
+export async function DELETE(req: NextRequest) {
   try {
-    const { id } = params;
+    const id = getIdFromUrl(req);
+
+    if (!id) {
+      return NextResponse.json({ error: "Matches ID is required" }, { status: 400 });
+    }
     
     const docRef = db.collection("matches").doc(id);
     const doc = await docRef.get();
