@@ -162,23 +162,42 @@
 // app/api/chats/[chatId]/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
+import jwt from "jsonwebtoken";
 import { db } from "@/lib/firebaseAdmin";
 
-// ─── Auth helper — mirrors /api/auth/host/me, same pattern as LiveRoomsCard ──
+// ─── Auth helper — direct JWT verification, same pattern as hostrooms API ──
 async function getUser(req: NextRequest) {
+  const authHeader = req.headers.get("authorization") ?? "";
+  let token: string | null = null;
+
+  if (authHeader.startsWith("Bearer ")) {
+    token = authHeader.slice(7).trim();
+  } else {
+    token = req.cookies.get("token")?.value ?? null;
+  }
+
+  if (!token) return null;
+
   try {
-    const adminUrl = process.env.NEXT_PUBLIC_ADMIN_URL ?? new URL(req.url).origin;
-    const res = await fetch(`${adminUrl}/api/auth/host/me`, {
-      headers: {
-        cookie:        req.headers.get("cookie")        ?? "",
-        authorization: req.headers.get("authorization") ?? "",
-      },
-      cache: "no-store",
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    if (!json.success || !json.user) return null;
-    return json.user as { userId?: string; email: string; name: string; role: string };
+    const payload = jwt.verify(token, process.env.JWT_SECRET!) as {
+      email?: string;
+      userId?: string;
+      uid?: string;
+      id?: string;
+      name?: string;
+      role?: string;
+    };
+
+    const userId = payload.userId ?? payload.uid ?? payload.id ?? payload.email;
+    const email = payload.email ?? payload.userId ?? payload.uid ?? payload.id;
+    if (!userId || !email) return null;
+
+    return {
+      userId,
+      email,
+      name: payload.name ?? "",
+      role: payload.role ?? "user",
+    };
   } catch {
     return null;
   }
