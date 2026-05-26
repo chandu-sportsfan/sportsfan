@@ -353,7 +353,7 @@ export async function POST(req: NextRequest) {
 
       const now     = Date.now();
       const newChat = {
-        type: "dm", name: "",
+        type: "dm", name: body.name?.trim() || "",
         participantIds:     [CURRENT_USER_ID, participantId],
         lastMessageContent: "", lastMessageAt: now, unreadCount: 0,
         isOnline: false, isVerified: false, isPinned: false, isMuted: false,

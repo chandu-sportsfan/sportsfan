@@ -12,7 +12,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
   try {
     const { id } = await params;
     const { searchParams } = new URL(req.url);
-    const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 100);
+    const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 50);
 
     const matchRef = db.collection("watchAlongMatches").doc(id);
     const matchDoc = await matchRef.get();
@@ -22,11 +22,13 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
 
     const snapshot = await matchRef
       .collection("chats")
-      .orderBy("createdAt", "asc")
-      .limitToLast(limit)
+      .orderBy("createdAt", "desc")
+      .limit(limit)
       .get();
 
-    const chats = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    const chats = snapshot.docs
+      .map((doc) => ({ id: doc.id, ...doc.data() }))
+      .reverse();
 
     return NextResponse.json({ success: true, chats });
   } catch (error) {
