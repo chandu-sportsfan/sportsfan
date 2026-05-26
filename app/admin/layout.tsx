@@ -27,10 +27,10 @@ const NAV: NavGroup[] = [
     label: "Management",
     items: [
       {
-        label: "Users", icon: "◉", badge: "1.2k",
+        label: "Users", icon: "◉", badge: "30+",
         children: [
           { href: "/admin/users/signups", label: "Signups" },
-          { href: "/admin/users/otp", label: "Send & Verify OTP" },
+          // { href: "/admin/users/otp", label: "Send & Verify OTP" },
         ],
       },
       // { href: "/admin/content", icon: "◧", label: "Content / Posts"   },
@@ -146,6 +146,13 @@ const NAV: NavGroup[] = [
           // { href: "/admin/videodrops-management/", label: "Video Request Drops List" },
           //  { href: "/admin/videoplaylist-management/", label: "Video List" },
 
+        ],
+      },
+       {
+        label: "Cricket Matches", icon: "◉",
+        children: [
+          { href: "/admin/cricketmatches-management/add-cricketmatches", label: "Add Cricket Match" },
+          { href: "/admin/cricketmatches-management/cricketmatches-list", label: "Cricket Matches List" },
         ],
       },
        {
