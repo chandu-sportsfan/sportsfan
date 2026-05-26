@@ -167,7 +167,8 @@ import { db } from "@/lib/firebaseAdmin";
 // ─── Auth helper — mirrors /api/auth/host/me, same pattern as LiveRoomsCard ──
 async function getUser(req: NextRequest) {
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_ADMIN_URL}/api/auth/host/me`, {
+    const adminUrl = process.env.NEXT_PUBLIC_ADMIN_URL ?? new URL(req.url).origin;
+    const res = await fetch(`${adminUrl}/api/auth/host/me`, {
       headers: {
         cookie:        req.headers.get("cookie")        ?? "",
         authorization: req.headers.get("authorization") ?? "",
