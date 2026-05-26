@@ -46,7 +46,7 @@
 
 
 
-
+// api/auth/host/me/route.ts - BACKEND
 
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
