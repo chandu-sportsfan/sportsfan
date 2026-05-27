@@ -1,10 +1,10 @@
-// api/matches/[id]/bulk/route.ts
+// api/womens-matches/bulk/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
-import { MatchCreateSchema } from "@/lib/validations/cricket";
-import { validateRecord, runDQChecks } from "@/lib/ingestion/rules";
+import { WomensMatchCreateSchema } from "../../../../lib/validations/womensT20WC";
+import { validateWomensRecord, runWomensDQChecks } from "../../../../lib/ingestion/womensT20WCRules";
 
-// POST - Bulk import matches
+// POST - Bulk import women's matches
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -24,10 +24,10 @@ export async function POST(req: NextRequest) {
     const successfulMatches: Array<Record<string, unknown>> = [];
     
     // Track processing log
-    const logRef = db.collection("processingLogs").doc();
+    const logRef = db.collection("womensProcessingLogs").doc();
     await logRef.set({
       sourceFile: sourceFile || "bulk_upload",
-      tournament: tournament || "IPL",
+      tournament: tournament || "Women's World Cup",
       recordsProcessed: 0,
       recordsFailed: 0,
       status: "processing",
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
       const rowNum = i + 1;
       
       // Validate record
-      const ruleValidation = validateRecord(record);
+      const ruleValidation = validateWomensRecord(record);
       if (!ruleValidation.valid) {
         failed++;
         errors.push({
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       }
       
       // Validate schema
-      const schemaValidation = MatchCreateSchema.safeParse(record);
+      const schemaValidation = WomensMatchCreateSchema.safeParse(record);
       if (!schemaValidation.success) {
         failed++;
         errors.push({
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
       const matchData = schemaValidation.data;
       
       // Check for duplicate
-      const existing = await db.collection("matches")
+      const existing = await db.collection("womensMatches")
         .where("matchId", "==", matchData.matchId)
         .limit(1)
         .get();
@@ -87,13 +87,13 @@ export async function POST(req: NextRequest) {
         updatedAt: Date.now(),
       };
       
-      await db.collection("matches").add(newMatch);
+      await db.collection("womensMatches").add(newMatch);
       successfulMatches.push(matchData);
       processed++;
     }
     
     // Run DQ checks on successfully imported matches
-    const dqResults = runDQChecks(successfulMatches);
+    const dqResults = runWomensDQChecks(successfulMatches);
     if (!dqResults.passed) {
       console.warn("DQ Check Warnings:", dqResults.results.filter(r => !r.passed));
     }

@@ -133,10 +133,8 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /api/communities
-// Body: { name: string, description?: string, avatarUrl?: string }
-// ─────────────────────────────────────────────────────────────────────────────
+
+// app/api/communities/route.ts - UPDATE the POST handler
 export async function POST(req: NextRequest) {
   try {
     const user = await getUser(req);
@@ -152,6 +150,8 @@ export async function POST(req: NextRequest) {
     }
 
     const now = Date.now();
+    
+    // 1. Create the community document
     const newCommunity = {
       name: name.trim(),
       description: description?.trim() ?? "",
@@ -164,10 +164,33 @@ export async function POST(req: NextRequest) {
       updatedAt: now,
     };
 
-    const docRef = await db.collection("communities").add(newCommunity);
+    const communityRef = await db.collection("communities").add(newCommunity);
 
-    // Add creator as a member
-    await docRef.collection("communityMembers").doc(user.userId).set({
+    // 2. Create a linked chat for the community (for messaging)
+    const chatDoc = {
+      type: "group",  // Communities use group chat type
+      name: name.trim(),
+      participantIds: [user.userId],
+      lastMessageContent: "",
+      lastMessageAt: now,
+      unreadCount: 0,
+      isOnline: false,
+      isVerified: false,
+      isPinned: false,
+      isMuted: false,
+      communityId: communityRef.id,  // Link back to community
+      createdBy: user.userId,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const chatRef = await db.collection("chats").add(chatDoc);
+
+    // 3. Link the chat back to the community
+    await communityRef.update({ chatId: chatRef.id });
+
+    // 4. Add creator as a member
+    await communityRef.collection("communityMembers").doc(user.userId).set({
       userId: user.userId,
       email: user.email,
       name: user.name,
@@ -178,8 +201,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        id: docRef.id,
-        community: { id: docRef.id, ...newCommunity },
+        id: communityRef.id,
+        community: { id: communityRef.id, ...newCommunity, chatId: chatRef.id },
       },
       { status: 201 }
     );

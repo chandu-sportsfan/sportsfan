@@ -915,6 +915,7 @@ export default function AddCricketMatchPage() {
   const [loading, setLoading] = useState(false);
   const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
   const [bulkErrors, setBulkErrors] = useState<string[]>([]);
+  const [successCount, setSuccessCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -972,6 +973,7 @@ export default function AddCricketMatchPage() {
     if (!file) return;
 
     setBulkErrors([]);
+    setSuccessCount(0);
     setBulkProgress({ current: 0, total: 0 });
 
     try {
@@ -1046,14 +1048,22 @@ export default function AddCricketMatchPage() {
           errors.push(`Row ${i + 2}: ${msg}`);
         }
         setBulkProgress(p => ({ ...p, current: i + 1 }));
+        
+        // Small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
 
+      setSuccessCount(success);
       setBulkErrors(errors);
       alert(`Bulk upload complete!\n✅ Success: ${success}\n❌ Failed: ${errors.length}`);
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err: unknown) {
       console.error(err);
-      alert("Failed to parse Excel file");
+      alert("Failed to parse Excel file. Please check the file format.");
+    } finally {
+      setTimeout(() => {
+        setBulkProgress({ current: 0, total: 0 });
+      }, 2000);
     }
   };
 
@@ -1063,19 +1073,51 @@ export default function AddCricketMatchPage() {
 
       {/* Bulk Upload Section */}
       <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 mb-6">
-        <h2 className="text-lg font-semibold mb-3">Bulk Import from Excel</h2>
-        <p className="text-sm text-gray-400 mb-3">Upload Excel file with match data</p>
-        <input type="file" accept=".xlsx,.xls" ref={fileInputRef} onChange={handleBulkUpload} className="mb-3" />
+        <h2 className="text-lg font-semibold mb-3">📊 Bulk Import from Excel</h2>
+        <p className="text-sm text-gray-400 mb-3">
+          Upload Excel file with cricket match data. Supports columns: match_id, date, season, team1, team2, venue, city, winner, 
+          toss_winner, toss_decision, player_of_match, runs_1, runs_2, wickets_1, wickets_2, and other inning stats.
+        </p>
+        <input 
+          type="file" 
+          accept=".xlsx,.xls,.csv" 
+          ref={fileInputRef} 
+          onChange={handleBulkUpload} 
+          className="mb-3" 
+          disabled={bulkProgress.total > 0 && bulkProgress.current < bulkProgress.total}
+        />
+        
+        {/* Progress Bar */}
         {bulkProgress.total > 0 && (
-          <div className="w-full bg-gray-700 rounded-full h-2 mb-2">
-            <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${(bulkProgress.current / bulkProgress.total) * 100}%` }} />
+          <div className="space-y-2">
+            <div className="flex justify-between text-xs text-gray-400">
+              <span>Processing: {bulkProgress.current} / {bulkProgress.total} matches</span>
+              <span>{Math.round((bulkProgress.current / bulkProgress.total) * 100)}%</span>
+            </div>
+            <div className="w-full bg-gray-700 rounded-full h-2">
+              <div 
+                className="bg-blue-500 h-2 rounded-full transition-all duration-300" 
+                style={{ width: `${(bulkProgress.current / bulkProgress.total) * 100}%` }} 
+              />
+            </div>
           </div>
         )}
+
+        {/* Success Message */}
+        {successCount > 0 && bulkProgress.current === bulkProgress.total && bulkProgress.total > 0 && (
+          <div className="mt-3 text-sm text-green-400">
+            ✅ Successfully imported {successCount} matches
+          </div>
+        )}
+
+        {/* Error Log */}
         {bulkErrors.length > 0 && (
           <details className="mt-3">
-            <summary className="text-red-400 text-sm cursor-pointer">{bulkErrors.length} errors occurred</summary>
-            <div className="mt-2 max-h-40 overflow-auto text-xs text-red-300 space-y-1">
-              {bulkErrors.map((e, i) => <div key={i}>{e}</div>)}
+            <summary className="text-red-400 text-sm cursor-pointer">
+              ❌ {bulkErrors.length} row(s) failed — click to expand
+            </summary>
+            <div className="mt-2 max-h-40 overflow-auto text-xs text-red-300 space-y-1 bg-red-950/20 p-2 rounded">
+              {bulkErrors.map((e, i) => <div key={i}>• {e}</div>)}
             </div>
           </details>
         )}

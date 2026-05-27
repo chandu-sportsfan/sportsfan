@@ -149,10 +149,17 @@ const NAV: NavGroup[] = [
         ],
       },
        {
-        label: "Cricket Matches", icon: "◉",
+        label: "IPL Matches", icon: "◉",
         children: [
-          { href: "/admin/cricketmatches-management/add-cricketmatches", label: "Add Cricket Match" },
-          { href: "/admin/cricketmatches-management/cricketmatches-list", label: "Cricket Matches List" },
+          { href: "/admin/cricketmatches-management/add-cricketmatches", label: "Add IPL Matches" },
+          { href: "/admin/cricketmatches-management/cricketmatches-list", label: "IPL Matches List" },
+        ],
+      },
+      {
+        label: "Women's World Cup Matches", icon: "◉",
+        children: [
+          { href: "/admin/woment20wc-management/add-woment20wc", label: "Add Women's World Cup Match" },
+          { href: "/admin/woment20wc-management/woment20wc-list", label: "Women's World Cup Matches List" },
         ],
       },
        {
