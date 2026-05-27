@@ -241,6 +241,7 @@ async function getUser(req: NextRequest) {
 export async function GET(req: NextRequest) {
   try {
     const user = await getUser(req);
+     console.log("[GET /api/groups] user:", user ? user.userId : "NULL — UNAUTHORIZED");
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { searchParams } = new URL(req.url);
@@ -325,14 +326,28 @@ export async function GET(req: NextRequest) {
 // Body: { name, description?, privacy?, category?, tags? }
 // ─────────────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  // try {
+  //   const user = await getUser(req);
+  //   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  //   const body = await req.json();
+  //   const { name, description = "", privacy = "public", category = "", tags = [] } = body;
+
+  //   if (!name?.trim()) {
+  //     return NextResponse.json({ error: "name is required" }, { status: 400 });
+  //   }
+  console.log("[POST /api/groups] called");
   try {
     const user = await getUser(req);
+    console.log("[POST /api/groups] user:", user ? user.userId : "NULL — UNAUTHORIZED");
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json();
+    console.log("[POST /api/groups] body:", body);
     const { name, description = "", privacy = "public", category = "", tags = [] } = body;
 
     if (!name?.trim()) {
+      console.log("[POST /api/groups] ERROR: name missing");
       return NextResponse.json({ error: "name is required" }, { status: 400 });
     }
 

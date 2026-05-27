@@ -252,7 +252,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     const body = await req.json();
-    const allowed = ["name", "description", "privacy", "category", "tags", "avatarUrl"];
+    const allowed = ["name", "description", "privacy", "category", "tags", "avatarUrl", "chatId"];
     const updates: Record<string, unknown> = { updatedAt: Date.now() };
     allowed.forEach(f => { if (body[f] !== undefined) updates[f] = body[f]; });
 
