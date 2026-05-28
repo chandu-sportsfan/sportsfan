@@ -30,6 +30,7 @@ export type Post = {
   userEmail: string;
   likes: 0;
   likedBy: [];
+  removed?: boolean;
   createdAt: number;
   updatedAt: number;
 };

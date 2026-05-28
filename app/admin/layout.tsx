@@ -178,6 +178,12 @@ const NAV: NavGroup[] = [
           { href: "/admin/comments-management/comments-list", label: "All Comments" },
         ],
       },
+       {
+        label: "Post Reports Management", icon: "◉",
+        children: [
+          { href: "/admin/postreports-management", label: "All Post Reports" },
+        ],
+      },
       {
         label: "Playlists Management", icon: "◉",
         children: [

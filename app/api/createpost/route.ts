@@ -253,10 +253,12 @@ export async function GET(req: NextRequest) {
     }
 
     const snapshot = await query.get();
-    const posts: Post[] = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...(doc.data() as Omit<Post, "id">),
-    }));
+   const posts: Post[] = snapshot.docs
+  .map((doc) => ({
+    id: doc.id,
+    ...(doc.data() as Omit<Post, "id">),
+  }))
+  .filter((post) => post.removed !== true);
 
     const lastDoc = snapshot.docs[snapshot.docs.length - 1];
 
@@ -265,7 +267,7 @@ export async function GET(req: NextRequest) {
       posts,
       pagination: {
         limit,
-        hasMore: posts.length === limit,
+       hasMore: snapshot.docs.length === limit,
         nextCursor:
           posts.length === limit
             ? {
