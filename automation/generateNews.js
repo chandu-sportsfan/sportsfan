@@ -4,7 +4,8 @@ const cron = require("node-cron")
 const Parser = require("rss-parser")
 const axios = require("axios")
 const xml2js = require("xml2js")
-const db = require("../lib/firebase")
+// const db = require("../lib/firebase")
+const db = require("../lib/firebase").default
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const MAX_ARTICLES_PER_RUN = 5  // Only 5 sports articles per run
@@ -303,11 +304,11 @@ async function processRSSNews() {
 }
 
 // ─── Cron: every day at 12:30 PM ─────────────────────────────────────────────
-cron.schedule("30 12 * * *", async () => {
+cron.schedule("29 14 * * *", async () => {
   await processRSSNews()
 })
 
 console.log("⚽ Sports Automation Started")
-console.log("🕐 Scheduled: Every day at 12:30 PM")
+console.log("🕐 Scheduled: Every day at 14:21 PM")
 
 processRSSNews()
