@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import cloudinary from "@/lib/cloudinary";
+import { getUserSessionAndRole } from "@/lib/auth";
 
 /* ─────────────────────────────────────────────
    GET  /api/watch-along
@@ -183,6 +184,22 @@ export async function GET(req: NextRequest) {
    ───────────────────────────────────────────── */
 export async function POST(req: NextRequest) {
   try {
+    const user = await getUserSessionAndRole(req);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized - Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const authorizedRoles = ["super_admin", "admin", "host"];
+    if (!authorizedRoles.includes(user.role)) {
+      return NextResponse.json(
+        { success: false, message: "Forbidden - Insufficient permissions" },
+        { status: 403 }
+      );
+    }
+
     const formData = await req.formData();
 
     // ── Required fields ──
@@ -205,6 +222,7 @@ export async function POST(req: NextRequest) {
     const engagement = (formData.get("engagement") as string) || "0%";
     const active = (formData.get("active") as string) || "0";
     const liveMatchId = (formData.get("liveMatchId") as string) || null;
+    const hostUserId = (formData.get("hostUserId") as string) || user.userId || null;  // Default to authenticated user ID
 
     // ── Upload display picture ──
     let displayPicture = "";
@@ -240,6 +258,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── Auto-create a Match record if no liveMatchId provided ──
+    let resolvedMatchId = liveMatchId;
+    if (!resolvedMatchId) {
+      const matchRef = await db.collection("watchAlongMatches").add({
+        title: name,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      resolvedMatchId = matchRef.id;
+    }
+
     const roomData = {
       name,
       role,
@@ -252,7 +281,8 @@ export async function POST(req: NextRequest) {
       watching,
       engagement,
       active,
-      liveMatchId: liveMatchId || null,
+      liveMatchId: resolvedMatchId,
+      hostUserId: hostUserId || null,  // Store creator's user ID
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
