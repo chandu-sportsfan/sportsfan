@@ -304,11 +304,11 @@ async function processRSSNews() {
 }
 
 // ─── Cron: every day at 12:30 PM ─────────────────────────────────────────────
-cron.schedule("29 14 * * *", async () => {
+cron.schedule("45 14 * * *", async () => {
   await processRSSNews()
 })
 
 console.log("⚽ Sports Automation Started")
-console.log("🕐 Scheduled: Every day at 14:21 PM")
+console.log("🕐 Scheduled: Every day at 14:45 PM")
 
 processRSSNews()
