@@ -1325,6 +1325,12 @@ export default function CreateWatchAlong({
 
   // Automatically set admin auth headers for all API requests originating from the admin console watchalong panel
   useEffect(() => {
+    if (!axios.defaults.headers) {
+      (axios.defaults as any).headers = {};
+    }
+    if (!axios.defaults.headers.common) {
+      axios.defaults.headers.common = {};
+    }
     const prevRole = axios.defaults.headers.common["x-user-role"];
     const prevId = axios.defaults.headers.common["x-user-id"];
 
@@ -1332,15 +1338,17 @@ export default function CreateWatchAlong({
     axios.defaults.headers.common["x-user-id"] = "admin_user";
 
     return () => {
-      if (prevRole) {
-        axios.defaults.headers.common["x-user-role"] = prevRole;
-      } else {
-        delete axios.defaults.headers.common["x-user-role"];
-      }
-      if (prevId) {
-        axios.defaults.headers.common["x-user-id"] = prevId;
-      } else {
-        delete axios.defaults.headers.common["x-user-id"];
+      if (axios.defaults.headers?.common) {
+        if (prevRole) {
+          axios.defaults.headers.common["x-user-role"] = prevRole;
+        } else {
+          delete axios.defaults.headers.common["x-user-role"];
+        }
+        if (prevId) {
+          axios.defaults.headers.common["x-user-id"] = prevId;
+        } else {
+          delete axios.defaults.headers.common["x-user-id"];
+        }
       }
     };
   }, []);
