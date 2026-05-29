@@ -1106,10 +1106,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   background: "linear-gradient(135deg,#1f6feb,#388bfd)",
                   display: "grid", placeItems: "center", fontSize: 12, fontWeight: 600, color: "#fff"
                 }}>AD</div>
-                <div style={{ display: "flex", flexDirection: "column" }}>
+                {/* <div style={{ display: "flex", flexDirection: "column" }}>
                   <span style={{ fontSize: "13px", fontWeight: 600, color: "#e6edf3", lineHeight: "1" }}>Admin</span>
                   <span style={{ fontSize: "11px", color: "#7d8590", marginTop: "2px" }}>Super Admin</span>
-                </div>
+                </div> */}
               </div>
             </div>
           </div>
