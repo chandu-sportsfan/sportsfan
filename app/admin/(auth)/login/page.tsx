@@ -1,158 +1,5 @@
-// //app/admin/page.tsx
-// "use client";
-// import { StatCard, TableWrap, TableToolbar, Badge, UserCell } from "@/components/admin/ui";
 
-// export default function DashboardPage() {
-//   return (
-//     <div>
-//       {/* Header */}
-//       <div style={{ marginBottom: 18 }}>
-//         <h1 style={{ fontSize: 17, fontWeight: 600 }}>Overview</h1>
-//         <p style={{ color: "#7d8590", fontSize: 12, marginTop: 2 }}>
-//           Real-time snapshot — March 2026
-//         </p>
-//       </div>
-
-//       {/* Stat Cards — 4 col → 2 col → 2 col */}
-//       <div className="stats-grid">
-//         <StatCard label="Total Users"       value="1,284" delta="12.4% vs last month" deltaDir="up"   color="blue"   />
-//         <StatCard label="Revenue (Month)"   value="₹4.8L" delta="8.1% vs last month"  deltaDir="up"   color="green"  />
-//         <StatCard label="Pending Orders"    value="38"    delta="3 new in last hour"   deltaDir="down" color="yellow" />
-//         <StatCard label="Failed OTPs (24h)" value="14"    delta="Above normal"         deltaDir="down" color="red"    />
-//       </div>
-
-//       {/* Revenue Chart + Activity — 2 col → 1 col on tablet */}
-//       <div className="chart-grid">
-
-//         {/* Revenue Chart */}
-//         <TableWrap>
-//           <TableToolbar>
-//             <div>
-//               <div style={{ fontSize: 13, fontWeight: 600 }}>Revenue Trend</div>
-//               <div style={{ fontSize: 11, color: "#7d8590" }}>Last 7 months</div>
-//             </div>
-//           </TableToolbar>
-//           <div style={{ padding: "16px 14px" }}>
-//             <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: "100px" }}>
-//               {[55, 70, 48, 85, 60, 92, 100].map((h, i) => (
-//                 <div key={i} style={{ flex: 1, display: "flex", gap: 2, alignItems: "flex-end" }}>
-//                   <div style={{ flex: 1, height: `${h}%`,        borderRadius: "3px 3px 0 0", background: "#1f6feb", opacity: .7 }} />
-//                   <div style={{ flex: 1, height: `${h * .85}%`, borderRadius: "3px 3px 0 0", background: "#2ea043", opacity: .7 }} />
-//                 </div>
-//               ))}
-//             </div>
-//             <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-//               {["Sep","Oct","Nov","Dec","Jan","Feb","Mar"].map(m => (
-//                 <div key={m} style={{
-//                   flex: 1, textAlign: "center", fontSize: 10,
-//                   color: "#7d8590", fontFamily: "var(--font-mono)",
-//                 }}>{m}</div>
-//               ))}
-//             </div>
-//             <div style={{ display: "flex", gap: 16, marginTop: 10 }}>
-//               {[{ color: "#1f6feb", label: "Revenue" }, { color: "#2ea043", label: "Orders" }].map(l => (
-//                 <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#7d8590" }}>
-//                   <div style={{ width: 10, height: 10, borderRadius: 2, background: l.color }} />
-//                   {l.label}
-//                 </div>
-//               ))}
-//             </div>
-//           </div>
-//         </TableWrap>
-
-//         {/* Activity Feed */}
-//         <TableWrap>
-//           <TableToolbar>
-//             <div style={{ fontSize: 13, fontWeight: 600 }}>Recent Activity</div>
-//           </TableToolbar>
-//           <div style={{ padding: "0 14px" }}>
-//             {[
-//               { color: "#2ea043", action: "New user registered",     meta: "ravi.k@gmail.com via OTP",      time: "2 min ago"  },
-//               { color: "#388bfd", action: "Order #4821 placed",      meta: "₹2,490 — UPI payment",           time: "11 min ago" },
-//               { color: "#da3633", action: "OTP failed (3 attempts)", meta: "+91 98765 43210",                time: "24 min ago" },
-//               { color: "#d29922", action: "Post flagged for review", meta: '"Best Deals" — automated flag', time: "1 hr ago"   },
-//               { color: "#2ea043", action: "Payment confirmed",       meta: "Order #4819 — ₹1,200",           time: "2 hr ago"   },
-//             ].map((ev, i, arr) => (
-//               <div key={i} style={{
-//                 display: "flex", gap: 10, padding: "10px 0",
-//                 borderBottom: i < arr.length - 1 ? "1px solid #21282f" : "none",
-//               }}>
-//                 <div style={{
-//                   width: 7, height: 7, borderRadius: "50%",
-//                   background: ev.color, marginTop: 5, flexShrink: 0,
-//                 }} />
-//                 <div>
-//                   <div style={{ fontSize: 12, fontWeight: 500 }}>{ev.action}</div>
-//                   <div style={{ fontSize: 11, color: "#7d8590" }}>{ev.meta}</div>
-//                   <div style={{ fontSize: 10, color: "#7d8590", fontFamily: "var(--font-mono)", marginTop: 4 }}>{ev.time}</div>
-//                 </div>
-//               </div>
-//             ))}
-//           </div>
-//         </TableWrap>
-//       </div>
-
-//       {/* Latest Signups — scrollable on mobile */}
-//       <TableWrap>
-//         <TableToolbar>
-//           <div style={{ fontSize: 13, fontWeight: 600 }}>Latest Signups</div>
-//           <div style={{ marginLeft: "auto" }}>
-//             <a href="/admin/users/signups" style={{ fontSize: 12, color: "#388bfd", textDecoration: "none" }}>
-//               View all →
-//             </a>
-//           </div>
-//         </TableToolbar>
-
-//         {/* Wrap table in scrollable div for mobile */}
-//         <div className="table-scroll">
-//           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 400 }}>
-//             <thead>
-//               <tr style={{ background: "#1c2330", borderBottom: "1px solid #21282f" }}>
-//                 {["User", "Joined", "Method", "Status"].map(h => (
-//                   <th key={h} style={{
-//                     textAlign: "left", padding: "8px 14px",
-//                     fontSize: 10, fontWeight: 600, letterSpacing: ".07em",
-//                     textTransform: "uppercase", color: "#7d8590", whiteSpace: "nowrap",
-//                   }}>{h}</th>
-//                 ))}
-//               </tr>
-//             </thead>
-//             <tbody>
-//               {[
-//                 { name: "Ravi Kumar",   email: "ravi.k@gmail.com",    date: "22 Mar 2026", status: "Active"  as const },
-//                 { name: "Priya Sharma", email: "priya.s@yahoo.com",   date: "21 Mar 2026", status: "Active"  as const },
-//                 { name: "Arjun Mehta",  email: "arjun.m@outlook.com", date: "21 Mar 2026", status: "Pending" as const },
-//               ].map((u, i, arr) => (
-//                 <tr key={i} style={{ borderBottom: i < arr.length - 1 ? "1px solid #21282f" : "none" }}>
-//                   <td style={{ padding: "9px 14px" }}>
-//                     <UserCell name={u.name} email={u.email} index={i} />
-//                   </td>
-//                   <td style={{ padding: "9px 14px", fontFamily: "var(--font-mono)", fontSize: 12, whiteSpace: "nowrap" }}>
-//                     {u.date}
-//                   </td>
-//                   <td style={{ padding: "9px 14px" }}>
-//                     <Badge variant="blue">OTP</Badge>
-//                   </td>
-//                   <td style={{ padding: "9px 14px" }}>
-//                     <Badge variant={u.status === "Active" ? "green" : "yellow"} dot>
-//                       {u.status}
-//                     </Badge>
-//                   </td>
-//                 </tr>
-//               ))}
-//             </tbody>
-//           </table>
-//         </div>
-//       </TableWrap>
-//     </div>
-//   );
-// }
-
-
-
-
-
-
+//app/admin/page.tsx
 
 "use client";
 
@@ -160,9 +7,9 @@ import axios from "axios";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
-// Create axios instance with relative URL (will use rewrites)
+//  Create axios instance with relative URL (will use rewrites)
 const api = axios.create({
     withCredentials: true,
     headers: {
@@ -186,22 +33,6 @@ export default function LoginCard() {
     const searchParams = useSearchParams();
     const authError = searchParams.get("error");
 
-    // Check if user is already logged in
-    useEffect(() => {
-        const checkAuth = async () => {
-            try {
-                const response = await api.get("/api/auth/me");
-                if (response.data.success && response.data.user) {
-                    router.push("/admin/dashboard");
-                }
-            } catch (err:unknown) {
-                // Not logged in, stay on login page
-                console.log("Auth error :",err)
-            }
-        };
-        checkAuth();
-    }, [router]);
-
     const getAuthError = (error: string | null) => {
         if (error === "AccessDenied") return "Your account has been disabled. Please contact support.";
         if (error === "OAuthSignin") return "Failed to sign in with Google. Please try again.";
@@ -210,6 +41,7 @@ export default function LoginCard() {
         return null;
     };
 
+    // Handle initial login - uses rewrites to proxy to Admin Panel
     const handleLogin = async () => {
         if (!email || !password) {
             setError("Please enter email & password");
@@ -220,6 +52,7 @@ export default function LoginCard() {
             setLoading(true);
             setError("");
 
+            //  Use relative URL - will be proxied via rewrites
             const response = await api.post("/api/auth/login", {
                 email,
                 password,
@@ -230,7 +63,11 @@ export default function LoginCard() {
                     setTempPassword(password);
                     setShowChangePassword(true);
                 } else {
-                    router.push("/admin/dashboard");
+                    if (response.data.user?.role === "host") {
+                        router.push("/MainModules/HostDashboard");
+                    } else {
+                        router.push("/MainModules/HomePage");
+                    }
                 }
             }
         } catch (err: unknown) {
@@ -265,6 +102,7 @@ export default function LoginCard() {
         }
     };
 
+    // Handle password change - uses rewrites
     const handleChangePassword = async () => {
         if (!newPassword || !confirmPassword) {
             setError("Please enter new password");
@@ -285,6 +123,7 @@ export default function LoginCard() {
             setLoading(true);
             setError("");
 
+            //  Use relative URL - will be proxied via rewrites
             await api.post("/api/auth/host/changepassword", {
                 email,
                 currentPassword: tempPassword,
@@ -297,7 +136,7 @@ export default function LoginCard() {
             });
 
             if (loginResponse.data.success) {
-                router.push("/admin/dashboard");
+                router.push("/MainModules/HostDashboard");
             } else {
                 setError("Password changed. Please login again.");
                 setShowChangePassword(false);
@@ -322,25 +161,6 @@ export default function LoginCard() {
         setConfirmPassword("");
         setTempPassword("");
         setError("");
-    };
-
-    // IMPORTANT: Handle Google Sign In with explicit admin panel URL
-    const handleGoogleSignIn = () => {
-        // Get the current origin (admin panel URL)
-        const currentOrigin = window.location.origin;
-        
-        // Construct the callback URL for admin panel
-        const callbackUrl = `${currentOrigin}/admin/dashboard`;
-        
-        // Log for debugging
-        console.log("Admin Google Sign In - Origin:", currentOrigin);
-        console.log("Admin Google Sign In - Callback URL:", callbackUrl);
-        
-        // Use NextAuth signIn with the callback URL
-        signIn("google", { 
-            callbackUrl: callbackUrl,
-            redirect: true
-        });
     };
 
     // Render Change Password Form
@@ -400,8 +220,7 @@ export default function LoginCard() {
             <div className="absolute inset-0 bg-gradient-to-br from-red-900/30 via-transparent to-orange-600/20 pointer-events-none" />
             <div className="flex flex-col items-center z-10">
                 <img src="/images/Logo.png" alt="logo" className="lg:w-[56px] lg:h-[66.66px] mb-2" />
-                <h1 className="text-white text-2xl font-semibold text-center">Admin Login</h1>
-                <p className="text-gray-400 text-sm text-center mt-2">Access the admin dashboard</p>
+                <h1 className="text-white text-2xl font-semibold text-center">Welcome back!</h1>
             </div>
             <div className="relative z-10 w-[300px] md:w-full max-w-sm px-5 py-8 rounded-3xl bg-[#222222] backdrop-blur-md shadow-[0_20px_60px_rgba(0,0,0,0.8)]">
                 <div className="rounded-2xl p-3 space-y-3 mb-6">
@@ -430,7 +249,7 @@ export default function LoginCard() {
                             👁
                         </button>
                     </div>
-                    <Link href="/admin/forgot-password">
+                    <Link href="/auth/forgot-password">
                         <div className="flex justify-end">
                             <p className="text-gray-400 text-sm text-right hover:underline cursor-pointer">Forgot Password?</p>
                         </div>
@@ -451,7 +270,13 @@ export default function LoginCard() {
                     <div className="flex-1 h-[1px] bg-gray-700" />
                 </div>
                 <button
-                    onClick={handleGoogleSignIn}
+                    // onClick={() => signIn("google", {
+                    //     callbackUrl: process.env.NEXT_PUBLIC_APP_URL + "/MainModules/HomePage"
+                    // })}
+                    onClick={() => {
+                        const redirect = searchParams.get("redirect") || "/admin/dashboard";
+                        signIn("google", { callbackUrl: redirect });
+                    }}
                     className="w-full bg-white text-black py-3 rounded-full font-medium flex items-center justify-center gap-2 mb-6 hover:bg-gray-100 transition"
                 >
                     <svg width="18" height="18" viewBox="0 0 18 18">
@@ -463,9 +288,9 @@ export default function LoginCard() {
                     Continue with Google
                 </button>
                 <p className="text-gray-300 text-sm text-center">
-                    Don&apos;t have an admin account?{" "}
+                    Don&apos;t have an account?{" "}
                     <Link href="/auth/register">
-                        <span className="font-semibold text-white cursor-pointer">Contact Support</span>
+                        <span className="font-semibold text-white cursor-pointer">Sign Up</span>
                     </Link>
                 </p>
             </div>
