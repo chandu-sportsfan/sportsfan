@@ -275,6 +275,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
+import { getUserSessionAndRole, isAuthorizedForMatch } from "@/lib/auth";
 
 // Use 'id' to match your folder name [id]
 interface RouteContext {
@@ -348,6 +349,22 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
         // ── CREATE ──
         if (action === "create") {
+            const user = await getUserSessionAndRole(req);
+            if (!user) {
+                return NextResponse.json(
+                    { success: false, message: "Unauthorized - Authentication required" },
+                    { status: 401 }
+                );
+            }
+
+            const isAuth = await isAuthorizedForMatch(user, id);
+            if (!isAuth) {
+                return NextResponse.json(
+                    { success: false, message: "Forbidden - Insufficient permissions" },
+                    { status: 403 }
+                );
+            }
+
             const { question, options, closesAt } = body;
 
             if (!question?.trim() || !Array.isArray(options) || options.length < 2) {
@@ -437,6 +454,23 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 export async function PATCH(req: NextRequest, { params }: RouteContext) {
     try {
         const { id } = await params;  // Just use 'id' directly
+
+        const user = await getUserSessionAndRole(req);
+        if (!user) {
+            return NextResponse.json(
+                { success: false, message: "Unauthorized - Authentication required" },
+                { status: 401 }
+            );
+        }
+
+        const isAuth = await isAuthorizedForMatch(user, id);
+        if (!isAuth) {
+            return NextResponse.json(
+                { success: false, message: "Forbidden - Insufficient permissions" },
+                { status: 403 }
+            );
+        }
+
         const { predictionId, isOpen } = await req.json();
 
         if (!predictionId || typeof isOpen !== "boolean") {

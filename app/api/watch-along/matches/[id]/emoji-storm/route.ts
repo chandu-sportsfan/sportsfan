@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
+import { getUserSessionAndRole, isAuthorizedForMatch } from "@/lib/auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -127,9 +128,25 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
    DELETE  /api/watch-along/matches/[id]/emoji-storm
    Admin: reset all emoji counts for the match
    ───────────────────────────────────────────── */
-export async function DELETE(_req: NextRequest, { params }: RouteContext) {
+export async function DELETE(req: NextRequest, { params }: RouteContext) {
   try {
     const { id } = await params;
+
+    const user = await getUserSessionAndRole(req);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized - Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const isAuth = await isAuthorizedForMatch(user, id);
+    if (!isAuth) {
+      return NextResponse.json(
+        { success: false, message: "Forbidden - Insufficient permissions" },
+        { status: 403 }
+      );
+    }
 
     const matchRef = db.collection("watchAlongMatches").doc(id);
     const matchDoc = await matchRef.get();

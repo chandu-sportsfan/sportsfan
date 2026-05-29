@@ -1,361 +1,313 @@
 require("dotenv").config()
 
-const fs=require("fs")
+const cron = require("node-cron")
+const Parser = require("rss-parser")
+const axios = require("axios")
+const xml2js = require("xml2js")
+const db = require("../lib/firebase")
 
-const axios=require("axios")
+// ─── Config ───────────────────────────────────────────────────────────────────
+const MAX_ARTICLES_PER_RUN = 5  // Only 5 sports articles per run
 
-const cron=require("node-cron")
+// ─── Sports keywords filter ───────────────────────────────────────────────────
+// An article must contain at least one of these keywords (case-insensitive)
+// in its title or summary to be considered a sports article.
+const SPORTS_KEYWORDS = [
+  "cricket", "match", "test match", "odi", "t20", "ipl", "world cup",
+  "wicket", "batting", "bowling", "innings", "over", "run", "century",
+  "fifa", "football", "soccer", "goal", "league", "tournament",
+  "tennis", "wimbledon", "grand slam", "serve", "set",
+  "basketball", "nba", "dunk", "three-pointer",
+  "hockey", "puck", "penalty",
+  "athletics", "sprint", "marathon", "olympics",
+  "sports", "sport", "player", "team", "squad", "fixture",
+  "champion", "trophy", "final", "semifinal", "playoff",
+  "coach", "captain", "transfer", "debut", "injury",
+  "score", "win", "loss", "draw", "victory", "defeat",
+]
 
-const cloudinary=
-require("cloudinary").v2
-
-const Groq=
-require("groq-sdk")
-
-const groq=
-new Groq({
-
-apiKey:
-process.env.GROQ_API_KEY
-
+// ─── RSS Parser ───────────────────────────────────────────────────────────────
+const parser = new Parser({
+  customFields: {
+    item: [
+      ["content:encoded", "contentEncoded"],
+      ["media:content", "mediaContent"],
+      ["description", "description"],
+    ],
+  },
+  headers: {
+    "User-Agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+      "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    Accept: "application/rss+xml, application/xml, text/xml, */*",
+  },
+  xml2js: {
+    strict: false,
+    normalize: true,
+    normalizeTags: true,
+    explicitArray: false,
+  },
+  timeout: 15000,
 })
 
-cloudinary.config({
+// ─── RSS Feed URLs ────────────────────────────────────────────────────────────
+const RSS_FEEDS = [
+  "https://www.espncricinfo.com/rss/content/story/feeds/0.xml",
+  "https://feeds.feedburner.com/ndtvsports-cricket",
+  "https://timesofindia.indiatimes.com/rss/4719148.cms",
+]
 
-cloud_name:
-process.env.CLOUDINARY_CLOUD_NAME,
+// ─── Strip HTML tags from text ────────────────────────────────────────────────
+function stripHtml(html) {
+  if (!html) return ""
+  return html
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .trim()
+}
 
-api_key:
-process.env.CLOUDINARY_API_KEY,
+// ─── Sports relevance filter ──────────────────────────────────────────────────
+// Returns true if the article title or summary mentions any sports keyword.
+function isSportsArticle(item) {
+  const rawSummary =
+    item.contentSnippet ||
+    item.contentEncoded ||
+    item.content ||
+    item.description ||
+    ""
 
-api_secret:
-process.env.CLOUDINARY_API_SECRET
+  const text = `${item.title || ""} ${stripHtml(rawSummary)}`.toLowerCase()
 
+  return SPORTS_KEYWORDS.some((kw) => text.includes(kw))
+}
+
+// ─── Fetch raw XML ────────────────────────────────────────────────────────────
+async function fetchRawXML(url) {
+  const response = await axios.get(url, {
+    timeout: 15000,
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      Accept: "application/rss+xml, application/xml, text/xml, */*",
+      "Accept-Language": "en-US,en;q=0.9",
+    },
+    responseType: "text",
+  })
+  return response.data
+}
+
+// ─── Manual XML parse ─────────────────────────────────────────────────────────
+async function parseXMLManually(xmlString) {
+  const xmlParser = new xml2js.Parser({
+    strict: false,
+    normalize: true,
+    normalizeTags: true,
+    explicitArray: false,
+    mergeAttrs: true,
+  })
+
+  const result = await xmlParser.parseStringPromise(xmlString)
+  let items = []
+
+  if (result.rss && result.rss.channel) {
+    const channel = Array.isArray(result.rss.channel)
+      ? result.rss.channel[0]
+      : result.rss.channel
+    items = channel.item || []
+  } else if (result["rdf:rdf"]) {
+    items = result["rdf:rdf"].item || []
+  } else if (result.feed && result.feed.entry) {
+    items = result.feed.entry || []
+  }
+
+  if (!Array.isArray(items)) items = [items]
+
+  return items
+    .filter((i) => i)
+    .map((item) => ({
+      title:
+        item.title && typeof item.title === "object"
+          ? item.title._
+          : item.title || "",
+      link:
+        item.link && typeof item.link === "object"
+          ? item.link.href || item.link._
+          : item.link || item.guid || "",
+      contentSnippet:
+        item.description && typeof item.description === "object"
+          ? item.description._
+          : item.description || item["content:encoded"] || item.summary || "",
+      pubDate: item.pubdate || item.published || item.updated || "",
+    }))
+    .filter((i) => i.title)
+}
+
+// ─── Fetch with 3 fallback strategies ────────────────────────────────────────
+async function fetchFeedItems(url) {
+  try {
+    const feed = await parser.parseURL(url)
+    if (feed.items && feed.items.length > 0) {
+      console.log(`✅ rss-parser succeeded: ${feed.items.length} items`)
+      return feed.items
+    }
+  } catch (e) {
+    console.log(`⚠️  rss-parser failed: ${e.message}`)
+  }
+
+  try {
+    const rawXML = await fetchRawXML(url)
+    const items = await parseXMLManually(rawXML)
+    if (items.length > 0) {
+      console.log(`✅ Manual parse succeeded: ${items.length} items`)
+      return items
+    }
+  } catch (e) {
+    console.log(`⚠️  Manual parse failed: ${e.message}`)
+  }
+
+  try {
+    const rawXML = await fetchRawXML(url)
+    const cleaned = rawXML.replace(/^\uFEFF/, "").trim()
+    const feed = await parser.parseString(cleaned)
+    if (feed.items && feed.items.length > 0) {
+      console.log(`✅ parseString fallback succeeded: ${feed.items.length} items`)
+      return feed.items
+    }
+  } catch (e) {
+    console.log(`⚠️  parseString fallback failed: ${e.message}`)
+  }
+
+  return []
+}
+
+// ─── Collect items across all feeds until we have enough sports articles ──────
+async function fetchSportsArticles() {
+  const sportsItems = []
+
+  for (const url of RSS_FEEDS) {
+    if (sportsItems.length >= MAX_ARTICLES_PER_RUN) break
+
+    console.log(`📡 Trying: ${url}`)
+    try {
+      const items = await fetchFeedItems(url)
+      if (items.length === 0) continue
+
+      // Filter to sports-only from this feed
+      const filtered = items.filter(isSportsArticle)
+      console.log(
+        `🏅 Sports articles from feed: ${filtered.length} / ${items.length} total`
+      )
+
+      for (const item of filtered) {
+        if (sportsItems.length >= MAX_ARTICLES_PER_RUN) break
+        sportsItems.push(item)
+      }
+    } catch (e) {
+      console.log(`❌ Feed failed: ${e.message}`)
+    }
+  }
+
+  return sportsItems
+}
+
+// ─── Build article — exact shape the frontend expects ────────────────────────
+//
+//  Field map (Frontend NewsArticle type → what we store):
+//  title      → item.title                  (string)
+//  summary    → stripped RSS contentSnippet (string, plain text, no HTML)
+//  tag        → "Cricket"                   (string)
+//  source     → "ESPN CricInfo"             (string)  ← shown as "source • date"
+//  url        → item.link                   (string)  ← external link
+//  createdAt  → Date.now()                  (number ms timestamp)
+//  likes      → 0                           (number)  ← frontend reads this
+//  cdn_url    → ""                          (string)  ← no image from RSS; frontend falls back to default
+//
+function buildArticle(item) {
+  const rawSummary =
+    item.contentSnippet ||
+    item.contentEncoded ||
+    item.content ||
+    item.description ||
+    ""
+
+  return {
+    title:     item.title || "Sports Update",
+    summary:   stripHtml(rawSummary),
+    tag:       "Cricket",
+    source:    "ESPN CricInfo",
+    url:       item.link || item.url || "#",
+    createdAt: Date.now(),    // number — formatDate() on frontend converts this
+    likes:     0,             // frontend reads article.likes
+    cdn_url:   "",            // frontend falls back to /images/News_center_Default.png
+  }
+}
+
+// ─── Main pipeline ────────────────────────────────────────────────────────────
+async function processRSSNews() {
+  try {
+    console.log("\n🚀 Running RSS Automation — Sports Filter Active")
+    console.log("=".repeat(55))
+
+    const sportsItems = await fetchSportsArticles()
+
+    if (sportsItems.length === 0) {
+      console.log("❌ No sports articles found. Aborting.")
+      return
+    }
+
+    console.log(
+      `\n📰 Processing ${sportsItems.length} sports article(s) (limit: ${MAX_ARTICLES_PER_RUN})\n`
+    )
+
+    let inserted = 0
+    let skipped = 0
+
+    for (const item of sportsItems) {
+      try {
+        if (!item.title) continue
+
+        // Dedup by title
+        const existing = await db
+          .collection("news")
+          .where("title", "==", item.title)
+          .get()
+
+        if (!existing.empty) {
+          console.log(`⏭️  Duplicate: ${item.title.slice(0, 60)}`)
+          skipped++
+          continue
+        }
+
+        const article = buildArticle(item)
+        await db.collection("news").add(article)
+
+        console.log(`✅ Inserted: ${article.title.slice(0, 60)}`)
+        inserted++
+
+      } catch (err) {
+        console.log(`❌ Item error: ${err.message}`)
+      }
+    }
+
+    console.log("\n" + "=".repeat(55))
+    console.log(`✅ Done — Inserted: ${inserted} | Skipped (duplicate): ${skipped}`)
+
+  } catch (err) {
+    console.log(`❌ Automation Error: ${err.message}`)
+  }
+}
+
+// ─── Cron: every day at 12:30 PM ─────────────────────────────────────────────
+cron.schedule("30 12 * * *", async () => {
+  await processRSSNews()
 })
 
-async function rewriteArticle(data){
+console.log("⚽ Sports Automation Started")
+console.log("🕐 Scheduled: Every day at 12:30 PM")
 
-const headline=
-
-data.appIndex?.seoTitle
-||
-"Sports Update"
-
-const tag=
-
-data.tags
-?.map(
-x=>x.itemName
-)
-.join(",")
-
-||
-"Cricket"
-
-const author=
-
-data.authors?.[0]?.name
-||
-"Sports Desk"
-
-const storyType=
-
-data.storyType
-||
-"Sports"
-
-const imageCaption=
-
-data.images?.[0]
-?.imageCaption
-||
-""
-
-const prompt=`
-
-You are sports journalist.
-
-Create original sports article.
-
-Headline:
-${headline}
-
-Category:
-${tag}
-
-Author:
-${author}
-
-Story Type:
-${storyType}
-
-Context:
-${imageCaption}
-
-Need:
-
-1 headline
-
-2 detailed paragraphs
-
-Professional journalism style.
-
-Do not copy wording.
-
-`
-
-const response=
-
-await groq.chat.completions.create({
-
-messages:[
-
-{
-
-role:"user",
-
-content:prompt
-
-}
-
-],
-
-model:
-"llama-3.3-70b-versatile",
-
-temperature:0.7,
-
-max_tokens:500
-
-})
-
-return response
-.choices[0]
-.message
-.content
-
-}
-
-function buildSportsFanArticle(
-data
-){
-
-return{
-
-title:
-
-data.appIndex?.seoTitle
-||
-"Sports Update",
-
-summary:"",
-
-tag:
-
-data.tags?.[0]
-?.itemName
-||
-"Cricket",
-
-source:
-"SportsFan360",
-
-url:"#"
-
-}
-
-}
-
-async function uploadToCloudinary(
-article
-){
-
-const date=
-
-new Date()
-.toISOString()
-.split("T")[0]
-
-const formatted=
-
-date.replaceAll(
-"-",
-"_"
-)
-
-const payload={
-
-feed_date:
-date,
-
-articles:
-[article]
-
-}
-
-fs.writeFileSync(
-
-"temp.json",
-
-JSON.stringify(
-payload,
-null,
-2
-)
-
-)
-
-const upload=
-
-await cloudinary
-.uploader
-.upload(
-
-"./temp.json",
-
-{
-
-resource_type:
-"raw",
-
-public_id:
-
-`sf360/articles/articles_${formatted}`,
-
-overwrite:true
-
-}
-
-)
-
-return upload
-.secure_url
-
-}
-
-async function getMatchData(){
-
-try{
-
-console.log(
-
-"Running Daily Sports Automation"
-
-)
-
-const response=
-
-await axios.get(
-
-process.env.CRICBUZZ_URL,
-
-{
-
-headers:{
-
-'X-RapidAPI-Key':
-process.env.RAPID_API_KEY,
-
-'X-RapidAPI-Host':
-process.env.RAPID_API_HOST
-
-}
-
-}
-
-)
-
-let rewritten=""
-
-try{
-
-rewritten=
-
-await rewriteArticle(
-response.data
-)
-
-}
-catch(err){
-
-console.log(
-
-"Groq Error:",
-
-err.message
-
-)
-
-rewritten=
-
-"Sports article unavailable."
-
-}
-
-const article=
-
-buildSportsFanArticle(
-response.data
-)
-
-article.summary=
-rewritten
-
-const cloudinaryURL=
-
-await uploadToCloudinary(
-article
-)
-
-console.log(
-
-"Uploaded Successfully"
-
-)
-
-console.log(
-
-cloudinaryURL
-
-)
-
-}
-catch(err){
-
-console.log(
-
-"Automation Error:",
-
-err.response?.data
-||
-err.message
-
-)
-
-}
-
-}
-
-cron.schedule(
-
-"0 7 * * *",
-
-async()=>{
-
-await getMatchData()
-
-}
-
-)
-
-console.log(
-
-"Sports Automation Started"
-
-)
-
-console.log(
-
-"Runs Daily At 7 AM"
-
-)
+processRSSNews()

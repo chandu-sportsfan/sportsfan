@@ -160,7 +160,7 @@ import axios from "axios";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 // Create axios instance with relative URL (will use rewrites)
 const api = axios.create({
@@ -187,20 +187,20 @@ export default function LoginCard() {
     const authError = searchParams.get("error");
 
     // Check if user is already logged in
-    useEffect(() => {
-        const checkAuth = async () => {
-            try {
-                const response = await api.get("/api/auth/me");
-                if (response.data.success && response.data.user) {
-                    router.push("/admin/dashboard");
-                }
-            } catch (err:unknown) {
-                // Not logged in, stay on login page
-                console.log("Auth error :",err)
-            }
-        };
-        checkAuth();
-    }, [router]);
+    // useEffect(() => {
+    //     const checkAuth = async () => {
+    //         try {
+    //             const response = await api.get("/api/auth/me");
+    //             if (response.data.success && response.data.user) {
+    //                 router.push("/admin/dashboard");
+    //             }
+    //         } catch (err:unknown) {
+    //             // Not logged in, stay on login page
+    //             console.log("Auth error :",err)
+    //         }
+    //     };
+    //     checkAuth();
+    // }, [router]);
 
     const getAuthError = (error: string | null) => {
         if (error === "AccessDenied") return "Your account has been disabled. Please contact support.";

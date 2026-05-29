@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
+import { getUserSessionAndRole, isAuthorizedForMatch } from "@/lib/auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -85,6 +86,23 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 export async function DELETE(req: NextRequest, { params }: RouteContext) {
   try {
     const { id } = await params;
+
+    const user = await getUserSessionAndRole(req);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized - Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const isAuth = await isAuthorizedForMatch(user, id);
+    if (!isAuth) {
+      return NextResponse.json(
+        { success: false, message: "Forbidden - Insufficient permissions" },
+        { status: 403 }
+      );
+    }
+
     const { chatId } = await req.json();
 
     if (!chatId) {
