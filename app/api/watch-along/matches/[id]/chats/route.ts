@@ -15,17 +15,20 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     const { searchParams } = new URL(req.url);
     const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 50);
 
-    const matchRef = db.collection("watchAlongMatches").doc(id);
-    const matchDoc = await matchRef.get();
-    if (!matchDoc.exists) {
-      return NextResponse.json({ success: false, message: "Match not found" }, { status: 404 });
+    // Query subcollection directly — no need to check parent doc exists
+    let query = db.collection("watchAlongMatches").doc(id)
+      .collection("chats")
+      .orderBy("createdAt", "desc");
+
+    const since = searchParams.get("since");
+    if (since) {
+      const sinceTimestamp = parseInt(since);
+      if (!isNaN(sinceTimestamp)) {
+        query = query.where("createdAt", ">", sinceTimestamp);
+      }
     }
 
-    const snapshot = await matchRef
-      .collection("chats")
-      .orderBy("createdAt", "desc")
-      .limit(limit)
-      .get();
+    const snapshot = await query.limit(limit).get();
 
     const chats = snapshot.docs
       .map((doc) => ({ id: doc.id, ...doc.data() }))
@@ -56,12 +59,6 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       );
     }
 
-    const matchRef = db.collection("watchAlongMatches").doc(id);
-    const matchDoc = await matchRef.get();
-    if (!matchDoc.exists) {
-      return NextResponse.json({ success: false, message: "Match not found" }, { status: 404 });
-    }
-
     const chatData = {
       user: user.trim(),
       text: text.trim(),
@@ -69,7 +66,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       createdAt: Date.now(),
     };
 
-    const docRef = await matchRef.collection("chats").add(chatData);
+    // Write directly to subcollection — no parent check needed
+    const docRef = await db.collection("watchAlongMatches").doc(id)
+      .collection("chats").add(chatData);
 
     return NextResponse.json({ success: true, chat: { id: docRef.id, ...chatData } });
   } catch (error) {
@@ -109,13 +108,9 @@ export async function DELETE(req: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ success: false, message: "chatId is required" }, { status: 400 });
     }
 
-    const matchRef = db.collection("watchAlongMatches").doc(id);
-    const matchDoc = await matchRef.get();
-    if (!matchDoc.exists) {
-      return NextResponse.json({ success: false, message: "Match not found" }, { status: 404 });
-    }
-
-    await matchRef.collection("chats").doc(chatId).delete();
+    // Delete directly — no parent check needed
+    await db.collection("watchAlongMatches").doc(id)
+      .collection("chats").doc(chatId).delete();
 
     return NextResponse.json({ success: true, message: "Message deleted" });
   } catch (error) {

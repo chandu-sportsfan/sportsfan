@@ -32,14 +32,9 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
   try {
     const { id } = await params;
 
-    const matchRef = db.collection("watchAlongMatches").doc(id);
-    const matchDoc = await matchRef.get();
-    if (!matchDoc.exists) {
-      return NextResponse.json({ success: false, message: "Match not found" }, { status: 404 });
-    }
-
-    const countsRef = matchRef.collection("emojiReactions").doc("counts");
-    const countsDoc = await countsRef.get();
+    // Read counts doc directly — skip parent match check
+    const countsDoc = await db.collection("watchAlongMatches").doc(id)
+      .collection("emojiReactions").doc("counts").get();
 
     if (!countsDoc.exists) {
       const empty: Record<string, number> = {};
@@ -95,12 +90,6 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       );
     }
 
-    const matchRef = db.collection("watchAlongMatches").doc(id);
-    const matchDoc = await matchRef.get();
-    if (!matchDoc.exists) {
-      return NextResponse.json({ success: false, message: "Match not found" }, { status: 404 });
-    }
-
     // Tally duplicates locally → one Firestore write
     const tally: Record<string, number> = {};
     for (const e of raw) tally[e] = (tally[e] || 0) + 1;
@@ -110,14 +99,13 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       updates[emoji] = FieldValue.increment(count);
     }
 
-    const countsRef = matchRef.collection("emojiReactions").doc("counts");
+    // Write directly — skip match check AND skip re-read after write
+    const countsRef = db.collection("watchAlongMatches").doc(id)
+      .collection("emojiReactions").doc("counts");
     await countsRef.set(updates, { merge: true });
 
-    const updated = await countsRef.get();
-    const { updatedAt, ...reactions } = updated.data() as Record<string, unknown>;
-    void updatedAt;
-
-    return NextResponse.json({ success: true, reactions });
+    // Return the sent tally instead of re-reading (saves 1 read)
+    return NextResponse.json({ success: true, reactions: tally });
   } catch (error) {
     console.error("[emoji-storm POST]", error);
     return NextResponse.json({ success: false, message: (error as Error).message }, { status: 500 });
@@ -148,16 +136,12 @@ export async function DELETE(req: NextRequest, { params }: RouteContext) {
       );
     }
 
-    const matchRef = db.collection("watchAlongMatches").doc(id);
-    const matchDoc = await matchRef.get();
-    if (!matchDoc.exists) {
-      return NextResponse.json({ success: false, message: "Match not found" }, { status: 404 });
-    }
-
+    // Reset directly — skip match check
     const reset: Record<string, unknown> = { updatedAt: Date.now() };
     ALLOWED_EMOJIS.forEach((e) => { reset[e] = 0; });
 
-    await matchRef.collection("emojiReactions").doc("counts").set(reset);
+    await db.collection("watchAlongMatches").doc(id)
+      .collection("emojiReactions").doc("counts").set(reset);
 
     return NextResponse.json({ success: true, message: "Emoji counts reset" });
   } catch (error) {

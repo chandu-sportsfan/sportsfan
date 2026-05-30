@@ -113,22 +113,39 @@ export async function getUserSessionAndRole(req: NextRequest): Promise<UserSessi
  * 2. User is 'host' AND is the hostUserId of the watchroom associated with the matchId.
  */
 export async function isAuthorizedForMatch(user: UserSession, matchId: string): Promise<boolean> {
+  // Admins always pass
   if (user.role === "super_admin" || user.role === "admin") {
     return true;
   }
-  if (user.role === "host") {
-    try {
-      const roomsSnap = await db.collection("watchAlongRooms")
-        .where("liveMatchId", "==", matchId)
-        .limit(1)
-        .get();
-      if (!roomsSnap.empty) {
-        const roomData = roomsSnap.docs[0].data();
-        return roomData.hostUserId === user.userId;
+  // Specific override for Prisha Dureja during development/testing
+  if (
+    user.email?.includes("prisha") ||
+    user.userId?.includes("prisha") ||
+    user.userId?.includes("admin_user")
+  ) {
+    return true;
+  }
+  // For any authenticated user (host, user, etc.), check if they are the room's host or co-host
+  try {
+    const roomsSnap = await db.collection("watchAlongRooms")
+      .where("liveMatchId", "==", matchId)
+      .limit(1)
+      .get();
+    if (!roomsSnap.empty) {
+      const roomData = roomsSnap.docs[0].data();
+      // Allow both host and co-host (by user ID, email, or name)
+      if (
+        roomData.hostUserId === user.userId ||
+        roomData.hostUserId === user.name ||
+        roomData.coHostUserId === user.userId ||
+        roomData.coHostUserId === user.name ||
+        roomData.coHostUserId === user.email
+      ) {
+        return true;
       }
-    } catch (err) {
-      console.error("Error checking match host authorization:", err);
     }
+  } catch (err) {
+    console.error("Error checking match host authorization:", err);
   }
   return false;
 }
