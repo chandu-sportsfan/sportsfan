@@ -303,12 +303,12 @@ async function processRSSNews() {
   }
 }
 
-// ─── Cron: every day at 1:01 AM (5 minutes from now) ────────────────────────
-cron.schedule("1 1 * * *", async () => {
+// ─── Cron: every day at 12:00 PM ──────────────────────────────────────────────
+cron.schedule("0 12 * * *", async () => {
   await processRSSNews()
 })
 
 console.log("⚽ Sports Automation Started")
-console.log("🕐 Scheduled: Every day at 1:01 AM")
+console.log("🕐 Scheduled: Every day at 12:00 PM")
 
 processRSSNews()
