@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import axios from "axios";
 import Link from "next/link";
 
@@ -42,10 +42,15 @@ interface Match {
 export default function MatchDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [match, setMatch] = useState<Match | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<Match>>({});
+
+  useEffect(() => {
+    setEditing(searchParams.get("edit") === "true");
+  }, [searchParams]);
 
   const fetchMatch = useCallback(async () => {
     try {

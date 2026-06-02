@@ -542,14 +542,13 @@
 
 
 
-//app/admin/layout.tsx
-
 "use client";
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
+import { useSession } from "next-auth/react";
 
 const plexSans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["300", "400", "500", "600"] });
 const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"] });
@@ -561,101 +560,99 @@ interface NavItem {
 }
 interface NavGroup { label: string; items: NavItem[]; }
 
-const NAV: NavGroup[] = [
+// FULL NAVIGATION - All modules (for regular users)
+const FULL_NAV: NavGroup[] = [
   {
     label: "Overview",
     items: [
       { href: "/admin/dashboard", icon: "▣", label: "Dashboard" },
-      // { href: "/admin/analytics", icon: "◈", label: "Analytics" },
+      { href: "/admin/analytics", icon: "◈", label: "Analytics" },
     ],
   },
-  // {
-  //   label: "Management",
-  //   items: [
-  //     {
-  //       label: "User Management", icon: "👥",
-  //       children: [
-  //         { href: "/admin/user-management/users/add-user-form", label: "Add User" },
-  //         { href: "/admin/user-management/users/user-list", label: "User List" },
-  //         { href: "/admin/userroles-management/assign-roles", label: "User Roles" },
-  //         { href: "/admin/department-management/add-department-form", label: "Add Department" },
-  //         { href: "/admin/department-management/department-list", label: "Department List" },
-  //       ],
-  //     },
-  //     {
-  //       label: "Users", icon: "◉", badge: "30+",
-  //       children: [
-  //         { href: "/admin/users/signups", label: "Signups" },
-  //         // { href: "/admin/users/otp", label: "Send & Verify OTP" },
-  //       ],
-  //     },
-  //     // { href: "/admin/content", icon: "◧", label: "Content / Posts"   },
-  //     // { href: "/admin/orders",  icon: "◫", label: "Orders & Payments", badge: "8" },
-  //   ],
-  // },
-  // {
-  //   label: "Auth",
-  //   items: [{ href: "/admin/otp-logs", icon: "⊡", label: "OTP Logs" }],
-  // },
+  {
+    label: "Management",
+    items: [
+      {
+        label: "User Management", icon: "👥",
+        children: [
+          { href: "/admin/user-management/users/add-user-form", label: "Add User" },
+          { href: "/admin/user-management/users/user-list", label: "User List" },
+          { href: "/admin/userroles-management/assign-roles", label: "User Roles" },
+          { href: "/admin/department-management/add-department-form", label: "Add Department" },
+          { href: "/admin/department-management/department-list", label: "Department List" },
+        ],
+      },
+      {
+        label: "Users", icon: "◉", badge: "30+",
+        children: [
+          { href: "/admin/users/signups", label: "Signups" },
+        ],
+      },
+    ],
+  },
+  {
+    label: "Auth",
+    items: [{ href: "/admin/otp-logs", icon: "⊡", label: "OTP Logs" }],
+  },
   {
     label: "Home Data Components",
     items: [
-      // {
-      //   label: "Teams 360", icon: "◉",
-      //   children: [
-      //     { href: "/admin/team360-management/add-team360", label: "Add Teams 360" },
-      //     { href: "/admin/team360-management/team360-list", label: "Teams 360 List" },
-      //   ],
-      // },
-      // {
-      //   label: "Teams 360 Playlist", icon: "◉",
-      //   children: [
-      //     { href: "/admin/team360playlist-management/add-team360playlist", label: "Add Teams 360 Playlist" },
-      //     { href: "/admin/team360playlist-management/team360playlist-list", label: "Teams 360 Playlist List" },
-      //   ],
-      // },
-      // {
-      //   label: "Players 360", icon: "◉",
-      //   children: [
-      //     { href: "/admin/player360-management/add-player360", label: "Add Player 360" },
-      //     { href: "/admin/player360-management/player360-list", label: "Player 360 List" },
-      //   ],
-      // },
-      // {
-      //   label: "Cricket Articles", icon: "◉",
-      //   children: [
-      //     { href: "/admin/cricketarticles-management/add-cricketarticles", label: "Add Cricket Article" },
-      //     { href: "/admin/cricketarticles-management/cricketarticles-list", label: "Cricket Articles List" },
-      //   ],
-      // },
-      // {
-      //   label: "Club Profiles", icon: "◉",
-      //   children: [
-      //     { href: "/admin/clubprofile-management/add-clubprofile", label: "Add Club Profile" },
-      //     { href: "/admin/clubprofile-management/clubprofile-list", label: "Club Profiles List" },
-      //   ],
-      // },
-      // {
-      //   label: "User Feedback", icon: "◉",
-      //   children: [
-      //     { href: "/admin/userfeedback-management/add-userfeedback", label: "Add User Feedback" },
-      //     { href: "/admin/userfeedback-management/userfeedback-list", label: "User Feedback List" },
-      //   ],
-      // },
-      // {
-      //   label: "Player Profiles", icon: "◉",
-      //   children: [
-      //     { href: "/admin/playerprofile-management/add-playerprofile", label: "Add Player Profile" },
-      //     { href: "/admin/playerprofile-management/playerprofile-list", label: "Player Profiles List" },
-      //   ],
-      // },
-      // {
-      //   label: "Player Profiles Playlist", icon: "◉",
-      //   children: [
-      //     { href: "/admin/playerprofileplaylist-management/add-playerprofileplaylist", label: "Add Player Profiles Playlist" },
-      //     { href: "/admin/playerprofileplaylist-management/playerprofileplaylist-list", label: "Player Profiles Palylist" },
-      //   ],
-      // },
+      {
+        label: "Teams 360", icon: "◉",
+        children: [
+          { href: "/admin/team360-management/add-team360", label: "Add Teams 360" },
+          { href: "/admin/team360-management/team360-list", label: "Teams 360 List" },
+        ],
+      },
+      {
+        label: "Teams 360 Playlist", icon: "◉",
+        children: [
+          { href: "/admin/team360playlist-management/add-team360playlist", label: "Add Teams 360 Playlist" },
+          { href: "/admin/team360playlist-management/team360playlist-list", label: "Teams 360 Playlist List" },
+        ],
+      },
+      {
+        label: "Players 360", icon: "◉",
+        children: [
+          { href: "/admin/player360-management/add-player360", label: "Add Player 360" },
+          { href: "/admin/player360-management/player360-list", label: "Player 360 List" },
+        ],
+      },
+      {
+        label: "Cricket Articles", icon: "◉",
+        children: [
+          { href: "/admin/cricketarticles-management/add-cricketarticles", label: "Add Cricket Article" },
+          { href: "/admin/cricketarticles-management/cricketarticles-list", label: "Cricket Articles List" },
+        ],
+      },
+      {
+        label: "Club Profiles", icon: "◉",
+        children: [
+          { href: "/admin/clubprofile-management/add-clubprofile", label: "Add Club Profile" },
+          { href: "/admin/clubprofile-management/clubprofile-list", label: "Club Profiles List" },
+        ],
+      },
+      {
+        label: "User Feedback", icon: "◉",
+        children: [
+          { href: "/admin/userfeedback-management/add-userfeedback", label: "Add User Feedback" },
+          { href: "/admin/userfeedback-management/userfeedback-list", label: "User Feedback List" },
+        ],
+      },
+      {
+        label: "Player Profiles", icon: "◉",
+        children: [
+          { href: "/admin/playerprofile-management/add-playerprofile", label: "Add Player Profile" },
+          { href: "/admin/playerprofile-management/playerprofile-list", label: "Player Profiles List" },
+        ],
+      },
+      {
+        label: "Player Profiles Playlist", icon: "◉",
+        children: [
+          { href: "/admin/playerprofileplaylist-management/add-playerprofileplaylist", label: "Add Player Profiles Playlist" },
+          { href: "/admin/playerprofileplaylist-management/playerprofileplaylist-list", label: "Player Profiles Playlist" },
+        ],
+      },
       {
         label: "Watch Along", icon: "◉",
         children: [
@@ -663,124 +660,165 @@ const NAV: NavGroup[] = [
           { href: "/admin/watchalong-management/watchalong-list", label: "Watch Along List" },
         ],
       },
-      // {
-      //   label: "Polls & Quizes", icon: "◉",
-      //   children: [
-      //     { href: "/admin/polls-management/add-polls", label: "Add Poll" },
-      //     { href: "/admin/polls-management/polls-list", label: "Polls List" },
-      //   ],
-      // },
-      // {
-      //   label: "Host Screen", icon: "◉",
-      //   children: [
-      //     { href: "/admin/hostroom-management/add-hostroom", label: "Add Host Room" },
-      //     { href: "/admin/hostroom-management/hostroom-list", label: "Host Room List" },
-      //   ],
-      // },
-      // {
-      //   label: "Host Login Screen", icon: "◉",
-      //   children: [
-      //     { href: "/admin/hostloginscreen-management/add-hostroomlogin", label: "Add Host Login Form" },
-      //     { href: "/admin/hostloginscreen-management/hostroomlogin-list", label: "Host Members List" },
-      //   ],
-      // },
-      // {
-      //   label: "Audio Content Screen", icon: "◉",
-      //   children: [
-      //     // { href: "/admin/hostloginscreen-management/add-hostroomlogin", label: "Add Host Login Form" },
-      //     { href: "/admin/audiomessages-management", label: "Audio Messages List" },
-      //     { href: "/admin/audiodrops-management/", label: "Audio Request Drops List" },
-      //     { href: "/admin/audioplaylist-management/", label: "Audio List" },
-      //   ],
-      // },
-      // {
-      //   label: "Video Messages Screen", icon: "◉",
-      //   children: [
-      //     // { href: "/admin/hostloginscreen-management/add-hostroomlogin", label: "Add Host Login Form" },
-      //     { href: "/admin/videodrops-management/videomessages", label: "Video Messages List" },
-      //     // { href: "/admin/videodrops-management/", label: "Video Request Drops List" },
-      //     //  { href: "/admin/videoplaylist-management/", label: "Video List" },
-      //   ],
-      // },
-      // {
-      //   label: "IPL Matches", icon: "◉",
-      //   children: [
-      //     { href: "/admin/cricketmatches-management/add-cricketmatches", label: "Add IPL Matches" },
-      //     { href: "/admin/cricketmatches-management/cricketmatches-list", label: "IPL Matches List" },
-      //   ],
-      // },
-      // {
-      //   label: "Women's World Cup Matches", icon: "◉",
-      //   children: [
-      //     { href: "/admin/woment20wc-management/add-woment20wc", label: "Add Women's World Cup Match" },
-      //     { href: "/admin/woment20wc-management/woment20wc-list", label: "Women's World Cup Matches List" },
-      //   ],
-      // },
-      // {
-      //   label: "Fan Battle", icon: "◉",
-      //   children: [
-      //     { href: "/admin/fanbattle-management/add-fanbattle", label: "Add Fan Battle" },
-      //     { href: "/admin/fanbattle-management/fanbattle-list", label: "Fan Battle List" },
-      //     { href: "/admin/fanbattlearena-management/add-battlearena", label: "Add Fan Battle Arena" },
-      //     { href: "/admin/fanbattlearena-management/battlearena-list", label: "Fan Battle Arena List" },
-      //   ],
-      // },
-      // {
-      //   label: "Comments Management", icon: "◉",
-      //   children: [
-      //     { href: "/admin/comments-management/comments-list", label: "All Comments" },
-      //   ],
-      // },
-      // {
-      //   label: "Post Reports Management", icon: "◉",
-      //   children: [
-      //     { href: "/admin/postreports-management", label: "All Post Reports" },
-      //   ],
-      // },
-      // {
-      //   label: "Playlists Management", icon: "◉",
-      //   children: [
-      //     { href: "/admin/playlists-management/playlists-list", label: "All Playlists" },
-      //   ],
-      // },
-      // {
-      //   label: "Sportsfan360 Profile", icon: "◉",
-      //   children: [
-      //     { href: "/admin/sportsfan360profile-management/add-sportsfan360", label: "Add Sportsfan360 Profile" },
-      //     { href: "/admin/sportsfan360profile-management/sportsfan360profile-list", label: "Sportsfan360 Profile List" },
-      //   ],
-      // },
-      // {
-      //   label: "User Preferences", icon: "◉",
-      //   children: [
-      //     { href: "/admin/preferences-management", label: "Preferences List" },
-      //   ],
-      // },
-      // {
-      //   label: "IPL Pulse", icon: "◉",
-      //   children: [
-      //     { href: "/admin/spotlight-management/add-spotlight", label: "Add Spotlight" },
-      //     { href: "/admin/spotlight-management/spotlight-list", label: "Spotlight List" },
-      //     { href: "/admin/iplpulse-management", label: "IPL Pulse Reports" },
-      //   ],
-      // },
-      // { href: "/admin/content", icon: "◧", label: "Content / Posts"   },
-      // { href: "/admin/orders",  icon: "◫", label: "Orders & Payments", badge: "8" },
+      {
+        label: "Polls & Quizes", icon: "◉",
+        children: [
+          { href: "/admin/polls-management/add-polls", label: "Add Poll" },
+          { href: "/admin/polls-management/polls-list", label: "Polls List" },
+        ],
+      },
+      {
+        label: "Host Screen", icon: "◉",
+        children: [
+          { href: "/admin/hostroom-management/add-hostroom", label: "Add Host Room" },
+          { href: "/admin/hostroom-management/hostroom-list", label: "Host Room List" },
+        ],
+      },
+      {
+        label: "Host Login Screen", icon: "◉",
+        children: [
+          { href: "/admin/hostloginscreen-management/add-hostroomlogin", label: "Add Host Login Form" },
+          { href: "/admin/hostloginscreen-management/hostroomlogin-list", label: "Host Members List" },
+        ],
+      },
+      {
+        label: "Audio Content Screen", icon: "◉",
+        children: [
+          { href: "/admin/audiomessages-management", label: "Audio Messages List" },
+          { href: "/admin/audiodrops-management/", label: "Audio Request Drops List" },
+          { href: "/admin/audioplaylist-management/", label: "Audio List" },
+        ],
+      },
+      {
+        label: "Video Messages Screen", icon: "◉",
+        children: [
+          { href: "/admin/videodrops-management/videomessages", label: "Video Messages List" },
+        ],
+      },
+      {
+        label: "Cricket Matches", icon: "◉",
+        children: [
+          { href: "/admin/cricketmatches-management/add-cricketmatches", label: "Add Cricket Matches" },
+          { href: "/admin/cricketmatches-management/cricketmatches-list", label: "Cricket Matches List" },
+        ],
+      },
+    
+     
+       {
+        label: "FIFA Players Stats", icon: "◉",
+        children: [
+          { href: "/admin/fifaplayerstats-management/add-fifaplayerstats", label: "Add FIFA Players Stats" },
+          { href: "/admin/fifaplayerstats-management/fifaplayerstats-list", label: "FIFA Players Stats List" },
+        ],
+      },
+      {
+        label: "Fan Battle", icon: "◉",
+        children: [
+          { href: "/admin/fanbattle-management/add-fanbattle", label: "Add Fan Battle" },
+          { href: "/admin/fanbattle-management/fanbattle-list", label: "Fan Battle List" },
+          { href: "/admin/fanbattlearena-management/add-battlearena", label: "Add Fan Battle Arena" },
+          { href: "/admin/fanbattlearena-management/battlearena-list", label: "Fan Battle Arena List" },
+        ],
+      },
+      {
+        label: "Comments Management", icon: "◉",
+        children: [
+          { href: "/admin/comments-management/comments-list", label: "All Comments" },
+        ],
+      },
+      {
+        label: "Post Reports Management", icon: "◉",
+        children: [
+          { href: "/admin/postreports-management", label: "All Post Reports" },
+        ],
+      },
+      {
+        label: "Playlists Management", icon: "◉",
+        children: [
+          { href: "/admin/playlists-management/playlists-list", label: "All Playlists" },
+        ],
+      },
+      {
+        label: "Sportsfan360 Profile", icon: "◉",
+        children: [
+          { href: "/admin/sportsfan360profile-management/add-sportsfan360", label: "Add Sportsfan360 Profile" },
+          { href: "/admin/sportsfan360profile-management/sportsfan360profile-list", label: "Sportsfan360 Profile List" },
+        ],
+      },
+      {
+        label: "User Preferences", icon: "◉",
+        children: [
+          { href: "/admin/preferences-management", label: "Preferences List" },
+        ],
+      },
+      {
+        label: "IPL Pulse", icon: "◉",
+        children: [
+          { href: "/admin/spotlight-management/add-spotlight", label: "Add Spotlight" },
+          { href: "/admin/spotlight-management/spotlight-list", label: "Spotlight List" },
+          { href: "/admin/iplpulse-management", label: "IPL Pulse Reports" },
+        ],
+      },
+      { href: "/admin/content", icon: "◧", label: "Content / Posts" },
+      { href: "/admin/orders", icon: "◫", label: "Orders & Payments", badge: "8" },
     ],
   },
-  // {
-  //   label: "System",
-  //   items: [{ href: "/admin/settings", icon: "⊙", label: "Settings" }],
-  // },
+  {
+    label: "System",
+    items: [{ href: "/admin/settings", icon: "⊙", label: "Settings" }],
+  },
+];
+
+// LIMITED NAVIGATION - Only Watch Along (for restricted users)
+const LIMITED_NAV: NavGroup[] = [
+  {
+    label: "Overview",
+    items: [
+      { href: "/admin/dashboard", icon: "▣", label: "Dashboard" },
+    ],
+  },
+  {
+    label: "Home Data Components",
+    items: [
+      {
+        label: "Watch Along", icon: "◉",
+        children: [
+          { href: "/admin/watchalong-management/add-watchalong", label: "Add Watch Along" },
+          { href: "/admin/watchalong-management/watchalong-list", label: "Watch Along List" },
+        ],
+      },
+    ],
+  },
+];
+
+// List of restricted users (only see Watch Along module)
+const RESTRICTED_USERS = [
+  "venkyiimb@gmail.com",
+  "sethi.anshul39@gmail.com"
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { data: session, status } = useSession();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
+  const [isRestrictedUser, setIsRestrictedUser] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   const toggleMenu = (label: string) =>
     setOpenMenus(p => ({ ...p, [label]: !p[label] }));
+
+  // Check user email and determine if restricted
+  useEffect(() => {
+    if (status === "authenticated" && session?.user?.email) {
+      const userEmail = session.user.email.toLowerCase();
+      setIsRestrictedUser(RESTRICTED_USERS.includes(userEmail));
+    }
+    setIsLoading(false);
+  }, [session, status]);
+
+  // Select NAV based on user type
+  const NAV = isRestrictedUser ? LIMITED_NAV : FULL_NAV;
 
   // CHECK: If user is on login page (/admin), show NO sidebar
   const isLoginPage = pathname === "/admin";
@@ -790,6 +828,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return (
       <div className="min-h-screen w-full" style={{ background: "#0d1117" }}>
         {children}
+      </div>
+    );
+  }
+
+  // Show loading while checking session
+  if (isLoading || status === "loading") {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center" style={{ background: "#0d1117" }}>
+        <div className="text-white text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500 mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading...</p>
+        </div>
       </div>
     );
   }
@@ -844,9 +894,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div style={{
         overflowY: "auto",
         flex: 1,
-        /* Hide scrollbar for Chrome, Safari and Opera */
-        scrollbarWidth: "none", /* Firefox */
-        msOverflowStyle: "none", /* IE and Edge */
+        scrollbarWidth: "none",
+        msOverflowStyle: "none",
       }}
         className="hide-scrollbar">
         {NAV.map((group) => (
@@ -858,7 +907,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
             {group.items.map((item) => {
               if (item.children) {
-                const isOpen = openMenus[item.label] ?? pathname.startsWith("/admin/users");
+                const isOpen = openMenus[item.label] ?? pathname.startsWith("/admin/watchalong");
                 return (
                   <div key={item.label}>
                     <div
@@ -927,6 +976,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
         ))}
       </div>
+      
+      {/* Show restricted access indicator for limited users */}
+      {isRestrictedUser && (
+        <div style={{
+          padding: "12px 16px",
+          borderTop: "1px solid #21282f",
+          fontSize: "11px",
+          color: "#f85149",
+          textAlign: "center",
+          backgroundColor: "rgba(248,81,73,0.1)"
+        }}>
+          🔒 Restricted Access - Limited Modules
+        </div>
+      )}
     </>
   );
 
@@ -1106,10 +1169,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   background: "linear-gradient(135deg,#1f6feb,#388bfd)",
                   display: "grid", placeItems: "center", fontSize: 12, fontWeight: 600, color: "#fff"
                 }}>AD</div>
-                {/* <div style={{ display: "flex", flexDirection: "column" }}>
-                  <span style={{ fontSize: "13px", fontWeight: 600, color: "#e6edf3", lineHeight: "1" }}>Admin</span>
-                  <span style={{ fontSize: "11px", color: "#7d8590", marginTop: "2px" }}>Super Admin</span>
-                </div> */}
               </div>
             </div>
           </div>

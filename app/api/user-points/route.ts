@@ -330,62 +330,117 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// ─── GET — Fetch global leaderboard 
+// // ─── GET — Fetch global leaderboard 
+// export async function GET(req: NextRequest) {
+//   try {
+//     const { searchParams } = new URL(req.url);
+//     const userId = searchParams.get("userId");
+//     const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 100);
+//     const timeFrame = searchParams.get("timeFrame") || "all-time";
+
+//     const leaderboardSnap = await db
+//       .collection("globalLeaderboard")
+//       .orderBy("totalPoints", "desc")
+//       .limit(limit)
+//       .get();
+
+//     const leaderboard = leaderboardSnap.docs.map((doc, index) => ({
+//       rank: index + 1,
+//       ...doc.data(),
+//     }));
+
+//     // ── Current user rank + points ────────────────────────────────────────────
+//     let currentUserRank: number | null = null;
+//     let currentUserPoints: number | null = null;
+
+//     if (userId && userId !== "null" && userId !== "undefined") {
+//       const userLeaderboardSnap = await db
+//         .collection("globalLeaderboard")
+//         .doc(userId)
+//         .get();
+
+//       if (userLeaderboardSnap.exists) {
+//         currentUserPoints = userLeaderboardSnap.data()?.totalPoints ?? 0;
+
+//         const allUsers = await db
+//           .collection("globalLeaderboard")
+//           .orderBy("totalPoints", "desc")
+//           .get();
+
+//         const idx = allUsers.docs.findIndex((doc) => doc.id === userId);
+//         currentUserRank = idx >= 0 ? idx + 1 : null;
+//       }
+//     }
+
+//     return NextResponse.json({
+//       success: true,
+//       leaderboard,
+//       currentUser: {
+//         userId: userId || null,
+//         rank: currentUserRank,
+//         points: currentUserPoints,
+//       },
+//       total: leaderboard.length,
+//       timeFrame,
+//     });
+//   } catch (error: unknown) {
+//     const msg = error instanceof Error ? error.message : "Unexpected error";
+//     console.error("GET /api/user-points error:", error);
+//     return NextResponse.json({ error: msg }, { status: 500 });
+//   }
+// }
+
+
+
+
+// api/user-points/route.ts - Keep it simple
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get("userId");
     const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 100);
-    const timeFrame = searchParams.get("timeFrame") || "all-time";
 
+    // Get leaderboard
     const leaderboardSnap = await db
       .collection("globalLeaderboard")
       .orderBy("totalPoints", "desc")
       .limit(limit)
       .get();
 
-    const leaderboard = leaderboardSnap.docs.map((doc, index) => ({
-      rank: index + 1,
+    const leaderboard = leaderboardSnap.docs.map((doc) => ({
+      userId: doc.id,
       ...doc.data(),
     }));
 
-    // ── Current user rank + points ────────────────────────────────────────────
-    let currentUserRank: number | null = null;
-    let currentUserPoints: number | null = null;
+    let currentUser = null;
 
+    // Get specific user if requested
     if (userId && userId !== "null" && userId !== "undefined") {
-      const userLeaderboardSnap = await db
+      const decodedUserId = decodeURIComponent(userId);
+      const userDoc = await db
         .collection("globalLeaderboard")
-        .doc(userId)
+        .doc(decodedUserId)
         .get();
 
-      if (userLeaderboardSnap.exists) {
-        currentUserPoints = userLeaderboardSnap.data()?.totalPoints ?? 0;
-
-        const allUsers = await db
-          .collection("globalLeaderboard")
-          .orderBy("totalPoints", "desc")
-          .get();
-
-        const idx = allUsers.docs.findIndex((doc) => doc.id === userId);
-        currentUserRank = idx >= 0 ? idx + 1 : null;
+      if (userDoc.exists) {
+        currentUser = {
+          userId: userDoc.id,
+          ...userDoc.data(),
+        };
       }
     }
 
     return NextResponse.json({
       success: true,
       leaderboard,
-      currentUser: {
-        userId: userId || null,
-        rank: currentUserRank,
-        points: currentUserPoints,
-      },
+      currentUser,
       total: leaderboard.length,
-      timeFrame,
     });
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : "Unexpected error";
-    console.error("GET /api/user-points error:", error);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    // error handling
+    if (error instanceof Error) {
+      console.error("GET /api/user-points error:", error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
   }
 }
