@@ -3,7 +3,7 @@
 // Handles all 4 tournament files as described in Junior prep tasks
 
 import * as XLSX from "xlsx";
-import type { Tournament, Gender, MatchFormat } from "../../models/match";
+import type { Tournament, Gender, MatchFormat } from "../../app/models/match";
 
 export interface ParsedMatch {
   [key: string]: unknown;

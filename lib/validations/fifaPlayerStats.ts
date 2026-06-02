@@ -55,7 +55,7 @@ export function validateFifaPlayerStats(data: unknown): FifaPlayerStatsValidatio
   }
   return {
     success: false,
-    errors: result.error.errors.map((err:unknown) => ({
+    errors: result.error.issues.map((err:unknown) => ({
       field: (err as { path: (string | number)[] }).path.join("."),
       message: (err as { message: string }).message,
     })),
@@ -69,7 +69,7 @@ export function validateFifaPlayerStatsCreate(data: unknown): FifaPlayerStatsVal
   }
   return {
     success: false,
-    errors: result.error.errors.map((err:unknown) => ({
+    errors: result.error.issues.map((err:unknown) => ({
       field: (err as { path: (string | number)[] }).path.join("."),
       message: (err as { message: string }).message,
     })),

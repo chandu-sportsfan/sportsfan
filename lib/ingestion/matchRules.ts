@@ -114,7 +114,7 @@ export function runMatchDQChecks(
   const results: DQCheckResult[] = [];
 
   // DQ-1: Every match should have at least 1 innings record
-  const matchesWithInnings = new Set(innings.map((i) => (i as any).match_id));
+  const matchesWithInnings = new Set(innings.map((i) => (i as Record<string, unknown>).match_id));
   const matchesWithoutInnings = matches.filter((m) => !matchesWithInnings.has(m.match_id));
   results.push({
     rule: "DQ-M1: Every match has innings",
