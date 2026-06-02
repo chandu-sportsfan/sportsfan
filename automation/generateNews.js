@@ -52,12 +52,35 @@ const parser = new Parser({
 })
 
 // ─── RSS Feed URLs ────────────────────────────────────────────────────────────
-const RSS_FEEDS = [
-  "https://www.espncricinfo.com/rss/content/story/feeds/0.xml",
-  "https://feeds.feedburner.com/ndtvsports-cricket",
-  "https://timesofindia.indiatimes.com/rss/4719148.cms",
+const CRICKET_FEEDS = [
+  "https://www.espncricinfo.com/rss/content/story/feeds/0.xml"
 ]
 
+const FOOTBALL_FEEDS = [
+  "https://www.espn.com/espn/rss/soccer/news",
+  "https://feeds.bbci.co.uk/sport/football/rss.xml"
+]
+async function fetchCricketArticles() {
+  let items = []
+
+  for (const url of CRICKET_FEEDS) {
+    const feedItems = await fetchFeedItems(url)
+    items.push(...feedItems)
+  }
+
+  return items.slice(0, 2)
+}
+
+async function fetchFootballArticles() {
+  let items = []
+
+  for (const url of FOOTBALL_FEEDS) {
+    const feedItems = await fetchFeedItems(url)
+    items.push(...feedItems)
+  }
+
+  return items.slice(0, 3)
+}
 // ─── Strip HTML tags from text ────────────────────────────────────────────────
 function stripHtml(html) {
   if (!html) return ""
@@ -187,34 +210,34 @@ async function fetchFeedItems(url) {
 }
 
 // ─── Collect items across all feeds until we have enough sports articles ──────
-async function fetchSportsArticles() {
-  const sportsItems = []
+// async function fetchSportsArticles() {
+//   const sportsItems = []
 
-  for (const url of RSS_FEEDS) {
-    if (sportsItems.length >= MAX_ARTICLES_PER_RUN) break
+//   for (const url of RSS_FEEDS) {
+//     if (sportsItems.length >= MAX_ARTICLES_PER_RUN) break
 
-    console.log(`📡 Trying: ${url}`)
-    try {
-      const items = await fetchFeedItems(url)
-      if (items.length === 0) continue
+//     console.log(`📡 Trying: ${url}`)
+//     try {
+//       const items = await fetchFeedItems(url)
+//       if (items.length === 0) continue
 
-      // Filter to sports-only from this feed
-      const filtered = items.filter(isSportsArticle)
-      console.log(
-        `🏅 Sports articles from feed: ${filtered.length} / ${items.length} total`
-      )
+//       // Filter to sports-only from this feed
+//       const filtered = items.filter(isSportsArticle)
+//       console.log(
+//         `🏅 Sports articles from feed: ${filtered.length} / ${items.length} total`
+//       )
 
-      for (const item of filtered) {
-        if (sportsItems.length >= MAX_ARTICLES_PER_RUN) break
-        sportsItems.push(item)
-      }
-    } catch (e) {
-      console.log(`❌ Feed failed: ${e.message}`)
-    }
-  }
+//       for (const item of filtered) {
+//         if (sportsItems.length >= MAX_ARTICLES_PER_RUN) break
+//         sportsItems.push(item)
+//       }
+//     } catch (e) {
+//       console.log(`❌ Feed failed: ${e.message}`)
+//     }
+//   }
 
-  return sportsItems
-}
+//   return sportsItems
+// }
 
 // ─── Build article — exact shape the frontend expects ────────────────────────
 //
@@ -228,7 +251,8 @@ async function fetchSportsArticles() {
 //  likes      → 0                           (number)  ← frontend reads this
 //  cdn_url    → ""                          (string)  ← no image from RSS; frontend falls back to default
 //
-function buildArticle(item) {
+function buildArticle(item, sport) {
+
   const rawSummary =
     item.contentSnippet ||
     item.contentEncoded ||
@@ -237,14 +261,24 @@ function buildArticle(item) {
     ""
 
   return {
-    title:     item.title || "Sports Update",
-    summary:   stripHtml(rawSummary),
-    tag:       "Cricket",
-    source:    "ESPN CricInfo",
-    url:       item.link || item.url || "#",
-    createdAt: Date.now(),    // number — formatDate() on frontend converts this
-    likes:     0,             // frontend reads article.likes
-    cdn_url:   "",            // frontend falls back to /images/News_center_Default.png
+    title: item.title || "Sports Update",
+
+    summary: stripHtml(rawSummary),
+
+    tag: sport,
+
+    source:
+      sport === "Football"
+        ? "ESPN FC"
+        : "ESPN CricInfo",
+
+    url: item.link || item.url || "#",
+
+    createdAt: Date.now(),
+
+    likes: 0,
+
+    cdn_url: ""
   }
 }
 
@@ -254,7 +288,24 @@ async function processRSSNews() {
     console.log("\n🚀 Running RSS Automation — Sports Filter Active")
     console.log("=".repeat(55))
 
-    const sportsItems = await fetchSportsArticles()
+    const cricketItems =
+await fetchCricketArticles()
+
+const footballItems =
+await fetchFootballArticles()
+
+const sportsItems = [
+
+  ...cricketItems.map(item => ({
+    ...item,
+    sport: "Cricket"
+  })),
+
+  ...footballItems.map(item => ({
+    ...item,
+    sport: "Football"
+  }))
+]
 
     if (sportsItems.length === 0) {
       console.log("❌ No sports articles found. Aborting.")
@@ -284,7 +335,11 @@ async function processRSSNews() {
           continue
         }
 
-        const article = buildArticle(item)
+        const article =
+buildArticle(
+  item,
+  item.sport
+)
         await db.collection("news").add(article)
 
         console.log(`✅ Inserted: ${article.title.slice(0, 60)}`)
@@ -304,11 +359,11 @@ async function processRSSNews() {
 }
 
 // ─── Cron: every day at 12:00 PM ──────────────────────────────────────────────
-cron.schedule("0 12 * * *", async () => {
+cron.schedule("05 12 * * *", async () => {
   await processRSSNews()
 })
 
 console.log("⚽ Sports Automation Started")
-console.log("🕐 Scheduled: Every day at 12:00 PM")
+console.log("🕐 Scheduled: Every day at 12:05 PM")
 
 processRSSNews()
