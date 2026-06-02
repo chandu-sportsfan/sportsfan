@@ -1,5 +1,5 @@
 // models/fifaPlayerStats.ts
-// Firestore collection: fifa_player_stats
+// Firestore collection: fifaPlayerStats
 // Document ID = auto-generated
 
 import type { FifaTournament, Gender, FifaFormat } from "./fifaMatch";

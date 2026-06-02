@@ -15,7 +15,7 @@ async function fetchExistingPlayers(playerNames: string[], tournament: string): 
   for (let i = 0; i < playerNames.length; i += CHUNK_SIZE) {
     const chunk = playerNames.slice(i, i + CHUNK_SIZE);
     const snap = await db
-      .collection("fifa_player_stats")
+      .collection("fifaPlayerStats")
       .where("player_name", "in", chunk)
       .where("tournament", "==", tournament)
       .select("player_name")
@@ -127,20 +127,20 @@ export async function POST(req: NextRequest) {
       if (existingPlayers.has(stat.player_name)) {
         // Upsert — FIFA stats are tournament-total, a corrected file replaces them
         const existingSnap = await db
-          .collection("fifa_player_stats")
+          .collection("fifaPlayerStats")
           .where("player_name", "==", stat.player_name)
           .where("tournament", "==", stat.tournament)
           .limit(1)
           .get();
         if (!existingSnap.empty) {
-          await db.collection("fifa_player_stats").doc(existingSnap.docs[0].id).set(
+          await db.collection("fifaPlayerStats").doc(existingSnap.docs[0].id).set(
             { ...stat, updated_at: FieldValue.serverTimestamp() },
             { merge: true }
           );
           updated++;
         }
       } else {
-        await db.collection("fifa_player_stats").add({
+        await db.collection("fifaPlayerStats").add({
           ...stat,
           created_at: FieldValue.serverTimestamp(),
           updated_at: FieldValue.serverTimestamp(),

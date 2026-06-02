@@ -8,7 +8,7 @@ import { validateFifaPlayerStatsUpdate } from "@/lib/validations/fifaPlayerStats
 type Params = { params: { id: string } };
 
 export async function GET(_req: NextRequest, { params }: Params) {
-  const doc = await db.collection("fifa_player_stats").doc(params.id).get();
+  const doc = await db.collection("fifaPlayerStats").doc(params.id).get();
   if (!doc.exists) return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
   return NextResponse.json({ success: true, data: { id: doc.id, ...doc.data() } });
 }
@@ -24,7 +24,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ success: false, errors: validation.errors }, { status: 422 });
   }
 
-  const docRef = db.collection("fifa_player_stats").doc(params.id);
+  const docRef = db.collection("fifaPlayerStats").doc(params.id);
   const existing = await docRef.get();
   if (!existing.exists) return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
 
@@ -33,7 +33,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 }
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
-  const docRef = db.collection("fifa_player_stats").doc(params.id);
+  const docRef = db.collection("fifaPlayerStats").doc(params.id);
   const existing = await docRef.get();
   if (!existing.exists) return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
   await docRef.delete();

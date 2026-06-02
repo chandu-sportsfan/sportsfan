@@ -67,7 +67,7 @@ export default function FifaManualPlayerStatsForm() {
     }
   };
 
-  const parseNumber = (value: string) => (value === "" ? 0 : parseFloat(value) || 0);
+  // const parseNumber = (value: string) => (value === "" ? 0 : parseFloat(value) || 0);
 
   const handleSubmit = async () => {
     setLoading(true);

@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const after = searchParams.get("after");
 
   try {
-    let query: FirebaseFirestore.Query = db.collection("fifa_player_stats").orderBy("player_name");
+    let query: FirebaseFirestore.Query = db.collection("fifaPlayerStats").orderBy("player_name");
 
     if (tournament) query = query.where("tournament", "==", tournament);
     if (team) query = query.where("team", "==", team);
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     if (season) query = query.where("season", "==", parseInt(season, 10));
 
     if (after) {
-      const cursorDoc = await db.collection("fifa_player_stats").doc(after).get();
+      const cursorDoc = await db.collection("fifaPlayerStats").doc(after).get();
       if (cursorDoc.exists) query = query.startAfter(cursorDoc);
     }
 
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
   const stat = schema.data!;
 
   const existing = await db
-    .collection("fifa_player_stats")
+    .collection("fifaPlayerStats")
     .where("player_name", "==", stat.player_name)
     .where("tournament", "==", stat.tournament)
     .limit(1)
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const docRef = await db.collection("fifa_player_stats").add({
+  const docRef = await db.collection("fifaPlayerStats").add({
     ...stat,
     created_at: FieldValue.serverTimestamp(),
     updated_at: FieldValue.serverTimestamp(),

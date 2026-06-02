@@ -58,7 +58,7 @@ export default function FifaAdminUploadPanel() {
       </div>
 
       <div style={styles.footer}>
-        <span>Collections: fifaMatches · fifa_player_stats</span>
+        <span>Collections: fifaMatches · fifaPlayerStats</span>
         <span>Sources: FIFA World Cup match and player stats uploads</span>
       </div>
     </div>
