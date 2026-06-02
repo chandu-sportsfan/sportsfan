@@ -1225,6 +1225,7 @@ interface RoomForm {
   isLive: boolean;
   liveMatchId: string;
   hostUserId?: string;
+  coHostUserId?: string;
 }
 
 interface MatchForm {
@@ -1299,6 +1300,7 @@ export default function CreateWatchAlong({
     isLive: false,
     liveMatchId: "",
     hostUserId: "",
+    coHostUserId: "",
   });
   const [dpFile, setDpFile] = useState<File | null>(null);
   const [existingDp, setExistingDp] = useState<string>("");
@@ -1381,6 +1383,7 @@ export default function CreateWatchAlong({
         isLive: r.isLive || false,
         liveMatchId: r.liveMatchId || "",
         hostUserId: r.hostUserId || "",
+        coHostUserId: r.coHostUserId || "",
       });
       setExistingDp(r.displayPicture || "");
       if (r.liveMatchId) {
@@ -1629,6 +1632,7 @@ export default function CreateWatchAlong({
             </div>
             <div className="mt-4">
               <TextInput label="Host User ID / Email" name="hostUserId" value={roomForm.hostUserId || ""} onChange={handleRoomChange} placeholder="e.g. user_123 or user@gmail.com" />
+              <TextInput label="Co-Host User ID / Email" name="coHostUserId" value={roomForm.coHostUserId || ""} onChange={handleRoomChange} placeholder="e.g. cohost@gmail.com (gets host controls)" />
             </div>
           </Section>
 

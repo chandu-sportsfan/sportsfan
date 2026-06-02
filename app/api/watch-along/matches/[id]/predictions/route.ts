@@ -291,14 +291,6 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
 
         // Check if the match exists
         const matchRef = db.collection("watchAlongMatches").doc(id);
-        const matchDoc = await matchRef.get();
-        
-        if (!matchDoc.exists) {
-            return NextResponse.json(
-                { success: false, message: "Match not found" }, 
-                { status: 404 }
-            );
-        }
 
         // Build the query
         let query: FirebaseFirestore.Query = matchRef
@@ -341,11 +333,6 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         const { action } = body;
 
         const matchRef = db.collection("watchAlongMatches").doc(id);
-        const matchDoc = await matchRef.get();
-        
-        if (!matchDoc.exists) {
-            return NextResponse.json({ success: false, message: "Match not found" }, { status: 404 });
-        }
 
         // ── CREATE ──
         if (action === "create") {
@@ -437,8 +424,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
             await userVoteRef.set({ option, votedAt: Date.now() });
 
-            const updated = await predRef.get();
-            return NextResponse.json({ success: true, prediction: { id: predRef.id, ...updated.data() } });
+            return NextResponse.json({ success: true, prediction: { id: predRef.id, ...pred, votes: { ...pred.votes, [option]: (pred.votes[option] || 0) + 1 }, totalVotes: pred.totalVotes + 1 } });
         }
 
         return NextResponse.json(

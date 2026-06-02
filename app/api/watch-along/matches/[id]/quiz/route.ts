@@ -42,10 +42,6 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     const leaderboard = searchParams.get("leaderboard") === "true";
 
     const matchRef = db.collection("watchAlongMatches").doc(id);
-    const matchDoc = await matchRef.get();
-    if (!matchDoc.exists) {
-      return NextResponse.json({ success: false, message: "Match not found" }, { status: 404 });
-    }
 
     if (leaderboard) {
       const lbSnap = await matchRef
@@ -87,10 +83,6 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     const { action } = body;
 
     const matchRef = db.collection("watchAlongMatches").doc(id);
-    const matchDoc = await matchRef.get();
-    if (!matchDoc.exists) {
-      return NextResponse.json({ success: false, message: "Match not found" }, { status: 404 });
-    }
 
     // ── CREATE ──
     if (action === "create") {
