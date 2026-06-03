@@ -360,6 +360,7 @@ export async function GET(req: NextRequest) {
     try {
         const searchParams = req.nextUrl.searchParams;
         const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 500);
+        const type = searchParams.get("type") || "ipl";
         const nextCursor = searchParams.get("nextCursor");
         const search = searchParams.get("search")?.toLowerCase();
         const player = searchParams.get("player")?.toLowerCase();
@@ -367,7 +368,7 @@ export async function GET(req: NextRequest) {
         const params: CloudinaryApiParams = {
             resource_type: "video",
             type: "upload",
-            prefix: "sf360/video",
+            prefix: `sf360/video/${type}`,
             max_results: limit,
             image_metadata: true,
             video_metadata: true,  // ← THIS is what returns duration
@@ -412,7 +413,7 @@ export async function GET(req: NextRequest) {
                     height: resource.height || 0,
                     createdAt: resource.created_at,
                     createdAtFormatted: formatDate(resource.created_at),
-                    folder: "sf360/video",
+                    folder: `sf360/video/${type}`,
                     playerInfo,
                 };
             }
@@ -450,7 +451,7 @@ export async function GET(req: NextRequest) {
                 nextCursor: result.next_cursor || null,
                 limit,
             },
-            folder: "sf360/video",
+            folder: `sf360/video/${type}`,
         });
     } catch (error) {
         console.error("Error fetching videos from Cloudinary:", error);
