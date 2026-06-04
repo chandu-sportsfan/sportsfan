@@ -124,6 +124,7 @@ export function parseExcelBuffer(
   return { rows, sheetName: targetSheet, rowCount: rows.length, warnings };
 }
 
+
 // ─── Parse innings sheet ──────────────────────────────────────────────────────
 export function parseInningsSheet(buffer: Buffer): ParseResult<Record<string, unknown>> {
   const warnings: string[] = [];

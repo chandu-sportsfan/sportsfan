@@ -31,7 +31,16 @@ export async function GET(req: NextRequest) {
     }
 
     query = query.limit(limit);
-    const snap = await query.get();
+    // const snap = await query.get();
+    let snap: FirebaseFirestore.QuerySnapshot;
+try {
+  snap = await query.get();
+} catch (err) {
+  const msg = err instanceof Error ? err.message : String(err);
+  // Firestore includes the index creation URL in the error message
+  return NextResponse.json({ success: false, error: msg }, { status: 500 });
+}
+
     const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     const nextCursor = snap.docs.length === limit ? snap.docs[snap.docs.length - 1].id : null;
 

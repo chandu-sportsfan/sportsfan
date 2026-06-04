@@ -35,8 +35,11 @@ export function validatePlayerStatsRecord(record: Record<string, unknown>): Reco
   for (const field of stringFields) {
     const val = record[field];
     if (val !== null && val !== undefined && typeof val === "string") {
-      if (/<[^>]+>/.test(val) || /[<>"'`]/.test(val)) {
-        errors.push({ name: field, errorMessage: `${field} contains disallowed characters` });
+      // if (/<[^>]+>/.test(val) || /[<>"'`]/.test(val)) {
+      //   errors.push({ name: field, errorMessage: `${field} contains disallowed characters` });
+      // }
+      if (/<[^>]+>/.test(val)) {
+        errors.push({ name: field, errorMessage: `${field} contains HTML tags` });
       }
       if (val.length > 200) {
         errors.push({ name: field, errorMessage: `${field} exceeds max length` });
@@ -73,12 +76,15 @@ export function validatePlayerStatsRecord(record: Record<string, unknown>): Reco
   const overs = Number(record.overs);
   if (!isNaN(balls) && !isNaN(overs) && balls > 0) {
     const expectedOvers = balls / 6;
-    if (Math.abs(overs - expectedOvers) > 0.5) {
-      errors.push({
-        name: "overs",
-        errorMessage: `overs (${overs}) deviates too far from balls_bowled/6 (${expectedOvers.toFixed(1)})`,
-      });
-    }
+   // AFTER
+const normOvers = Math.round(overs * 10) / 10;
+const normExpected = Math.round(expectedOvers * 10) / 10;
+if (Math.abs(normOvers - normExpected) > 0.5) {
+  errors.push({
+    name: "overs",
+    errorMessage: `overs (${overs}) deviates too far from balls_bowled/6 (${expectedOvers.toFixed(1)})`,
+  });
+}
   }
 
   return { valid: errors.length === 0, errors };
@@ -106,11 +112,17 @@ export function runPlayerStatsDQChecks(records: PlayerStatsCreateInput[]): DQRep
   });
 
   // DQ-PS2: strike_rate derivation check
-  const badSR = records.filter((r) => {
-    if (r.balls_faced === 0) return false;
-    const expected = (r.runs / r.balls_faced) * 100;
-    return Math.abs(r.strike_rate - expected) > 5; // >5 point tolerance
-  });
+  // const badSR = records.filter((r) => {
+  //   if (r.balls_faced === 0) return false;
+  //   const expected = (r.runs / r.balls_faced) * 100;
+  //   return Math.abs(r.strike_rate - expected) > 5; // >5 point tolerance
+  // });
+  // AFTER
+const badSR = records.filter((r) => {
+  if (r.balls_faced === 0) return false;
+  const expected = (r.runs / r.balls_faced) * 100;
+  return Math.abs(r.strike_rate - expected) > 1;
+});
   results.push({
     rule: "DQ-PS2: strike_rate consistent with runs/balls_faced",
     passed: badSR.length === 0,
@@ -166,6 +178,23 @@ export function runPlayerStatsDQChecks(records: PlayerStatsCreateInput[]): DQRep
         : `${nullCore.length} records missing core batting fields`,
     affectedRows: nullCore.length,
   });
+
+
+  const badBA2 = records.filter((r) => {
+  if (r.wickets === 0) return false;
+  const expected = r.runs_conceded / r.wickets;
+  return Math.abs(r.bowling_average - expected) > 2;
+});
+results.push({
+  rule: "DQ-PS6: bowling_average consistent with runs_conceded/wickets",
+  passed: badBA2.length === 0,
+  message:
+    badBA2.length === 0
+      ? "All bowling_averages are consistent"
+      : `${badBA2.length} players have bowling_average mismatch`,
+  affectedRows: badBA2.length,
+});
+
 
   const warnings = results.filter((r) => !r.passed);
   return { results, passedAll: warnings.length === 0, warnings };

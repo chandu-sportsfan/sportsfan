@@ -38,8 +38,12 @@ export function validateMatchRecord(record: Record<string, unknown>): RecordVali
   for (const field of stringFields) {
     const val = record[field];
     if (val !== null && val !== undefined && typeof val === "string") {
-      if (/<[^>]+>/.test(val) || /[<>"'`]/.test(val)) {
-        errors.push({ name: field, errorMessage: `${field} contains disallowed characters` });
+      // if (/<[^>]+>/.test(val) || /[<>"'`]/.test(val)) {
+      //   errors.push({ name: field, errorMessage: `${field} contains disallowed characters` });
+      // }
+      // Replace the existing regex with this:
+      if (/<[^>]*script/i.test(val) || /javascript:/i.test(val) || /on\w+\s*=/i.test(val)) {
+        errors.push({ name: field, errorMessage: `${field} contains suspicious content` });
       }
       if (val.length > 200) {
         errors.push({ name: field, errorMessage: `${field} exceeds max length of 200` });

@@ -47,6 +47,17 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const parsed = parseFifaExcelBuffer(buffer, file.name);
     stats = parsed.rows;
+
+    const tournamentMap: Record<string, string> = {
+    "FIFA World Cup": "mens_fifa_wc_2022",
+    "FIFA World Cup Qualifier": "mens_fifa_wc_qualifier_2022",
+    "UEFA Champions League": "uefa_champions_league_2022",
+  };
+  
+  stats = stats.map(row => ({
+    ...row,
+    tournament: tournamentMap[row.tournament as string] || row.tournament || tournament
+  }));
   } else {
     let body: { stats?: unknown; source_file?: string; dry_run?: boolean; tournament?: string };
     try { body = await req.json(); } catch {
@@ -101,14 +112,33 @@ export async function POST(req: NextRequest) {
   }
 
   // Dedup
-  const tournamentForDedup = validStats[0]?.tournament ?? tournament;
+  // const tournamentForDedup = validStats[0]?.tournament ?? tournament;
+  // let existingPlayers: Set<string>;
+  // try {
+  //   existingPlayers = await fetchExistingPlayers(validStats.map((s) => s.player_name), tournamentForDedup);
+  // } catch (err) {
+  //   const msg = err instanceof Error ? err.message : String(err);
+  //   return NextResponse.json({ success: false, error: `Dedup check failed: ${msg}` }, { status: 500 });
+  // }
+
   let existingPlayers: Set<string>;
-  try {
-    existingPlayers = await fetchExistingPlayers(validStats.map((s) => s.player_name), tournamentForDedup);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ success: false, error: `Dedup check failed: ${msg}` }, { status: 500 });
+try {
+  // Group by tournament so dedup works correctly across multiple tournaments in one upload
+  const byTournament = validStats.reduce<Record<string, string[]>>((acc, s) => {
+    (acc[s.tournament] ??= []).push(s.player_name);
+    return acc;
+  }, {});
+
+  existingPlayers = new Set<string>();
+  for (const [t, names] of Object.entries(byTournament)) {
+    const existing = await fetchExistingPlayers(names, t);
+    existing.forEach((name) => existingPlayers.add(`${name}::${t}`));
   }
+} catch (err) {
+  const msg = err instanceof Error ? err.message : String(err);
+  return NextResponse.json({ success: false, error: `Dedup check failed: ${msg}` }, { status: 500 });
+}
+
 
   const processedInBatch = new Set<string>();
   const writtenStats: FifaPlayerStatsCreateInput[] = [];
@@ -124,7 +154,8 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      if (existingPlayers.has(stat.player_name)) {
+      // if (existingPlayers.has(stat.player_name)) {
+      if (existingPlayers.has(`${stat.player_name}::${stat.tournament}`)) {
         // Upsert — FIFA stats are tournament-total, a corrected file replaces them
         const existingSnap = await db
           .collection("fifaPlayerStats")
@@ -156,13 +187,28 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const dq = runFifaPlayerStatsDQChecks(writtenStats);
-  const duration = Date.now() - startTime;
+//   const dq = runFifaPlayerStatsDQChecks(writtenStats);
+//   const duration = Date.now() - startTime;
 
-  return NextResponse.json({
-    success: true,
-    summary: { total: stats.length, processed, updated, skipped, duration },
-    errors: errors.length > 0 ? errors : undefined,
-    dqWarnings: dq.results,
-  });
+//   return NextResponse.json({
+//     success: true,
+//     summary: { total: stats.length, processed, updated, skipped, duration },
+//     errors: errors.length > 0 ? errors : undefined,
+//     dqWarnings: dq.results,
+//   });
+// }
+
+
+const dq = writtenStats.length > 0 
+  ? runFifaPlayerStatsDQChecks(writtenStats) 
+  : { passed: true, results: [{ passed: true, message: "No new stats written, skipping DQ checks" }] };
+
+const duration = Date.now() - startTime;
+
+return NextResponse.json({
+  success: true,
+  summary: { total: stats.length, processed, updated, skipped, duration },
+  errors: errors.length > 0 ? errors : undefined,
+  dqWarnings: dq.results,
+})
 }
