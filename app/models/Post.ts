@@ -1,0 +1,29 @@
+export type PostType = "hot_take" | "prediction" | "debate" | "memory";
+export type PostStatus =
+  | "active"
+  | "settled_correct"
+  | "settled_wrong"
+  | "pending";
+export type SportType = "cricket" | "football";
+
+export interface Post {
+  postId: string;
+  authorUid: string;
+  authorUsername: string;
+  authorBadge: string;
+  type: PostType;
+  sport: SportType;
+  text: string;
+  sideA?: string;
+  sideB?: string;
+  matchId?: string;
+  confidence?: number;
+  audience: string;
+  agreeCount: number;
+  disagreeCount: number;
+  replyCount: number;
+  isLive: boolean;
+  status: PostStatus;
+  createdAt: number;
+  updatedAt: number;
+}
