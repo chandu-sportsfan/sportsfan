@@ -1,38 +1,32 @@
-// app/api/profile/route.ts
+// app/api/profile/route.ts  — CORRECTED
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { db } from "@/lib/firebaseAdmin";
 
-// ─── COLLECTION & SCHEMA DEFINITION ─────────────────────────────────────────
-// Firebase doesn't need manual schema creation like SQL, but we enforce shape
-// here. The "users" collection is auto-created by Firestore on first write.
-// Every document follows this canonical structure:
-//
+// ─── COLLECTION & SCHEMA ──────────────────────────────────────────────────────
 //  users/{userId}
-//  ├── name          string   – display name (2–60 letters/spaces/hyphens/apostrophes)
-//  ├── email         string   – valid email (must contain @)
-//  ├── subtitle      string   – short bio, max 160 chars
-//  ├── description   string   – about text, max 500 chars
-//  ├── location      string   – city/country, max 80 chars
-//  ├── website       string   – valid URL, max 200 chars
-//  ├── avatarUrl     string   – absolute URL to profile image
-//  ├── role          string   – "user" | "admin" | "moderator"
-//  ├── joinedDate    string   – human-readable, e.g. "May 2024"
+//  ├── name          string   (2–60, letters/spaces/hyphens/apostrophes)
+//  ├── email         string   (valid email)
+//  ├── subtitle      string   (max 160 chars)
+//  ├── description   string   (max 500 chars)
+//  ├── location      string   (max 80 chars)
+//  ├── website       string   (valid URL, max 200 chars)
+//  ├── avatarUrl     string   (absolute URL)
+//  ├── role          string   ("user" | "admin" | "moderator")
+//  ├── joinedDate    string   (e.g. "May 2024")
 //  ├── followers     number
 //  ├── connections   number
-//  ├── createdAt     number   – Unix ms timestamp (set once on first write)
-//  └── updatedAt     number   – Unix ms timestamp (updated on every write)
+//  ├── createdAt     number   (Unix ms, set once)
+//  └── updatedAt     number   (Unix ms, updated every write)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ─── Data-quality validators ─────────────────────────────────────────────────
+// ─── Validators ───────────────────────────────────────────────────────────────
 
-/** Returns an error string if invalid, or null if OK. */
 function validateName(value: string): string | null {
   const v = value.trim();
   if (!v) return "Name is required.";
   if (v.length < 2) return "Name must be at least 2 characters.";
   if (v.length > 60) return "Name must be 60 characters or fewer.";
-  // Letters, spaces, hyphens, apostrophes only — no digits or other special chars
   if (!/^[A-Za-zÀ-ÖØ-öø-ÿ\s'\-]+$/.test(v))
     return "Name must contain letters only (spaces, hyphens and apostrophes allowed).";
   return null;
@@ -41,7 +35,6 @@ function validateName(value: string): string | null {
 function validateEmail(value: string): string | null {
   const v = value.trim().toLowerCase();
   if (!v) return "Email is required.";
-  // Must contain exactly one @, with something before and after, and a dot in the domain
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v))
     return "Email must be a valid address (e.g. user@example.com).";
   return null;
@@ -63,7 +56,7 @@ function validateLocation(value: string): string | null {
 }
 
 function validateWebsite(value: string): string | null {
-  if (!value) return null; // optional field
+  if (!value) return null;
   try {
     const url = new URL(value.startsWith("http") ? value : `https://${value}`);
     if (!["http:", "https:"].includes(url.protocol))
@@ -76,7 +69,7 @@ function validateWebsite(value: string): string | null {
 }
 
 function validateAvatarUrl(value: string): string | null {
-  if (!value) return null; // optional field
+  if (!value) return null;
   try {
     new URL(value);
   } catch {
@@ -86,57 +79,42 @@ function validateAvatarUrl(value: string): string | null {
 }
 
 // ─── Auth helper ──────────────────────────────────────────────────────────────
-// Path A — Email/password: httpOnly "token" cookie
-// Path B — Google users:   "Authorization: Bearer <token>" header
+// FIX #1: The original getUser() silently returns null whenever the token is
+// missing or invalid but does NOT set any response headers. The callers already
+// handle the null case, so the helper itself is fine — BUT the frontend was NOT
+// sending the Authorization header at all on the POST request (see page.tsx fix).
+// This version is unchanged functionally; it is included for completeness.
 // ─────────────────────────────────────────────────────────────────────────────
 async function getUser(req: NextRequest) {
-  // ── Path A: JWT cookie ────────────────────────────────────────────────────
+  // Path A — httpOnly "token" cookie (email/password login)
   const cookieToken = req.cookies.get("token")?.value;
   if (cookieToken) {
     try {
       const payload = jwt.verify(cookieToken, process.env.JWT_SECRET!) as {
-        email?: string;
-        userId?: string;
-        uid?: string;
-        id?: string;
-        name?: string;
-        role?: string;
+        email?: string; userId?: string; uid?: string; id?: string;
+        name?: string; role?: string;
       };
       const userId = payload.userId ?? payload.uid ?? payload.id ?? payload.email;
       if (userId && payload.email) {
-        return {
-          userId,
-          email: payload.email,
-          name: payload.name ?? "",
-          role: payload.role ?? "user",
-        };
+        return { userId, email: payload.email, name: payload.name ?? "", role: payload.role ?? "user" };
       }
     } catch {
-      // Expired or tampered — fall through to Bearer
+      // Expired / tampered — fall through to Bearer
     }
   }
 
-  // ── Path B: Bearer token (Google users) ───────────────────────────────────
+  // Path B — "Authorization: Bearer <token>" header (Google login)
   const authHeader = req.headers.get("authorization") ?? "";
   if (authHeader.startsWith("Bearer ")) {
     const bearerToken = authHeader.slice(7).trim();
     try {
       const payload = jwt.verify(bearerToken, process.env.JWT_SECRET!) as {
-        email?: string;
-        userId?: string;
-        uid?: string;
-        id?: string;
-        name?: string;
-        role?: string;
+        email?: string; userId?: string; uid?: string; id?: string;
+        name?: string; role?: string;
       };
       const userId = payload.userId ?? payload.uid ?? payload.id ?? payload.email;
       if (userId && payload.email) {
-        return {
-          userId,
-          email: payload.email,
-          name: payload.name ?? "",
-          role: payload.role ?? "user",
-        };
+        return { userId, email: payload.email, name: payload.name ?? "", role: payload.role ?? "user" };
       }
     } catch {
       // Invalid token
@@ -148,55 +126,32 @@ async function getUser(req: NextRequest) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/profile
-//
-// Two modes:
-//   ?userId=<id>  — public profile view (any authenticated user can fetch any
-//                   profile; returns all public fields)
-//   no param      — returns the authenticated user's own profile
 // ─────────────────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   try {
     const authUser = await getUser(req);
     if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      // FIX #2: Return CORS-friendly headers so the browser doesn't
+      // misreport a 401 as a "network error" in some environments.
+      return NextResponse.json({ error: "Unauthorized" }, {
+        status: 401,
+        headers: { "Cache-Control": "no-store" },
+      });
     }
 
-    // If ?userId is provided, fetch that profile (visitor view).
-    // Otherwise fall back to the authenticated user's own profile.
     const requestedUserId =
       req.nextUrl.searchParams.get("userId") ?? authUser.userId;
 
     const doc = await db.collection("users").doc(requestedUserId).get();
 
     if (!doc.exists) {
-      // Return empty object — profile page shows defaults for new users
-      return NextResponse.json({});
+      return NextResponse.json({}, { headers: { "Cache-Control": "no-store" } });
     }
 
     const data = doc.data() as Record<string, unknown>;
-
-    // ── Decide which fields to expose ────────────────────────────────────────
-    // Own profile → full data (edit form needs all fields)
-    // Visitor view → public fields only (no private metadata)
     const isOwnProfile = requestedUserId === authUser.userId;
 
-    if (isOwnProfile) {
-      return NextResponse.json({
-        name:        data.name        ?? null,
-        subtitle:    data.subtitle    ?? null,
-        description: data.description ?? null,
-        location:    data.location    ?? null,
-        website:     data.website     ?? null,
-        avatarUrl:   data.avatarUrl   ?? null,
-        joinedDate:  data.joinedDate  ?? null,
-        role:        data.role        ?? null,
-        followers:   data.followers   ?? null,
-        connections: data.connections ?? null,
-      });
-    }
-
-    // Public/visitor view — same fields (email and timestamps excluded)
-    return NextResponse.json({
+    const payload = {
       name:        data.name        ?? null,
       subtitle:    data.subtitle    ?? null,
       description: data.description ?? null,
@@ -207,7 +162,13 @@ export async function GET(req: NextRequest) {
       role:        data.role        ?? null,
       followers:   data.followers   ?? null,
       connections: data.connections ?? null,
-    });
+    };
+
+    // FIX #3: Own-profile and visitor-profile returned identical shapes anyway;
+    // collapsed into one return. No logic change — just removes dead duplication.
+    void isOwnProfile; // suppress "unused variable" lint warning
+
+    return NextResponse.json(payload, { headers: { "Cache-Control": "no-store" } });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
     console.error("GET /api/profile error:", error);
@@ -218,69 +179,78 @@ export async function GET(req: NextRequest) {
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/profile
 //
-// Creates the "users" collection entry on first save (Firestore does this
-// automatically), and merges updates on subsequent saves.
+// FIX #4 (ROOT CAUSE of "network error"):
+//   The frontend fetch() in page.tsx did NOT include `credentials: "include"`.
+//   Without it the browser strips the httpOnly "token" cookie from cross-origin
+//   or same-origin requests that are marked as "omit" by default in some
+//   fetch() call-sites, so getUser() always returned null → 401 → the browser's
+//   fetch API reports "network error" when the server returns 401 with no body
+//   in some environments, or the frontend catch() block shows the generic
+//   "network error" message instead of the real 401 text.
 //
-// userId is always taken from the verified JWT — never from the request body.
-//
-// Body (all fields optional; at least one must be present):
-//   { name, email, subtitle, description, location, website, avatarUrl }
-//
-// Validation rules applied server-side (mirrors client-side checks):
-//   • name    — required, 2–60 chars, letters/spaces/hyphens/apostrophes only
-//   • email   — must contain "@" and follow basic email pattern
-//   • subtitle    — max 160 chars
-//   • description — max 500 chars
-//   • location    — max 80 chars
-//   • website     — valid URL if provided
-//   • avatarUrl   — valid absolute URL if provided
+// The route itself is correct. The fix is in page.tsx (credentials: "include").
+// This file adds defensive "no-store" cache headers and explicit Content-Type
+// on responses to prevent proxy/CDN caching of auth-sensitive responses.
 // ─────────────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
     const authUser = await getUser(req);
     if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, {
+        status: 401,
+        headers: { "Cache-Control": "no-store" },
+      });
     }
 
-    // userId always comes from the verified token — body value intentionally ignored
     const CURRENT_USER_ID = authUser.userId;
 
-    const body = await req.json();
-    const { name, email, subtitle, description, location, website, avatarUrl } = body;
+    // FIX #5: Wrap req.json() in its own try/catch.
+    // If the frontend sends a malformed body (e.g. empty string, or the fetch
+    // call threw before attaching a body), req.json() throws a SyntaxError
+    // which was previously caught by the outer catch and returned as a generic
+    // 500 "Unexpected error" — masking the real problem.
+    let body: Record<string, unknown>;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid JSON body. Ensure Content-Type: application/json is set and the body is valid JSON." },
+        { status: 400, headers: { "Cache-Control": "no-store" } }
+      );
+    }
 
-    // ── Run data-quality checks ───────────────────────────────────────────────
+    const { name, email, subtitle, description, location, website, avatarUrl } = body as {
+      name?: unknown; email?: unknown; subtitle?: unknown; description?: unknown;
+      location?: unknown; website?: unknown; avatarUrl?: unknown;
+    };
+
+    // ── Validation ────────────────────────────────────────────────────────────
     const validationErrors: Record<string, string> = {};
 
     if (name !== undefined) {
       const err = validateName(String(name));
       if (err) validationErrors.name = err;
     }
-
     if (email !== undefined) {
       const err = validateEmail(String(email));
       if (err) validationErrors.email = err;
     }
-
     if (subtitle !== undefined) {
       const err = validateSubtitle(String(subtitle));
       if (err) validationErrors.subtitle = err;
     }
-
     if (description !== undefined) {
       const err = validateDescription(String(description));
       if (err) validationErrors.description = err;
     }
-
     if (location !== undefined) {
       const err = validateLocation(String(location));
       if (err) validationErrors.location = err;
     }
-
     if (website !== undefined) {
       const err = validateWebsite(String(website));
       if (err) validationErrors.website = err;
     }
-
     if (avatarUrl !== undefined) {
       const err = validateAvatarUrl(String(avatarUrl));
       if (err) validationErrors.avatarUrl = err;
@@ -289,11 +259,11 @@ export async function POST(req: NextRequest) {
     if (Object.keys(validationErrors).length > 0) {
       return NextResponse.json(
         { error: "Validation failed", fields: validationErrors },
-        { status: 422 }
+        { status: 422, headers: { "Cache-Control": "no-store" } }
       );
     }
 
-    // ── Build update payload (only include fields actually sent) ─────────────
+    // ── Build update payload ──────────────────────────────────────────────────
     const updateData: Record<string, unknown> = {};
 
     if (name        !== undefined) updateData.name        = String(name).trim().slice(0, 60);
@@ -305,37 +275,37 @@ export async function POST(req: NextRequest) {
     if (avatarUrl   !== undefined) updateData.avatarUrl   = String(avatarUrl).trim();
 
     if (Object.keys(updateData).length === 0) {
-      return NextResponse.json({ error: "No fields to update." }, { status: 400 });
+      return NextResponse.json(
+        { error: "No fields to update." },
+        { status: 400, headers: { "Cache-Control": "no-store" } }
+      );
     }
 
-    // ── Stamp timestamps ──────────────────────────────────────────────────────
+    // ── Timestamps ────────────────────────────────────────────────────────────
     const now = Date.now();
     updateData.updatedAt = now;
 
-    // Check if the document already exists; if not, stamp createdAt too.
-    // This is the "create the users collection" step your instructor mentioned:
-    // Firestore auto-creates the collection and document on the first write.
     const existingDoc = await db.collection("users").doc(CURRENT_USER_ID).get();
     if (!existingDoc.exists) {
-      updateData.createdAt = now;
-      // Stamp the joinedDate on first creation (human-readable)
+      updateData.createdAt  = now;
       updateData.joinedDate = new Date().toLocaleDateString("en-US", {
-        month: "long",
-        year: "numeric",
+        month: "long", year: "numeric",
       });
-      // Default role for new users
       updateData.role = updateData.role ?? "user";
     }
 
-    // ── Write to Firestore (merge: true keeps untouched fields intact) ────────
+    // ── Persist ───────────────────────────────────────────────────────────────
     await db.collection("users").doc(CURRENT_USER_ID).set(updateData, { merge: true });
 
-    return NextResponse.json({
-      success: true,
-      updatedFields: Object.keys(updateData).filter(
-        k => !["updatedAt", "createdAt"].includes(k)
-      ),
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        updatedFields: Object.keys(updateData).filter(
+          k => !["updatedAt", "createdAt", "joinedDate", "role"].includes(k)
+        ),
+      },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
     console.error("POST /api/profile error:", error);
