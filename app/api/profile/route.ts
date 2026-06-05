@@ -13,13 +13,27 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+
   const body = await req.json();
-  const { userId, name, location, description, avatarUrl } = body;
+  const {
+  userId,
+  name,
+  location,
+  description,
+  website,
+  avatarUrl
+} = body;
   if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
 
-  await db.collection("users").doc(userId).set(
-    { name, location, description, avatarUrl },
-    { merge: true }  // merge: true so other fields aren't wiped out
-  );
+ await db.collection("users").doc(userId).set(
+{
+  name,
+  location,
+  description,
+  website,
+  avatarUrl
+},
+{ merge: true }
+);
   return NextResponse.json({ success: true });
 }

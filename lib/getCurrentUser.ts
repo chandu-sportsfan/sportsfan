@@ -9,12 +9,14 @@ import jwt from "jsonwebtoken";
 
 interface CurrentUser {
   userId: string;
-  email:  string;
-  name:   string;
-  role:   string;
+  email: string;
+  name: string;
+  role: string;
 }
 
-export async function getCurrentUser(req: NextRequest): Promise<CurrentUser | null> {
+export async function getCurrentUser(
+  req: NextRequest,
+): Promise<CurrentUser | null> {
   // ── 1. Cookie (email/password users) — same as /api/auth/host/me ────────────
   // This works because frontend & backend share the same domain, so the
   // httpOnly "token" cookie is automatically sent with every fetch/axios call.
@@ -23,17 +25,19 @@ export async function getCurrentUser(req: NextRequest): Promise<CurrentUser | nu
   if (cookieToken) {
     try {
       const payload = jwt.verify(cookieToken, process.env.JWT_SECRET!) as {
-        email?:  string;
+        email?: string;
         userId?: string;
-        name?:   string;
-        role?:   string;
+        name?: string;
+        role?: string;
       };
       if (payload.email) {
         return {
-          userId: payload.userId ?? payload.email.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_"),
-          email:  payload.email,
-          name:   payload.name ?? "",
-          role:   payload.role ?? "user",
+          userId:
+            payload.userId ??
+            payload.email.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_"),
+          email: payload.email,
+          name: payload.name ?? "",
+          role: payload.role ?? "user",
         };
       }
     } catch {
@@ -51,17 +55,19 @@ export async function getCurrentUser(req: NextRequest): Promise<CurrentUser | nu
     const bearerToken = authHeader.slice(7).trim();
     try {
       const payload = jwt.verify(bearerToken, process.env.JWT_SECRET!) as {
-        email?:  string;
+        email?: string;
         userId?: string;
-        name?:   string;
-        role?:   string;
+        name?: string;
+        role?: string;
       };
       if (payload.email) {
         return {
-          userId: payload.userId ?? payload.email.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_"),
-          email:  payload.email,
-          name:   payload.name ?? "",
-          role:   payload.role ?? "user",
+          userId:
+            payload.userId ??
+            payload.email.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_"),
+          email: payload.email,
+          name: payload.name ?? "",
+          role: payload.role ?? "user",
         };
       }
     } catch {

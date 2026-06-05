@@ -1,4 +1,3 @@
-
 // app/api/chats/route.ts  — BACKEND
 // Powers the "My Chats" tab — list of DMs and group chats
 
@@ -21,12 +20,22 @@ async function getUser(req: NextRequest) {
   if (cookieToken) {
     try {
       const payload = jwt.verify(cookieToken, process.env.JWT_SECRET!) as {
-        email?: string; userId?: string; uid?: string; id?: string;
-        name?: string; role?: string;
+        email?: string;
+        userId?: string;
+        uid?: string;
+        id?: string;
+        name?: string;
+        role?: string;
       };
-      const userId = payload.userId ?? payload.uid ?? payload.id ?? payload.email;
+      const userId =
+        payload.userId ?? payload.uid ?? payload.id ?? payload.email;
       if (userId && payload.email) {
-        return { userId, email: payload.email, name: payload.name ?? "", role: payload.role ?? "user" };
+        return {
+          userId,
+          email: payload.email,
+          name: payload.name ?? "",
+          role: payload.role ?? "user",
+        };
       }
     } catch {
       // Expired or tampered — fall through to Bearer
@@ -39,12 +48,22 @@ async function getUser(req: NextRequest) {
     const bearerToken = authHeader.slice(7).trim();
     try {
       const payload = jwt.verify(bearerToken, process.env.JWT_SECRET!) as {
-        email?: string; userId?: string; uid?: string; id?: string;
-        name?: string; role?: string;
+        email?: string;
+        userId?: string;
+        uid?: string;
+        id?: string;
+        name?: string;
+        role?: string;
       };
-      const userId = payload.userId ?? payload.uid ?? payload.id ?? payload.email;
+      const userId =
+        payload.userId ?? payload.uid ?? payload.id ?? payload.email;
       if (userId && payload.email) {
-        return { userId, email: payload.email, name: payload.name ?? "", role: payload.role ?? "user" };
+        return {
+          userId,
+          email: payload.email,
+          name: payload.name ?? "",
+          role: payload.role ?? "user",
+        };
       }
     } catch {
       // Invalid token
@@ -54,13 +73,6 @@ async function getUser(req: NextRequest) {
   return null;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GET /api/chats
-//   ?type=dm|group          filter by chat type
-//   ?limit=20               results per page (max 50)
-//   ?lastDocId=<id>         \  cursor-based pagination
-//   ?lastDocUpdatedAt=<ms>  /
-// ─────────────────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   try {
     const user = await getUser(req);
@@ -70,9 +82,9 @@ export async function GET(req: NextRequest) {
     const CURRENT_USER_ID = user.userId;
 
     const { searchParams } = new URL(req.url);
-    const type             = searchParams.get("type");
-    const limit            = Math.min(parseInt(searchParams.get("limit") || "20"), 50);
-    const lastDocId        = searchParams.get("lastDocId");
+    const type = searchParams.get("type");
+    const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 50);
+    const lastDocId = searchParams.get("lastDocId");
     const lastDocUpdatedAt = searchParams.get("lastDocUpdatedAt");
 
     let query = db
@@ -97,8 +109,8 @@ export async function GET(req: NextRequest) {
     }
 
     const snapshot = await query.get();
-    const chats    = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-    const lastDoc  = snapshot.docs[snapshot.docs.length - 1];
+    const chats = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    const lastDoc = snapshot.docs[snapshot.docs.length - 1];
 
     return NextResponse.json({
       success: true,
@@ -108,7 +120,10 @@ export async function GET(req: NextRequest) {
         hasMore: chats.length === limit,
         nextCursor:
           chats.length === limit
-            ? { lastDocId: lastDoc?.id, lastDocUpdatedAt: lastDoc?.data()?.updatedAt }
+            ? {
+                lastDocId: lastDoc?.id,
+                lastDocUpdatedAt: lastDoc?.data()?.updatedAt,
+              }
             : null,
       },
     });
@@ -136,13 +151,19 @@ export async function POST(req: NextRequest) {
     const { type, participantId, participantIds, name } = body;
 
     if (!type || !["dm", "group"].includes(type)) {
-      return NextResponse.json({ error: "type must be 'dm' or 'group'" }, { status: 400 });
+      return NextResponse.json(
+        { error: "type must be 'dm' or 'group'" },
+        { status: 400 },
+      );
     }
 
     // ── DM ───────────────────────────────────────────────────────────────────
     if (type === "dm") {
       if (!participantId) {
-        return NextResponse.json({ error: "participantId is required for DMs" }, { status: 400 });
+        return NextResponse.json(
+          { error: "participantId is required for DMs" },
+          { status: 400 },
+        );
       }
 
       const existing = await db
@@ -152,55 +173,74 @@ export async function POST(req: NextRequest) {
         .get();
 
       const alreadyExists = existing.docs.find((d) =>
-        (d.data().participantIds as string[]).includes(participantId)
+        (d.data().participantIds as string[]).includes(participantId),
       );
       if (alreadyExists) {
         return NextResponse.json({
           success: true,
-          id:      alreadyExists.id,
-          chat:    { id: alreadyExists.id, ...alreadyExists.data() },
+          id: alreadyExists.id,
+          chat: { id: alreadyExists.id, ...alreadyExists.data() },
           message: "Existing DM returned",
         });
       }
 
-      const now     = Date.now();
+      const now = Date.now();
       const newChat = {
-        type: "dm", name: body.name?.trim() || "",
-        participantIds:     [CURRENT_USER_ID, participantId],
-        lastMessageContent: "", lastMessageAt: now, unreadCount: 0,
-        isOnline: false, isVerified: false, isPinned: false, isMuted: false,
-        createdBy: CURRENT_USER_ID, createdAt: now, updatedAt: now,
+        type: "dm",
+        name: body.name?.trim() || "",
+        participantIds: [CURRENT_USER_ID, participantId],
+        lastMessageContent: "",
+        lastMessageAt: now,
+        unreadCount: 0,
+        isOnline: false,
+        isVerified: false,
+        isPinned: false,
+        isMuted: false,
+        createdBy: CURRENT_USER_ID,
+        createdAt: now,
+        updatedAt: now,
       };
 
       const docRef = await db.collection("chats").add(newChat);
       return NextResponse.json(
         { success: true, id: docRef.id, chat: { id: docRef.id, ...newChat } },
-        { status: 201 }
+        { status: 201 },
       );
     }
 
     // ── Group ────────────────────────────────────────────────────────────────
     if (!name || !name.trim()) {
-      return NextResponse.json({ error: "name is required for group chats" }, { status: 400 });
+      return NextResponse.json(
+        { error: "name is required for group chats" },
+        { status: 400 },
+      );
     }
 
     const members = Array.isArray(participantIds)
       ? Array.from(new Set([CURRENT_USER_ID, ...participantIds]))
       : [CURRENT_USER_ID];
 
-    const now     = Date.now();
+    const now = Date.now();
     const newChat = {
-      type: "group", name: name.trim(),
-      participantIds:     members,
-      lastMessageContent: "", lastMessageAt: now, unreadCount: 0,
-      isOnline: false, isVerified: false, isPinned: false, isMuted: false,
-      createdBy: CURRENT_USER_ID, createdAt: now, updatedAt: now,
+      type: "group",
+      name: name.trim(),
+      participantIds: members,
+      lastMessageContent: "",
+      lastMessageAt: now,
+      unreadCount: 0,
+      isOnline: false,
+      isVerified: false,
+      isPinned: false,
+      isMuted: false,
+      createdBy: CURRENT_USER_ID,
+      createdAt: now,
+      updatedAt: now,
     };
 
     const docRef = await db.collection("chats").add(newChat);
     return NextResponse.json(
       { success: true, id: docRef.id, chat: { id: docRef.id, ...newChat } },
-      { status: 201 }
+      { status: 201 },
     );
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
