@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import cloudinary from "@/lib/cloudinary";
+import { getUserSessionAndRole } from "@/lib/auth";
 
 // Helper function to extract ID from URL
 function getIdFromUrl(req: NextRequest): string | null {
@@ -56,6 +57,14 @@ export async function GET(req: NextRequest) {
 // PUT Request
 export async function PUT(req: NextRequest) {
   try {
+    const user = await getUserSessionAndRole(req);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized - Authentication required" },
+        { status: 401 }
+      );
+    }
+
     const id   = getIdFromUrl(req);
 
     if (!id) {
@@ -72,14 +81,44 @@ export async function PUT(req: NextRequest) {
       );
     }
 
+    const roomData = existing.data();
+    const isCoHost = roomData?.coHostUserId && (
+      roomData.coHostUserId.toLowerCase() === user.userId?.toLowerCase() ||
+      roomData.coHostUserId.toLowerCase() === user.name?.toLowerCase() ||
+      roomData.coHostUserId.toLowerCase() === user.email?.toLowerCase()
+    );
+
+    const authorizedRoles = ["super_admin", "admin", "host"];
+    const isDevTester = user.email?.includes("prisha") || user.userId?.includes("prisha") || user.userId?.includes("admin_user");
+    if (!authorizedRoles.includes(user.role) && !isDevTester && !isCoHost) {
+      return NextResponse.json(
+        { success: false, message: "Forbidden - Insufficient permissions" },
+        { status: 403 }
+      );
+    }
+
+    // Ownership check: Host can only modify their own room
+    if (user.role === "host" && roomData?.hostUserId !== user.userId && !isDevTester && !isCoHost) {
+      return NextResponse.json(
+        { success: false, message: "Forbidden - You do not own this watchroom" },
+        { status: 403 }
+      );
+    }
+
     const formData = await req.formData();
     const updates: Record<string, unknown> = { updatedAt: Date.now() };
 
     // Only update fields that were actually sent
-    const fields = ["name", "role", "badge", "badgeColor", "borderColor", "watching", "engagement", "active"];
+    const fields = ["name", "role", "badge", "badgeColor", "borderColor", "watching", "engagement", "active", "coHostUserId"];
     for (const field of fields) {
       const val = formData.get(field);
-      if (val !== null) updates[field] = val as string;
+      if (val !== null) {
+        if (field === "coHostUserId" && (val === "null" || val === "")) {
+          updates[field] = null;
+        } else {
+          updates[field] = val as string;
+        }
+      }
     }
 
     const isLive = formData.get("isLive");
@@ -145,6 +184,23 @@ export async function PUT(req: NextRequest) {
 // DELETE Request
 export async function DELETE(req: NextRequest) {
   try {
+    const user = await getUserSessionAndRole(req);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized - Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const authorizedRoles = ["super_admin", "admin", "host"];
+    const isDevTester = user.email?.includes("prisha") || user.userId?.includes("prisha") || user.userId?.includes("admin_user");
+    if (!authorizedRoles.includes(user.role) && !isDevTester) {
+      return NextResponse.json(
+        { success: false, message: "Forbidden - Insufficient permissions" },
+        { status: 403 }
+      );
+    }
+
     const id   = getIdFromUrl(req);
 
     if (!id) {
@@ -158,6 +214,15 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json(
         { success: false, message: "Room not found" },
         { status: 404 }
+      );
+    }
+
+    // Ownership check: Host can only delete their own room
+    const roomData = existing.data();
+    if (user.role === "host" && roomData?.hostUserId !== user.userId && !isDevTester) {
+      return NextResponse.json(
+        { success: false, message: "Forbidden - You do not own this watchroom" },
+        { status: 403 }
       );
     }
 

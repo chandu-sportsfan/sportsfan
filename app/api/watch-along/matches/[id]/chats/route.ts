@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
+import { getUserSessionAndRole, isAuthorizedForMatch } from "@/lib/auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -14,17 +15,20 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     const { searchParams } = new URL(req.url);
     const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 50);
 
-    const matchRef = db.collection("watchAlongMatches").doc(id);
-    const matchDoc = await matchRef.get();
-    if (!matchDoc.exists) {
-      return NextResponse.json({ success: false, message: "Match not found" }, { status: 404 });
+    // Query subcollection directly — no need to check parent doc exists
+    let query = db.collection("watchAlongMatches").doc(id)
+      .collection("chats")
+      .orderBy("createdAt", "desc");
+
+    const since = searchParams.get("since");
+    if (since) {
+      const sinceTimestamp = parseInt(since);
+      if (!isNaN(sinceTimestamp)) {
+        query = query.where("createdAt", ">", sinceTimestamp);
+      }
     }
 
-    const snapshot = await matchRef
-      .collection("chats")
-      .orderBy("createdAt", "desc")
-      .limit(limit)
-      .get();
+    const snapshot = await query.limit(limit).get();
 
     const chats = snapshot.docs
       .map((doc) => ({ id: doc.id, ...doc.data() }))
@@ -55,12 +59,6 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       );
     }
 
-    const matchRef = db.collection("watchAlongMatches").doc(id);
-    const matchDoc = await matchRef.get();
-    if (!matchDoc.exists) {
-      return NextResponse.json({ success: false, message: "Match not found" }, { status: 404 });
-    }
-
     const chatData = {
       user: user.trim(),
       text: text.trim(),
@@ -68,7 +66,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       createdAt: Date.now(),
     };
 
-    const docRef = await matchRef.collection("chats").add(chatData);
+    // Write directly to subcollection — no parent check needed
+    const docRef = await db.collection("watchAlongMatches").doc(id)
+      .collection("chats").add(chatData);
 
     return NextResponse.json({ success: true, chat: { id: docRef.id, ...chatData } });
   } catch (error) {
@@ -85,19 +85,32 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 export async function DELETE(req: NextRequest, { params }: RouteContext) {
   try {
     const { id } = await params;
+
+    const user = await getUserSessionAndRole(req);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized - Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const isAuth = await isAuthorizedForMatch(user, id);
+    if (!isAuth) {
+      return NextResponse.json(
+        { success: false, message: "Forbidden - Insufficient permissions" },
+        { status: 403 }
+      );
+    }
+
     const { chatId } = await req.json();
 
     if (!chatId) {
       return NextResponse.json({ success: false, message: "chatId is required" }, { status: 400 });
     }
 
-    const matchRef = db.collection("watchAlongMatches").doc(id);
-    const matchDoc = await matchRef.get();
-    if (!matchDoc.exists) {
-      return NextResponse.json({ success: false, message: "Match not found" }, { status: 404 });
-    }
-
-    await matchRef.collection("chats").doc(chatId).delete();
+    // Delete directly — no parent check needed
+    await db.collection("watchAlongMatches").doc(id)
+      .collection("chats").doc(chatId).delete();
 
     return NextResponse.json({ success: true, message: "Message deleted" });
   } catch (error) {

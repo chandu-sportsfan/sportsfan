@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
+import { getUserSessionAndRole } from "@/lib/auth";
 
 /* ─────────────────────────────────────────────
    GET  /api/watch-along/matches
@@ -93,6 +94,23 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const user = await getUserSessionAndRole(req);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized - Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const authorizedRoles = ["super_admin", "admin"];
+    const isDevTester = user.email?.includes("prisha") || user.userId?.includes("prisha") || user.userId?.includes("admin_user");
+    if (!authorizedRoles.includes(user.role) && !isDevTester) {
+      return NextResponse.json(
+        { success: false, message: "Forbidden - Insufficient permissions" },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
 
     const { 

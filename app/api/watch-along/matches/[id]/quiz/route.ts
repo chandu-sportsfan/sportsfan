@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
+import { getUserSessionAndRole, isAuthorizedForMatch } from "@/lib/auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -41,10 +42,6 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     const leaderboard = searchParams.get("leaderboard") === "true";
 
     const matchRef = db.collection("watchAlongMatches").doc(id);
-    const matchDoc = await matchRef.get();
-    if (!matchDoc.exists) {
-      return NextResponse.json({ success: false, message: "Match not found" }, { status: 404 });
-    }
 
     if (leaderboard) {
       const lbSnap = await matchRef
@@ -86,13 +83,25 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     const { action } = body;
 
     const matchRef = db.collection("watchAlongMatches").doc(id);
-    const matchDoc = await matchRef.get();
-    if (!matchDoc.exists) {
-      return NextResponse.json({ success: false, message: "Match not found" }, { status: 404 });
-    }
 
     // ── CREATE ──
     if (action === "create") {
+      const user = await getUserSessionAndRole(req);
+      if (!user) {
+        return NextResponse.json(
+          { success: false, message: "Unauthorized - Authentication required" },
+          { status: 401 }
+        );
+      }
+
+      const isAuth = await isAuthorizedForMatch(user, id);
+      if (!isAuth) {
+        return NextResponse.json(
+          { success: false, message: "Forbidden - Insufficient permissions" },
+          { status: 403 }
+        );
+      }
+
       const { question, options, correctAnswer, timerSeconds = 15, points = 10 } = body;
 
       if (!question?.trim() || !Array.isArray(options) || options.length < 2 || !correctAnswer) {
@@ -196,6 +205,23 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 export async function PATCH(req: NextRequest, { params }: RouteContext) {
   try {
     const { id } = await params;
+
+    const user = await getUserSessionAndRole(req);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized - Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const isAuth = await isAuthorizedForMatch(user, id);
+    if (!isAuth) {
+      return NextResponse.json(
+        { success: false, message: "Forbidden - Insufficient permissions" },
+        { status: 403 }
+      );
+    }
+
     const { questionId, isActive } = await req.json();
 
     if (!questionId || typeof isActive !== "boolean") {

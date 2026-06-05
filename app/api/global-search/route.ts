@@ -316,7 +316,6 @@
 
 
 
-
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 
@@ -381,7 +380,7 @@ interface TeamData {
 }
 
 interface SearchResult {
-    type: 'player' | 'team';
+    type: 'player' | 'team' | 'user'; // <-- Added 'user'
     id: string;
     playerProfilesId?: string;
     name: string;
@@ -408,10 +407,7 @@ export async function GET(req: NextRequest) {
         }
 
         // ── Resolve aliases ──────────────────────────────────────────────────
-        // If the query matches a team abbreviation, use the full name for search
         const resolvedTeamQuery = TEAM_ALIASES[query] || query;
-
-        // If query matches a player alias, collect expanded queries
         const resolvedPlayerQueries: string[] = [query];
         if (PLAYER_ALIASES[query]) {
             resolvedPlayerQueries.push(...PLAYER_ALIASES[query]);
@@ -419,7 +415,8 @@ export async function GET(req: NextRequest) {
 
         const isJerseyNumber = !isNaN(parseInt(query)) && query.length <= 3;
         const playersMap = new Map<string, SearchResult>();
-        const teamsMap = new Map<string, SearchResult>(); // use map to dedupe teams too
+        const teamsMap = new Map<string, SearchResult>();
+        const usersMap = new Map<string, SearchResult>(); // <-- Added users map
 
         // ── 1. Search players ────────────────────────────────────────────────
         for (const pQuery of resolvedPlayerQueries) {
@@ -545,12 +542,10 @@ export async function GET(req: NextRequest) {
         }
 
         // ── 3. Search teams ──────────────────────────────────────────────────
-        // Search using both the original query AND the resolved full name
         const teamQueriesToTry = [...new Set([query, resolvedTeamQuery])];
 
         for (const tQuery of teamQueriesToTry) {
             try {
-                // Prefix match
                 const teamsSnapshot = await db.collection("team360Posts")
                     .where("teamNameLower", ">=", tQuery)
                     .where("teamNameLower", "<=", tQuery + "\uf8ff")
@@ -581,7 +576,6 @@ export async function GET(req: NextRequest) {
                     if (teamsMap.has(doc.id)) continue;
                     const data = doc.data() as TeamData;
                     const name = data.teamName?.toLowerCase() || "";
-                    // Match original query OR resolved full name OR any alias that maps here
                     const matchesAlias = Object.entries(TEAM_ALIASES).some(
                         ([abbr, full]) => abbr === query && name.includes(full)
                     );
@@ -600,9 +594,44 @@ export async function GET(req: NextRequest) {
             }
         }
 
+        // ── 5. Search End Users ──────────────────────────────────────────────
+        try {
+            // ** CHANGE "users" TO YOUR ACTUAL USER COLLECTION NAME IF DIFFERENT **
+            const usersSnapshot = await db.collection("users")
+                .limit(20) // Limit to avoid massive reads
+                .get();
+
+            for (const doc of usersSnapshot.docs) {
+                const data = doc.data();
+                // Check various common fields for name/image in case your schema differs
+                const userName = data.name || data.displayName || data.username || data.fullName || "";
+                const userImage = data.image || data.photoURL || data.avatar || null;
+
+                // Perform a simple case-insensitive text match
+                if (userName.toLowerCase().includes(query)) {
+                    usersMap.set(doc.id, {
+                        type: "user",
+                        id: doc.id,
+                        name: userName,
+                        image: userImage,
+                    });
+                }
+            }
+        } catch (error) {
+            console.error("Error searching end users:", error);
+        }
+
+        // ── Combine Results in specified order (Players -> Users -> Teams) ───
         const players = Array.from(playersMap.values());
         const teams = Array.from(teamsMap.values());
-        const results = [...players.slice(0, 10), ...teams.slice(0, 10)];
+        const users = Array.from(usersMap.values());
+
+        // This enforces your layout rule!
+        const results = [
+            ...players.slice(0, 10), 
+            ...users.slice(0, 10), 
+            ...teams.slice(0, 10)
+        ];
 
         return NextResponse.json({
             success: true,
@@ -613,6 +642,7 @@ export async function GET(req: NextRequest) {
                 resolvedTeamQuery,
                 isJerseyNumber,
                 playersFound: players.length,
+                usersFound: users.length,
                 teamsFound: teams.length,
             },
         });

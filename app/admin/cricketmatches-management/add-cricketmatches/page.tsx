@@ -1,4 +1,4 @@
-import AddCricketMatchPage from "@/components/CricketMatches-Component/CricketMatches";
+import AddCricketMatchPage from "@/components/CricketMatches-Component/AdminUploadPanel";
 
 
 

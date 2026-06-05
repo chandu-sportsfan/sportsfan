@@ -275,6 +275,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
+import { getUserSessionAndRole, isAuthorizedForMatch } from "@/lib/auth";
 
 // Use 'id' to match your folder name [id]
 interface RouteContext {
@@ -290,14 +291,6 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
 
         // Check if the match exists
         const matchRef = db.collection("watchAlongMatches").doc(id);
-        const matchDoc = await matchRef.get();
-        
-        if (!matchDoc.exists) {
-            return NextResponse.json(
-                { success: false, message: "Match not found" }, 
-                { status: 404 }
-            );
-        }
 
         // Build the query
         let query: FirebaseFirestore.Query = matchRef
@@ -340,14 +333,25 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         const { action } = body;
 
         const matchRef = db.collection("watchAlongMatches").doc(id);
-        const matchDoc = await matchRef.get();
-        
-        if (!matchDoc.exists) {
-            return NextResponse.json({ success: false, message: "Match not found" }, { status: 404 });
-        }
 
         // ── CREATE ──
         if (action === "create") {
+            const user = await getUserSessionAndRole(req);
+            if (!user) {
+                return NextResponse.json(
+                    { success: false, message: "Unauthorized - Authentication required" },
+                    { status: 401 }
+                );
+            }
+
+            const isAuth = await isAuthorizedForMatch(user, id);
+            if (!isAuth) {
+                return NextResponse.json(
+                    { success: false, message: "Forbidden - Insufficient permissions" },
+                    { status: 403 }
+                );
+            }
+
             const { question, options, closesAt } = body;
 
             if (!question?.trim() || !Array.isArray(options) || options.length < 2) {
@@ -420,8 +424,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
             await userVoteRef.set({ option, votedAt: Date.now() });
 
-            const updated = await predRef.get();
-            return NextResponse.json({ success: true, prediction: { id: predRef.id, ...updated.data() } });
+            return NextResponse.json({ success: true, prediction: { id: predRef.id, ...pred, votes: { ...pred.votes, [option]: (pred.votes[option] || 0) + 1 }, totalVotes: pred.totalVotes + 1 } });
         }
 
         return NextResponse.json(
@@ -437,6 +440,23 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 export async function PATCH(req: NextRequest, { params }: RouteContext) {
     try {
         const { id } = await params;  // Just use 'id' directly
+
+        const user = await getUserSessionAndRole(req);
+        if (!user) {
+            return NextResponse.json(
+                { success: false, message: "Unauthorized - Authentication required" },
+                { status: 401 }
+            );
+        }
+
+        const isAuth = await isAuthorizedForMatch(user, id);
+        if (!isAuth) {
+            return NextResponse.json(
+                { success: false, message: "Forbidden - Insufficient permissions" },
+                { status: 403 }
+            );
+        }
+
         const { predictionId, isOpen } = await req.json();
 
         if (!predictionId || typeof isOpen !== "boolean") {
