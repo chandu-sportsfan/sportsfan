@@ -28,9 +28,10 @@ export default function AddRoarForm() {
         isActive,
       });
       router.push('/admin/roar-management/roar-list');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create show', error);
-      alert('Failed to create show');
+      const errorMsg = error.response?.data?.error || error.message || 'Unknown error';
+      alert('Failed to create show: ' + errorMsg);
     } finally {
       setSaving(false);
     }
