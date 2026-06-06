@@ -12,7 +12,7 @@
 //   try {
 //     const body = await req.json();
 //     const userId = body.userId;
-    
+
 //     if (!userId) {
 //       return NextResponse.json({ error: 'Unauthorized - User ID missing' }, { status: 401 });
 //     }
@@ -114,7 +114,7 @@
 // export async function GET(req: NextRequest) {
 //   try {
 //     const userId = req.headers.get('X-User-Id');
- 
+
 //     if (!userId) {
 //       return NextResponse.json({ error: 'Unauthorized - User ID missing' }, { status: 401 });
 //     }
@@ -133,14 +133,14 @@
 //       .orderBy('updatedAt', 'desc')
 //       .limit(1)
 //       .get();
- 
+
 //     if (sessionsSnap.empty) {
 //       return NextResponse.json({ messages: [], sessionId: null });
 //     }
- 
+
 //     const sessionDoc = sessionsSnap.docs[0];
 //     const sessionId = sessionDoc.id;
- 
+
 //     // Fetch messages for this session
 //     const messagesSnap = await db
 //       .collection('askaiConversations')
@@ -151,17 +151,17 @@
 //       .orderBy('timestamp', 'asc')
 //       .limit(50)
 //       .get();
- 
+
 //     const messages = messagesSnap.docs.map(doc => ({
 //       id:      doc.id,
 //       role:    doc.data().role as 'user' | 'assistant',
 //       content: doc.data().content as string,
 //     }));
- 
+
 //     const responseData = { messages, sessionId };
-    
+
 //     sessionCache.set(userId, { data: responseData, timestamp: Date.now() });
-    
+
 //     // Clean old cache entries
 //     if (sessionCache.size > 100) {
 //       const now = Date.now();
@@ -171,9 +171,9 @@
 //         }
 //       }
 //     }
- 
+
 //     return NextResponse.json(responseData);
- 
+
 //   } catch (error) {
 //     console.error('[ask-ai GET] Error:', error);
 //     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -186,23 +186,23 @@
 //     const userId = req.headers.get('X-User-Id');
 //     const { searchParams } = new URL(req.url);
 //     const sessionId = searchParams.get('sessionId');
-    
+
 //     if (!userId) {
 //       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 //     }
-    
+
 //     if (sessionId) {
 //       // Delete specific session (handled in [id]/route.ts)
 //       return NextResponse.json({ error: 'Use /api/ask-ai/{id} to delete a specific session' }, { status: 400 });
 //     }
-    
+
 //     // Delete ALL sessions for this user
 //     const sessionsSnap = await db
 //       .collection('askaiConversations')
 //       .doc(userId)
 //       .collection('sessions')
 //       .get();
-      
+
 //     const batch = db.batch();
 //     for (const sessionDoc of sessionsSnap.docs) {
 //       // Delete messages in each session
@@ -213,9 +213,9 @@
 //       batch.delete(sessionDoc.ref);
 //     }
 //     await batch.commit();
-    
+
 //     sessionCache.delete(userId);
-    
+
 //     return NextResponse.json({ success: true, message: 'All sessions deleted' });
 //   } catch (error) {
 //     console.error('[ask-ai DELETE] Error:', error);
@@ -273,7 +273,10 @@ export async function POST(req: NextRequest) {
     try {
       const aiRes = await fetch(`${PYTHON_AI_URL}/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.PYTHON_AI_KEY ?? '',
+        },
         body: JSON.stringify({
           query,
           conversation_history: history,
