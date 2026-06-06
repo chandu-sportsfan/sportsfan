@@ -25,6 +25,7 @@ export interface PlayerStats {
   overs: number;                     // derived: balls_bowled / 6
   economy: number;
   bowling_average: number;
+  jersey_no?: number | null;
 
   // classification
   tournament: Tournament;

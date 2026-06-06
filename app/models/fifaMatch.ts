@@ -2,16 +2,21 @@
 // Firestore collection: fifaMatches
 // Document ID = match_id (string)
 
-export type FifaTournament = "mens_fifa_wc_2022" | "womens_fifa_wc_2023" | "mens_fifa_wc_2026";
+export type FifaTournament = "FIFA World Cup" | "FIFA Women's World Cup";
 export type Gender = "male" | "female";
 export type FifaFormat = "international";
-export type FifaMatchResult = "normal" | "extra_time" | "penalties" | "no_result" | "abandoned";
+export type FifaMatchResult = "Home Win" | "Away Win" | "Draw" | "Home Win (Pens)" | "Away Win (Pens)";
 export type FifaStage =
   | "Group Stage"
+  | "First group stage"
+  | "Second group stage"
+  | "First round"
+  | "Second round"
+  | "Final stage"
   | "Round of 16"
-  | "Quarter-Final"
-  | "Semi-Final"
-  | "Third Place"
+  | "Quarter-finals"
+  | "Semi-finals"
+  | "Third-place match"
   | "Final";
 
 export interface FifaMatch {
@@ -22,7 +27,7 @@ export interface FifaMatch {
   // stage
   stage: FifaStage;
   group: string | null;                // "Group A"–"Group H", null for knockouts
-  match_day: number | null;            // 1/2/3 for group stage, null for knockouts
+  match_day: string | null;            // weekday name e.g. "Sunday", null for some records
 
   // teams
   team1: string;
@@ -35,7 +40,7 @@ export interface FifaMatch {
   city: string | null;
 
   // result
-  winner: string | null;               // null on no_result / abandoned
+  winner: string | null;               // null on Draw
   winner_code: string | null;
   goals_team1: number;                 // full time incl. ET, excl. pens
   goals_team2: number;

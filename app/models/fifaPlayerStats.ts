@@ -9,7 +9,7 @@ export interface FifaPlayerStats {
   player_name: string;
   team: string;
   position: "GK" | "DF" | "MF" | "FW";
-  player_id: string | null;            // fill after master player registry
+  player_id: string;            // fill after master player registry
 
   // appearance
   matches_played: number;

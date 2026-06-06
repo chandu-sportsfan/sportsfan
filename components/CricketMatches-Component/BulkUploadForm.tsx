@@ -70,7 +70,7 @@ export default function BulkUploadForm() {
       const res = await fetch(endpoint, { method: "POST", body: formData });
       const data: UploadResult = await res.json();
       setResult(data);
-    } catch (err:unknown) { 
+    } catch (err: unknown) {
       setResult({ success: false, error: "Network error — check console" });
     } finally {
       setLoading(false);
@@ -247,11 +247,11 @@ function UploadResultPanel({ result }: { result: UploadResult }) {
               ? ["Time", `${result.summary.duration}ms`]
               : null,
           ]
-            .filter(Boolean)
+            .filter((item): item is [string, string | number | undefined] => item !== null)
             .map(([label, value]) => (
-              <div key={label as string} style={styles.summaryItem}>
+              <div key={label} style={styles.summaryItem}>
                 <span style={styles.summaryValue}>{value ?? "—"}</span>
-                <span style={styles.summaryLabel}>{label as string}</span>
+                <span style={styles.summaryLabel}>{label}</span>
               </div>
             ))}
         </div>

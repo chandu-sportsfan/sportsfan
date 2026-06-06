@@ -30,10 +30,10 @@ export function parseFifaExcelBuffer(buffer: Buffer, filename: string): ParseRes
     // Coerce numeric fields
     const numericFields = isPlayerFile
       ? ["matches_played", "minutes_played", "goals", "assists", "shots",
-         "shots_on_target", "shot_conversion_pct", "xg", "xa",
-         "dribbles_completed", "key_passes", "chances_created", "big_chances_created", "season"]
+        "shots_on_target", "shot_conversion_pct", "xg", "xa",
+        "dribbles_completed", "key_passes", "chances_created", "big_chances_created", "season"]
       : ["season", "match_day", "goals_team1", "goals_team2",
-         "goals_team1_pens", "goals_team2_pens"];
+        "goals_team1_pens", "goals_team2_pens"];
 
     for (const field of numericFields) {
       if (cleaned[field] !== null && cleaned[field] !== undefined) {
@@ -45,6 +45,17 @@ export function parseFifaExcelBuffer(buffer: Buffer, filename: string): ParseRes
     // Round shot_conversion_pct to 2dp
     if (cleaned.shot_conversion_pct !== null && cleaned.shot_conversion_pct !== undefined) {
       cleaned.shot_conversion_pct = parseFloat(Number(cleaned.shot_conversion_pct).toFixed(2));
+    }
+
+    if (row.winner === "Draw") {
+      row.winner = null;
+      row.winner_code = null;
+    }
+
+    const isPenMatch = row.match_result === "Home Win (Pens)" || row.match_result === "Away Win (Pens)";
+    if (!isPenMatch) {
+      row.goals_team1_pens = null;
+      row.goals_team2_pens = null;
     }
 
     // xg and xa to 1dp

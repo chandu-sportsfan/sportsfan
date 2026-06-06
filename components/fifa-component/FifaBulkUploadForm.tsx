@@ -39,7 +39,7 @@ interface UploadResult {
 export default function FifaBulkUploadForm() {
   const [uploadType, setUploadType] = useState<UploadType>("matches");
   const [file, setFile] = useState<File | null>(null);
-  const [tournament, setTournament] = useState("mens_fifa_wc_2022");
+  const [tournament, setTournament] = useState("FIFA World Cup");
   const [dryRun, setDryRun] = useState(true);
   const [upsert, setUpsert] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -111,9 +111,8 @@ export default function FifaBulkUploadForm() {
       <div style={s.field}>
         <label style={s.label}>Tournament</label>
         <select value={tournament} onChange={(e) => setTournament(e.target.value)} style={s.select}>
-          <option value="mens_fifa_wc_2022">Men's FIFA WC 2022</option>
-          <option value="womens_fifa_wc_2023">Women's FIFA WC 2023</option>
-          <option value="mens_fifa_wc_2026">Men's FIFA WC 2026</option>
+          <option value="FIFA World Cup">Men's FIFA World Cup</option>
+          <option value="FIFA Women's World Cup">Women's FIFA World Cup</option>
         </select>
       </div>
 
@@ -191,22 +190,26 @@ function UploadResultPanel({ result }: { result: UploadResult }) {
 
       {result.error && <p style={{ color: "#ef4444", fontSize: 13, margin: "0 0 12px" }}>{result.error}</p>}
 
-      {result.summary && (
-        <div style={s.summaryGrid}>
-          {[
-            ["Total", result.summary.total],
-            result.dry_run ? ["Valid", result.summary.valid] : ["Created", result.summary.processed],
-            result.summary.updated !== undefined ? ["Updated", result.summary.updated] : null,
-            result.dry_run ? ["Invalid", result.summary.invalid] : ["Skipped", result.summary.skipped],
-            result.summary.duration !== undefined ? ["Time", `${result.summary.duration}ms`] : null,
-          ].filter(Boolean).map(([label, value]) => (
-            <div key={label as string} style={s.summaryItem}>
-              <span style={s.summaryValue}>{value ?? "—"}</span>
-              <span style={s.summaryLabel}>{label as string}</span>
-            </div>
-          ))}
-        </div>
-      )}
+      {result.summary && (() => {
+        const summaryItems = [
+          ["Total", result.summary.total],
+          result.dry_run ? ["Valid", result.summary.valid] : ["Created", result.summary.processed],
+          result.summary.updated !== undefined ? ["Updated", result.summary.updated] : null,
+          result.dry_run ? ["Invalid", result.summary.invalid] : ["Skipped", result.summary.skipped],
+          result.summary.duration !== undefined ? ["Time", `${result.summary.duration}ms`] : null,
+        ].filter((item): item is [string, string | number | undefined] => item !== null);
+
+        return (
+          <div style={s.summaryGrid}>
+            {summaryItems.map(([label, value]) => (
+              <div key={label} style={s.summaryItem}>
+                <span style={s.summaryValue}>{value ?? "—"}</span>
+                <span style={s.summaryLabel}>{label}</span>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {result.dqWarnings && result.dqWarnings.length > 0 && (
         <div style={s.dqSection}>

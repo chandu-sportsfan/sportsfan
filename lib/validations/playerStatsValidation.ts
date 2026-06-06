@@ -2,12 +2,13 @@
 import { z } from "zod";
 
 const TournamentEnum = z.enum([
-  "mens_ipl",
+   "mens_ipl",
   "womens_ipl",
   "womens_wc",
   "womens_odi",
   "womens_test",
   "womens_t20i",
+  "mens_t20i",
 ]);
 const GenderEnum = z.enum(["male", "female"]);
 const FormatEnum = z.enum(["T20", "ODI", "Test"]);
@@ -33,7 +34,7 @@ export const PlayerStatsCreateSchema = z.object({
   overs: z.number().min(0),           // derived or explicit
   economy: z.number().min(0),
   bowling_average: z.number().min(0),
-
+  jersey_no: z.number().int().min(0).nullable().optional(),
   // classification
   tournament: TournamentEnum,
   gender: GenderEnum,

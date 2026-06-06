@@ -20,22 +20,22 @@ export interface FifaPlayerStatsDQResult {
 
 export type FifaPlayerStatsRecord = {
   [key: string]: unknown;
-  player?: string;
+  player_name?: string;
   team?: string;
   position?: string;
-  matchesPlayed?: number;
-  minutesPlayed?: number;
+  matches_played?: number;
+  minutes_played?: number;
   goals?: number;
   assists?: number;
   shots?: number;
-  shotsOnTarget?: number;
-  shotConversionPercent?: number;
-  expectedGoals?: number;
-  expectedAssists?: number;
-  dribblesCompleted?: number;
-  keyPasses?: number;
-  chancesCreated?: number;
-  bigChancesCreated?: number;
+  shots_on_target?: number;
+  shot_conversion_pct?: number;
+  xg?: number;
+  xa?: number;
+  dribbles_completed?: number;
+  key_passes?: number;
+  chances_created?: number;
+  big_chances_created?: number;
 };
 
 const getNumber = (value: unknown): number =>
@@ -49,7 +49,7 @@ export const fifaPlayerStatsDQRules: FifaPlayerStatsDQCheck[] = [
   {
     name: "No duplicate players per team",
     check: (stats: FifaPlayerStatsRecord[]) => {
-      const keys = stats.map((s) => `${getString(s.player).toLowerCase()}|${getString(s.team).toLowerCase()}`);
+      const keys = stats.map((s) => `${getString(s.player_name).toLowerCase()}|${getString(s.team).toLowerCase()}`);
       const duplicates = keys.filter((k, i) => keys.indexOf(k) !== i);
       return {
         passed: duplicates.length === 0,
@@ -64,7 +64,7 @@ export const fifaPlayerStatsDQRules: FifaPlayerStatsDQCheck[] = [
       const invalid = stats.filter((s) => {
         const goals = getNumber(s.goals);
         const shots = getNumber(s.shots);
-        const conversion = getNumber(s.shotConversionPercent);
+        const conversion = getNumber(s.shot_conversion_pct);
         if (shots > 0) {
           const calculated = (goals / shots) * 100;
           return Math.abs(calculated - conversion) > 5;
@@ -74,7 +74,7 @@ export const fifaPlayerStatsDQRules: FifaPlayerStatsDQCheck[] = [
       return {
         passed: invalid.length === 0,
         message: invalid.length > 0 ? `${invalid.length} players have inconsistent shot conversion rates` : "All conversion rates valid",
-        details: { invalidPlayers: invalid.map(s => s.player) }
+        details: { invalidPlayers: invalid.map(s => s.player_name) }
       };
     }
   },
@@ -82,8 +82,8 @@ export const fifaPlayerStatsDQRules: FifaPlayerStatsDQCheck[] = [
     name: "Valid minutes vs matches",
     check: (stats: FifaPlayerStatsRecord[]) => {
       const invalid = stats.filter((s) => {
-        const matches = getNumber(s.matchesPlayed);
-        const minutes = getNumber(s.minutesPlayed);
+        const matches = getNumber(s.matches_played);
+        const minutes = getNumber(s.minutes_played);
         return minutes > matches * 90;
       });
       return {
@@ -117,7 +117,7 @@ export const fifaPlayerStatsInjectionRules: FifaPlayerStatsInjectionRule[] = [
   {
     name: "Player name present",
     validate: (record: FifaPlayerStatsRecord) => {
-      return getString(record.player).trim().length > 0;
+      return getString(record.player_name).trim().length > 0;
     },
     errorMessage: "Player name is required",
     severity: "error"
