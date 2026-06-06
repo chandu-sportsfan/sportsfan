@@ -9,7 +9,7 @@ export interface AuthUser {
 }
 
 export async function getUser(req: NextRequest): Promise<AuthUser | null> {
-  const cookieToken = req.cookies.get("token")?.value;
+  const cookieToken = req.cookies.get("token")?.value || req.cookies.get("admin_token")?.value;
   if (cookieToken) {
     try {
       const payload = jwt.verify(cookieToken, process.env.JWT_SECRET!) as {
