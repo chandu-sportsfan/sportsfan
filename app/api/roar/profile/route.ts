@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { getUser } from "@/lib/getUser";
-import type { User } from "@/models/User";
-import type { BadgeProgress } from "@/models/BadgeProgress";
-import type { Post } from "@/models/Post";
+import type { User } from "@/app/models/RoarUser";
+import type { BadgeProgress } from "@/app/models/BadgeProgress";
+import type { Post } from "@/app/models/Post";
 
 export async function GET(req: NextRequest) {
   try {
@@ -12,23 +12,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const [userSnap, badgesSnap, predsSnap, takesSnap, rivalSnap] =
+    const [userSnap, badgesSnap, postsSnap, rivalSnap] =
       await Promise.all([
         db.collection("users").doc(user.userId).get(),
-        db.collection("badges").doc(user.userId).collection("progress").get(),
+        db.collection("roarBadges").doc(user.userId).collection("roarProgress").get(),
         db
-          .collection("posts")
+          .collection("roarPosts")
           .where("authorUid", "==", user.userId)
-          .where("type", "==", "prediction")
-          .orderBy("createdAt", "desc")
-          .limit(20)
-          .get(),
-        db
-          .collection("posts")
-          .where("authorUid", "==", user.userId)
-          .where("type", "==", "hot_take")
-          .orderBy("createdAt", "desc")
-          .limit(10)
           .get(),
         db.collection("rivals").doc(user.userId).get(),
       ]);
@@ -45,6 +35,15 @@ export async function GET(req: NextRequest) {
           )
         : 0;
 
+    const allPosts = postsSnap.docs.map((d) => ({
+      ...(d.data() as Post),
+      postId: d.id,
+    }));
+
+    const sortedPosts = allPosts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const predictions = sortedPosts.filter((p) => p.type === "prediction").slice(0, 20);
+    const hotTakes = sortedPosts.filter((p) => p.type === "hot_take").slice(0, 10);
+
     return NextResponse.json({
       success: true,
       user: { ...userData, accuracy },
@@ -52,14 +51,8 @@ export async function GET(req: NextRequest) {
         ...(d.data() as BadgeProgress),
         badgeId: d.id,
       })),
-      predictions: predsSnap.docs.map((d) => ({
-        postId: d.id,
-        ...(d.data() as Post),
-      })),
-      hotTakes: takesSnap.docs.map((d) => ({
-        postId: d.id,
-        ...(d.data() as Post),
-      })),
+      predictions,
+      hotTakes,
       rival: rivalSnap.exists ? rivalSnap.data() : null,
     });
   } catch (error: unknown) {

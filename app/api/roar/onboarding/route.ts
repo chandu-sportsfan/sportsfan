@@ -103,7 +103,13 @@ export async function POST(req: NextRequest) {
 
     // First contribution post
     if (firstContribution) {
-      const postRef = db.collection("posts").doc();
+      const postRef = db.collection("roarPosts").doc();
+      const text = firstContribution === "agree" || firstContribution === "disagree"
+        ? (sports[0] === "cricket"
+          ? "Virat Kohli in 2025 is better than Sachin Tendulkar ever was. Change my mind."
+          : "ISL is now world-class football. Change my mind.")
+        : firstContribution;
+
       batch.set(postRef, {
         postId: postRef.id,
         authorUid: user.userId,
@@ -111,7 +117,7 @@ export async function POST(req: NextRequest) {
         authorBadge: badge,
         type: "hot_take",
         sport: sports[0],
-        text: firstContribution,
+        text,
         audience: "Everyone",
         agreeCount: 0,
         disagreeCount: 0,

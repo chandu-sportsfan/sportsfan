@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { getUser } from "@/lib/getUser";
-import type { VoteType, Vote } from "@/models/Vote";
+import type { VoteType, Vote } from "@/app/models/Vote";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { postId: string } },
+  { params }: { params: Promise<{ postId: string }> },
 ) {
   try {
+    const { postId } = await params;
     const user = await getUser(req);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -23,7 +24,7 @@ export async function POST(
       );
     }
 
-    const postRef = db.collection("posts").doc(params.postId);
+    const postRef = db.collection("roarPosts").doc(postId);
     const voteRef = postRef.collection("votes").doc(user.userId);
     const now = Date.now();
 
@@ -56,7 +57,7 @@ export async function POST(
           vote === "agree" ? "agreeCount" : "disagreeCount";
         tx.set(voteRef, {
           uid: user.userId,
-          postId: params.postId,
+          postId: postId,
           vote,
           createdAt: now,
         } satisfies Vote);

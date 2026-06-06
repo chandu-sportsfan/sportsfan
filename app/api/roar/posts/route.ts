@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { getUser } from "@/lib/getUser";
-import type { Post, PostType, SportType } from "@/models/Post";
+import type { Post, PostType, SportType } from "@/app/models/Post";
 
 export async function POST(req: NextRequest) {
   try {
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     const userData = userSnap.data() as { username: string; badge: string };
 
     const now = Date.now();
-    const postRef = db.collection("posts").doc();
+    const postRef = db.collection("roarPosts").doc();
 
     const newPost: Post = {
       postId: postRef.id,
@@ -96,6 +96,43 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
     console.error("POST /api/roar/posts error:", error);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    const user = await getUser(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const limit = Math.min(parseInt(searchParams.get("limit") || "30"), 100);
+    const sport = searchParams.get("sport");
+
+    let query = db
+      .collection("roarPosts")
+      .orderBy("createdAt", "desc")
+      .limit(limit);
+
+    if (sport) {
+      query = query.where("sport", "==", sport);
+    }
+
+    const snapshot = await query.get();
+    const posts: Post[] = snapshot.docs.map((doc) => ({
+      ...(doc.data() as Post),
+      postId: doc.id,
+    }));
+
+    return NextResponse.json({
+      success: true,
+      posts,
+    });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Unexpected error";
+    console.error("GET /api/roar/posts error:", error);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

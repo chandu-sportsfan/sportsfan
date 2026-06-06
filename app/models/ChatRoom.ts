@@ -1,11 +1,10 @@
 export interface ChatRoom {
   roomId: string;
-
   name: string;
-
   icon?: string;
-
+  sport?: string;
+  description?: string;
   createdAt: number;
-
   isActive: boolean;
+  fanCount: number;
 }
