@@ -51,7 +51,7 @@ export async function POST(
       return NextResponse.json({ error: "text is required" }, { status: 400 });
     }
 
-    const userSnap = await db.collection("users").doc(user.userId).get();
+    const userSnap = await db.collection("users").doc(user.email).get();
     if (!userSnap.exists) {
       return NextResponse.json({ error: "User profile not found" }, { status: 404 });
     }

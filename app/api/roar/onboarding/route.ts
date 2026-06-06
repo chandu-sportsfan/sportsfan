@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     // Write user doc
     await db
       .collection("users")
-      .doc(user.userId)
+      .doc(user.email)
       .set(userData, { merge: true });
 
     // Seed starter badge progress

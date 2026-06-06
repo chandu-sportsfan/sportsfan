@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
     const [userSnap, badgesSnap, postsSnap, rivalSnap] =
       await Promise.all([
-        db.collection("users").doc(user.userId).get(),
+        db.collection("users").doc(user.email).get(),
         db.collection("roarBadges").doc(user.userId).collection("roarProgress").get(),
         db
           .collection("roarPosts")
@@ -84,7 +84,7 @@ export async function PATCH(req: NextRequest) {
       if (body[field] !== undefined) updates[field] = body[field];
     }
 
-    await db.collection("users").doc(user.userId).update(updates);
+    await db.collection("users").doc(user.email).update(updates);
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
