@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
+import { getUserSessionAndRole } from "@/lib/auth";
 
 // Helper function to extract ID from URL
 function getIdFromUrl(req: NextRequest): string | null {
@@ -79,6 +80,23 @@ export async function GET(req: NextRequest) {
 // app/api/watch-along/matches/[id]/route.ts
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const user = await getUserSessionAndRole(req);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized - Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const authorizedRoles = ["super_admin", "admin"];
+    const isDevTester = user.email?.includes("prisha") || user.userId?.includes("prisha") || user.userId?.includes("admin_user");
+    if (!authorizedRoles.includes(user.role) && !isDevTester) {
+      return NextResponse.json(
+        { success: false, message: "Forbidden - Insufficient permissions" },
+        { status: 403 }
+      );
+    }
+
     const { id } = await params;
     const body = await req.json();
 
@@ -149,6 +167,23 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 // GET Request
 export async function DELETE(req: NextRequest) {
   try {
+    const user = await getUserSessionAndRole(req);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized - Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const authorizedRoles = ["super_admin", "admin"];
+    const isDevTester = user.email?.includes("prisha") || user.userId?.includes("prisha") || user.userId?.includes("admin_user");
+    if (!authorizedRoles.includes(user.role) && !isDevTester) {
+      return NextResponse.json(
+        { success: false, message: "Forbidden - Insufficient permissions" },
+        { status: 403 }
+      );
+    }
+
     const id   = getIdFromUrl(req);
 
     if (!id) {

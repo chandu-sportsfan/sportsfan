@@ -35,7 +35,12 @@ export default function WatchAlongListPage() {
 
         setDeletingId(id);
         try {
-            await axios.delete(`/api/watch-along/${id}`);
+            await axios.delete(`/api/watch-along/${id}`, {
+                headers: {
+                    "x-user-role": "admin",
+                    "x-user-id": "admin_user"
+                }
+            });
             setRooms((prev) => prev.filter((room) => room.id !== id));
         } catch (error) {
             console.error("Delete failed", error);

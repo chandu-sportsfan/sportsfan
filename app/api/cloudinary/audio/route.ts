@@ -114,11 +114,12 @@ export async function GET(req: NextRequest) {
         const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 500);
         const nextCursor = searchParams.get("nextCursor");
         const search = searchParams.get("search")?.toLowerCase();
+        const type = searchParams.get("type") || "ipl";
 
         const params: CloudinaryApiParams = {
             resource_type: "video",
             type: "upload",
-            prefix: "sf360/audio",
+            prefix: `sf360/audio/${type}`,
             max_results: limit,
             image_metadata: true,
         };
@@ -150,7 +151,7 @@ export async function GET(req: NextRequest) {
                     format: resource.format,
                     createdAt: resource.created_at,
                     createdAtFormatted: formatDate(resource.created_at),
-                    folder: "sf360/audio",
+                    folder: `sf360/audio/${type}`,
                     matchInfo,
                 };
             }
@@ -180,7 +181,7 @@ export async function GET(req: NextRequest) {
                 nextCursor: result.next_cursor || null,
                 limit,
             },
-            folder: "sf360/audio",
+            folder: `sf360/audio/${type}`,
         });
     } catch (error) {
         console.error("Error fetching audio from Cloudinary:", error);

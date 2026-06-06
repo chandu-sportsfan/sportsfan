@@ -16,7 +16,7 @@ export default function FeedExample({ userId, userEmail }: { userId: string; use
     async function load() {
       const res = await fetch("/api/playershome?limit=20");
       const json = await res.json();
-      const loaded: Post[] = (json.posts || []).map((p: any) => ({ id: p.id, title: p.title || "", playerName: p.playerName || "" }));
+      const loaded: Post[] = (json.posts || []).map((p: { id: string; title?: string; playerName?: string }) => ({ id: p.id, title: p.title || "", playerName: p.playerName || "" }));
       setPosts(loaded);
     }
     load().catch(() => {});

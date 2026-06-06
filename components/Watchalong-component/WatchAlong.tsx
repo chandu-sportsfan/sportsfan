@@ -1224,6 +1224,8 @@ interface RoomForm {
   active: string;
   isLive: boolean;
   liveMatchId: string;
+  hostUserId?: string;
+  coHostUserId?: string;
 }
 
 interface MatchForm {
@@ -1297,6 +1299,8 @@ export default function CreateWatchAlong({
     active: "",
     isLive: false,
     liveMatchId: "",
+    hostUserId: "",
+    coHostUserId: "",
   });
   const [dpFile, setDpFile] = useState<File | null>(null);
   const [existingDp, setExistingDp] = useState<string>("");
@@ -1320,6 +1324,36 @@ export default function CreateWatchAlong({
   const [matchLoading, setMatchLoading] = useState<boolean>(false);
   const [matchOptions, setMatchOptions] = useState<MatchOption[]>([]);
   const [editingMatchId, setEditingMatchId] = useState<string | null>(null);
+
+  // Automatically set admin auth headers for all API requests originating from the admin console watchalong panel
+  useEffect(() => {
+    if (!axios.defaults.headers) {
+      (axios.defaults as any).headers = {};
+    }
+    if (!axios.defaults.headers.common) {
+      axios.defaults.headers.common = {};
+    }
+    const prevRole = axios.defaults.headers.common["x-user-role"];
+    const prevId = axios.defaults.headers.common["x-user-id"];
+
+    axios.defaults.headers.common["x-user-role"] = "admin";
+    axios.defaults.headers.common["x-user-id"] = "admin_user";
+
+    return () => {
+      if (axios.defaults.headers?.common) {
+        if (prevRole) {
+          axios.defaults.headers.common["x-user-role"] = prevRole;
+        } else {
+          delete axios.defaults.headers.common["x-user-role"];
+        }
+        if (prevId) {
+          axios.defaults.headers.common["x-user-id"] = prevId;
+        } else {
+          delete axios.defaults.headers.common["x-user-id"];
+        }
+      }
+    };
+  }, []);
 
   /* ── Load match options for dropdown ── */
   useEffect(() => {
@@ -1348,6 +1382,8 @@ export default function CreateWatchAlong({
         active: r.active || "",
         isLive: r.isLive || false,
         liveMatchId: r.liveMatchId || "",
+        hostUserId: r.hostUserId || "",
+        coHostUserId: r.coHostUserId || "",
       });
       setExistingDp(r.displayPicture || "");
       if (r.liveMatchId) {
@@ -1420,7 +1456,7 @@ export default function CreateWatchAlong({
 
       if (res.data.success) {
         alert(roomIdToEdit ? "Room updated!" : "Room created!");
-        router.push("/admin/watch-along/list");
+        router.push("/admin/watchalong-management/watchalong-list");
       }
     } catch (err) {
       console.error(err);
@@ -1506,12 +1542,12 @@ export default function CreateWatchAlong({
       matchNo: match.matchNo.toString(),
       tournament: match.tournament || "",
       stadium: match.stadium || "",
-      team1Name: match.team1.name,
-      team1Score: match.team1.score,
-      team1Overs: match.team1.overs,
-      team2Name: match.team2.name,
-      team2Score: match.team2.score,
-      team2Overs: match.team2.overs,
+      team1Name: match.team1?.name || "",
+      team1Score: match.team1?.score || "",
+      team1Overs: match.team1?.overs || "",
+      team2Name: match.team2?.name || "",
+      team2Score: match.team2?.score || "",
+      team2Overs: match.team2?.overs || "",
       isLive: match.isLive,
       videoUrl: match.videoUrl || "",
       videoType: match.videoType || "youtube",
@@ -1524,7 +1560,7 @@ export default function CreateWatchAlong({
     setSelectedMatchId(matchId);
     const match = matchOptions.find(m => m.id === matchId);
     if (match) {
-      alert(`Selected: Match ${match.matchNo} - ${match.team1.name} vs ${match.team2.name}`);
+      alert(`Selected: Match ${match.matchNo} - ${match.team1?.name || "TBA"} vs ${match.team2?.name || "TBA"}`);
     }
   };
 
@@ -1572,7 +1608,7 @@ export default function CreateWatchAlong({
                 <option value="">— Select a match —</option>
                 {matchOptions.map((m) => (
                   <option key={m.id} value={m.id}>
-                    Match {m.matchNo}: {m.team1.name} vs {m.team2.name} {m.isLive ? "🔴 LIVE" : ""}
+                    Match {m.matchNo}: {m.team1?.name || "TBA"} vs {m.team2?.name || "TBA"} {m.isLive ? "🔴 LIVE" : ""}
                   </option>
                 ))}
               </select>
@@ -1593,6 +1629,10 @@ export default function CreateWatchAlong({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <TextInput label="Expert Name *" name="name" value={roomForm.name} onChange={handleRoomChange} placeholder="e.g. Harsha Bhogle" />
               <TextInput label="Role / Subtitle *" name="role" value={roomForm.role} onChange={handleRoomChange} placeholder="e.g. Cricket Commentary Legend" />
+            </div>
+            <div className="mt-4">
+              <TextInput label="Host User ID / Email" name="hostUserId" value={roomForm.hostUserId || ""} onChange={handleRoomChange} placeholder="e.g. user_123 or user@gmail.com" />
+              <TextInput label="Co-Host User ID / Email" name="coHostUserId" value={roomForm.coHostUserId || ""} onChange={handleRoomChange} placeholder="e.g. cohost@gmail.com (gets host controls)" />
             </div>
           </Section>
 
@@ -1677,7 +1717,7 @@ export default function CreateWatchAlong({
                   <option value="">— No match linked —</option>
                   {matchOptions.map((m) => (
                     <option key={m.id} value={m.id}>
-                      Match {m.matchNo} · {m.team1.name} vs {m.team2.name} · {m.tournament}
+                      Match {m.matchNo} · {m.team1?.name || "TBA"} vs {m.team2?.name || "TBA"} · {m.tournament}
                       {m.isLive ? " 🔴 LIVE" : ""}
                     </option>
                   ))}
@@ -1821,8 +1861,8 @@ export default function CreateWatchAlong({
                     className="flex items-center justify-between bg-[#0d1117] border border-[#2a2a2a] rounded px-3 py-2 text-xs text-gray-300"
                   >
                     <span>
-                      Match {m.matchNo} · <span className="text-blue-400">{m.team1.name}</span> vs{" "}
-                      <span className="text-blue-400">{m.team2.name}</span> · {m.tournament}
+                      Match {m.matchNo} · <span className="text-blue-400">{m.team1?.name || "TBA"}</span> vs{" "}
+                      <span className="text-blue-400">{m.team2?.name || "TBA"}</span> · {m.tournament}
                     </span>
                     <div className="flex gap-2">
                       {m.isLive && (
