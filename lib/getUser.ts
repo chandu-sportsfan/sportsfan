@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
+import { auth } from "@/lib/auth.config";
 
 export interface AuthUser {
   userId: string;
@@ -9,7 +10,7 @@ export interface AuthUser {
 }
 
 export async function getUser(req: NextRequest): Promise<AuthUser | null> {
-  const cookieToken = req.cookies.get("token")?.value;
+  const cookieToken = req.cookies.get("token")?.value || req.cookies.get("admin_token")?.value;
   if (cookieToken) {
     try {
       const payload = jwt.verify(cookieToken, process.env.JWT_SECRET!) as {
@@ -62,5 +63,33 @@ export async function getUser(req: NextRequest): Promise<AuthUser | null> {
     }
   }
 
+  // Fallback to NextAuth session
+  try {
+    const session = await auth();
+    if (session?.user) {
+      const dbUser = session.user as {
+        email: string;
+        role?: string;
+        userId?: string;
+        name?: string;
+        firstName?: string;
+        lastName?: string;
+      };
+      const email = dbUser.email;
+      const userId = dbUser.userId || email;
+      if (email) {
+        return {
+          userId,
+          email,
+          name: dbUser.name || `${dbUser.firstName ?? ""} ${dbUser.lastName ?? ""}`.trim() || "",
+          role: dbUser.role || "user",
+        };
+      }
+    }
+  } catch (err) {
+    console.error("NextAuth session check failed in getUser:", err);
+  }
+
   return null;
 }
+

@@ -4,9 +4,10 @@ import { getUser } from "@/lib/getUser";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { roomId: string; msgId: string } },
+  { params }: { params: Promise<{ roomId: string; msgId: string }> },
 ) {
   try {
+    const { roomId, msgId } = await params;
     const user = await getUser(req);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -24,10 +25,10 @@ export async function POST(
 
     const field = reaction === "fire" ? "fireCount" : "noChanceCount";
     const msgRef = db
-      .collection("rooms")
-      .doc(params.roomId)
+      .collection("roarRooms")
+      .doc(roomId)
       .collection("messages")
-      .doc(params.msgId);
+      .doc(msgId);
 
     const snap = await msgRef.get();
     if (!snap.exists) {

@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { getUser } from "@/lib/getUser";
-import type { RoomMessage, MessageType } from "@/models/RoomMessage";
+import { FieldValue } from "firebase-admin/firestore";
+import type { RoomMessage, MessageType } from "@/app/models/RoomMessage";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { roomId: string } },
+  { params }: { params: Promise<{ roomId: string }> },
 ) {
   try {
+    const { roomId } = await params;
     const user = await getUser(req);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -18,16 +20,16 @@ export async function GET(
     const lastDocId = searchParams.get("lastDocId");
 
     let query = db
-      .collection("rooms")
-      .doc(params.roomId)
+      .collection("roarRooms")
+      .doc(roomId)
       .collection("messages")
       .orderBy("createdAt", "desc")
       .limit(limit);
 
     if (lastDocId) {
       const lastDoc = await db
-        .collection("rooms")
-        .doc(params.roomId)
+        .collection("roarRooms")
+        .doc(roomId)
         .collection("messages")
         .doc(lastDocId)
         .get();
@@ -61,9 +63,10 @@ export async function GET(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { roomId: string } },
+  { params }: { params: Promise<{ roomId: string }> },
 ) {
   try {
+    const { roomId } = await params;
     const user = await getUser(req);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -76,7 +79,7 @@ export async function POST(
       return NextResponse.json({ error: "text is required" }, { status: 400 });
     }
 
-    const userSnap = await db.collection("users").doc(user.userId).get();
+    const userSnap = await db.collection("users").doc(user.email).get();
     if (!userSnap.exists) {
       return NextResponse.json(
         { error: "User profile not found" },
@@ -87,14 +90,14 @@ export async function POST(
 
     const now = Date.now();
     const msgRef = db
-      .collection("rooms")
-      .doc(params.roomId)
+      .collection("roarRooms")
+      .doc(roomId)
       .collection("messages")
       .doc();
 
     const message: RoomMessage = {
       msgId: msgRef.id,
-      roomId: params.roomId,
+      roomId: roomId,
       authorUid: user.userId,
       authorUsername: userData.username,
       authorBadge: userData.badge,
@@ -108,10 +111,8 @@ export async function POST(
     const batch = db.batch();
     batch.set(msgRef, message);
     // Bump room's fanCount as a presence proxy
-    batch.update(db.collection("rooms").doc(params.roomId), {
-      fanCount:
-        (await db.collection("rooms").doc(params.roomId).get()).data()
-          ?.fanCount + 1 || 1,
+    batch.update(db.collection("roarRooms").doc(roomId), {
+      fanCount: FieldValue.increment(1),
     });
 
     await batch.commit();

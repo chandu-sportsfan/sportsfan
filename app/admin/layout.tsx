@@ -661,6 +661,14 @@ const FULL_NAV: NavGroup[] = [
         ],
       },
       {
+        label: "RoAR Management", icon: "◉",
+        children: [
+          { href: "/admin/roar-management/add-roar", label: "Add RoAR Show" },
+          { href: "/admin/roar-management/roar-list", label: "RoAR Show List" },
+          { href: "/admin/roar-management/posts-list", label: "RoAR Posts & Comments" },
+        ],
+      },
+      {
         label: "Polls & Quizes", icon: "◉",
         children: [
           { href: "/admin/polls-management/add-polls", label: "Add Poll" },
@@ -907,7 +915,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
             {group.items.map((item) => {
               if (item.children) {
-                const isOpen = openMenus[item.label] ?? pathname.startsWith("/admin/watchalong");
+                const isOpen = openMenus[item.label] ?? (pathname.startsWith("/admin/watchalong") || pathname.startsWith("/admin/roar"));
                 return (
                   <div key={item.label}>
                     <div
