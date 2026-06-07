@@ -211,19 +211,21 @@
 
 // api/fifa-player-stats/route.ts
 //
-// QUOTA FIXES applied (mirrors playerStats route):
-//  1. Search uses a single prefix query on `player_name_lower` (≤50 reads)
-//     instead of fetching 1000 docs and filtering in memory.
-//  2. Fuzzy match runs as a post-filter on the small prefix-query result set.
-//  3. Cursor pagination uses "fieldValue|docId" format — no extra doc fetch.
-//  4. POST writes `player_name_lower` on every new doc.
+// QUOTA FIXES:
+//  1. Search uses player_name_lower prefix (first word of query).
+//     "cristiano ronaldo" → prefix "cristiano" → cheap + accurate.
+//  2. For surname-only searches ("ronaldo"), falls back to name_words
+//     array-contains query — 1 Firestore query, no full scan.
+//  3. POST writes both player_name_lower and name_words on every new doc.
+//  4. Cursor pagination uses "fieldValue|docId" — no extra doc fetch.
 //
-// MIGRATION REQUIRED (one-time, run migrate-fifa-player-name-lower.ts):
-//   Add `player_name_lower` field to all existing fifaPlayerStats documents.
+// MIGRATION REQUIRED (one-time):
+//   Run: npx tsx scripts/migrate-fifa-player-name-lower.ts
+//   (script must also write name_words — see updated script below)
 //
-// FIRESTORE INDEX REQUIRED:
-//   Collection : fifaPlayerStats
-//   Fields     : player_name_lower ASC, __name__ ASC
+// FIRESTORE INDEXES REQUIRED:
+//   1. Collection: fifaPlayerStats  Fields: player_name_lower ASC, __name__ ASC
+//   2. Collection: fifaPlayerStats  Fields: name_words ASC, player_name_lower ASC, __name__ ASC
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
@@ -237,13 +239,11 @@ function normalise(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
 }
 
-/**
- * Fuzzy player-name match (unchanged logic, now runs on ≤50 docs not 1000).
- *
- * 1. Full normalised query is a substring of the normalised name
- * 2. Every query word appears as a substring inside some name word
- * 3. Typo tolerance for long words (both ≥5 chars): shared prefix ≥4 AND edit distance ≤2
- */
+/** Split a full name into individual lowercase words for array-contains queries */
+function nameWords(playerName: string): string[] {
+  return normalise(playerName).split(" ").filter(Boolean);
+}
+
 function fuzzyMatch(playerName: string, rawQuery: string): boolean {
   const name       = normalise(playerName);
   const query      = normalise(rawQuery);
@@ -299,33 +299,63 @@ export async function GET(req: NextRequest) {
     }
 
     // ── 2. Free-text name search ────────────────────────────────────────────
-    // FIX: prefix query on player_name_lower (≤50 reads) instead of
-    //      fetching 1000 docs and filtering in memory (was 1000 reads).
     //
-    // We use the first word of the query as the Firestore prefix so that
-    // "cristiano ronaldo" → prefix "cristiano" → small result set → fuzzy
-    // filter in memory for the full phrase / typo tolerance.
-    if (search) {
-      const normQuery  = normalise(search);
-      const firstWord  = normQuery.split(" ")[0]; // prefix on first word only
-      const prefixEnd  = firstWord.slice(0, -1) +
-                         String.fromCharCode(firstWord.charCodeAt(firstWord.length - 1) + 1);
+    // TWO-STRATEGY approach, no full collection scans:
+    //
+    // STRATEGY A — prefix on player_name_lower using firstWord of query.
+    //   Works when the user types the first name: "cristiano", "messi", "mbappe".
+    //   player_name_lower = "cristiano ronaldo" → prefix "cristiano" → ✓
+    //
+    // STRATEGY B — array-contains on name_words using firstWord of query.
+    //   Works when the user types a surname: "ronaldo", "messi" (same), "benzema".
+    //   name_words = ["cristiano","ronaldo"] → array-contains "ronaldo" → ✓
+    //   This replaces the old 500-doc blind fallback scan.
+    //
+    // Flow: run A first (cheap). If 0 results, run B. Both are O(results), not O(collection).
 
-      let q: FirebaseFirestore.Query = db
+    if (search) {
+      const normQuery = normalise(search);
+      const firstWord = normQuery.split(" ")[0];
+
+      if (!firstWord) {
+        return NextResponse.json(
+          { success: true, data: [], nextCursor: null, count: 0 },
+          { headers: { "Cache-Control": "public, max-age=300" } }
+        );
+      }
+
+      const prefixEnd = firstWord.slice(0, -1) +
+                        String.fromCharCode(firstWord.charCodeAt(firstWord.length - 1) + 1);
+
+      // Strategy A: prefix query (first-name searches)
+      let qA: FirebaseFirestore.Query = db
         .collection("fifaPlayerStats")
         .orderBy("player_name_lower")
         .orderBy("__name__")
         .where("player_name_lower", ">=", firstWord)
         .where("player_name_lower", "<",  prefixEnd);
 
-      if (tournament) q = q.where("tournament", "==", tournament);
+      if (tournament) qA = qA.where("tournament", "==", tournament);
+      qA = qA.limit(200);
 
-      // Fetch a reasonable over-fetch window then fuzzy-filter in memory.
-      // Even 200 is far cheaper than the previous 1000.
-      q = q.limit(200);
+      const snapA = await qA.get();
+      let all = snapA.docs.map((d) => ({ id: d.id, ...d.data() } as Record<string, unknown>));
 
-      const snap = await q.get(); // ← ≤200 reads, was 1000
-      const all  = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+      // Strategy B: array-contains on name_words (surname-only searches)
+      // Only fires when Strategy A returns nothing — costs 1 extra query, not 500 reads.
+      if (all.length === 0) {
+        let qB: FirebaseFirestore.Query = db
+          .collection("fifaPlayerStats")
+          .where("name_words", "array-contains", firstWord)
+          .orderBy("player_name_lower")
+          .orderBy("__name__");
+
+        if (tournament) qB = qB.where("tournament", "==", tournament);
+        qB = qB.limit(200);
+
+        const snapB = await qB.get();
+        all = snapB.docs.map((d) => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+      }
 
       const filtered = all
         .filter((p) => fuzzyMatch(String(p.player_name ?? ""), search))
@@ -349,13 +379,11 @@ export async function GET(req: NextRequest) {
     if (position)   query = query.where("position",   "==", position);
     if (season)     query = query.where("season",     "==", parseInt(season, 10));
 
-    // FIX: cursor is "player_name_value|docId" — no extra document fetch.
     if (after) {
       const [nameValue, docId] = after.split("|");
       if (nameValue && docId) {
         query = query.startAfter(nameValue, docId);
       } else {
-        // Fallback for old-format cursors (plain doc ID). Remove after clients migrate.
         const cursorDoc = await db.collection("fifaPlayerStats").doc(after).get();
         if (cursorDoc.exists) query = query.startAfter(cursorDoc);
       }
@@ -416,10 +444,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // FIX: persist player_name_lower so the search index works.
+  const nameLower = stat.player_name.toLowerCase();
+  const words     = nameLower.replace(/[^a-z0-9\s]/g, "").split(" ").filter(Boolean);
+
   const docRef = await db.collection("fifaPlayerStats").add({
     ...stat,
-    player_name_lower: stat.player_name.toLowerCase(),
+    player_name_lower: nameLower,
+    name_words:        words,          // ["cristiano", "ronaldo"]
     created_at: FieldValue.serverTimestamp(),
     updated_at: FieldValue.serverTimestamp(),
   });

@@ -217,31 +217,23 @@
 
 
 
-
 // api/player-stats/route.ts
 //
 // QUOTA FIXES applied:
-//  1. Search now uses a single `player_name_lower` field query instead of
-//     3 parallel case-variant queries + a fallback (was 4× the reads).
-//  2. Cursor pagination uses startAfter(name, id) field values so no extra
-//     document fetch is needed per page.
-//  3. Cache-Control for search raised from 60 s → 300 s.
+//  1. Search uses player_name_lower prefix query (Strategy A: first-name searches).
+//     Falls back to name_words array-contains (Strategy B: surname-only searches).
+//     e.g. "mandhana" → A returns 0 → B: array-contains "mandhana" → finds "Smriti Mandhana"
+//  2. Cursor pagination uses "fieldValue|docId" — no extra document fetch.
+//  3. Cache-Control for search raised to 300s.
+//  4. POST writes both player_name_lower and name_words on every new doc.
 //
 // MIGRATION REQUIRED (one-time):
-//   Add a `player_name_lower` field to every existing playerStats document:
+//   Run: npx tsx scripts/migrate-player-name-lower.ts
+//   (updated script now also writes name_words)
 //
-//   const snap = await db.collection("playerStats").get();
-//   const batch = db.batch();
-//   snap.docs.forEach(doc =>
-//     batch.update(doc.ref, { player_name_lower: (doc.data().player_name ?? "").toLowerCase() })
-//   );
-//   await batch.commit();
-//
-//   Also add a Firestore composite index:
-//     Collection : playerStats
-//     Fields     : player_name_lower ASC, __name__ ASC
-//   (add tournament / gender / format prefix fields to the index if you
-//    want to combine search with those filters server-side)
+// FIRESTORE INDEXES REQUIRED:
+//   1. Collection: playerStats  Fields: player_name_lower ASC, __name__ ASC
+//   2. Collection: playerStats  Fields: name_words ASC, player_name_lower ASC, __name__ ASC
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
@@ -264,49 +256,82 @@ export async function GET(req: NextRequest) {
     100
   );
 
-  // Cursor is now "player_name_lower_value|docId" so we can call
-  // startAfter(fieldValue, docId) without an extra document read.
+  // Cursor is "player_name_lower_value|docId" — no extra document fetch needed.
   const after = searchParams.get("after") ?? searchParams.get("cursor");
 
   try {
-    // ── Search path ───────────────────────────────────────────────────────
-    // Single prefix query on `player_name_lower` (case-normalised field).
-    // Replaces the previous 3-query fan-out + fallback (was up to 4× reads).
+
+    // ── Search path ───────────────────────────────────────────────────────────
+    //
+    // TWO-STRATEGY approach — no full collection scans:
+    //
+    // STRATEGY A — prefix on player_name_lower using the full search term.
+    //   Works when the user types the first name: "smriti", "harman", "shafali".
+    //   player_name_lower = "smriti mandhana" → prefix "smriti" → ✓
+    //
+    // STRATEGY B — array-contains on name_words using the search term.
+    //   Works when the user types a surname: "mandhana", "gill", "verma".
+    //   name_words = ["smriti","mandhana"] → array-contains "mandhana" → ✓
+    //   Only fires when Strategy A returns 0 results — costs 1 extra query, not a full scan.
+
     if (search) {
       const termLower = search.trim().toLowerCase().replace(/\s+/g, " ");
-      const termEnd   = termLower.slice(0, -1) +
-                        String.fromCharCode(termLower.charCodeAt(termLower.length - 1) + 1);
+      const firstWord = termLower.split(" ")[0];
 
-      let q: FirebaseFirestore.Query = db.collection("playerStats")
+      if (!firstWord) {
+        return NextResponse.json(
+          { success: true, data: [], nextCursor: null, pageSize: 0 },
+          { headers: { "Cache-Control": "public, max-age=300" } }
+        );
+      }
+
+      const termEnd = firstWord.slice(0, -1) +
+                      String.fromCharCode(firstWord.charCodeAt(firstWord.length - 1) + 1);
+
+      // Strategy A: prefix query on player_name_lower
+      let qA: FirebaseFirestore.Query = db.collection("playerStats")
         .orderBy("player_name_lower")
         .orderBy("__name__")
-        .where("player_name_lower", ">=", termLower)
+        .where("player_name_lower", ">=", firstWord)
         .where("player_name_lower", "<",  termEnd);
 
-      // Optional filters still work when composite indexes include them.
-      if (tournament) q = q.where("tournament", "==", tournament);
-      if (gender)     q = q.where("gender",     "==", gender);
-      if (format)     q = q.where("format",     "==", format);
+      if (tournament) qA = qA.where("tournament", "==", tournament);
+      if (gender)     qA = qA.where("gender",     "==", gender);
+      if (format)     qA = qA.where("format",     "==", format);
+      qA = qA.limit(limit);
 
-      q = q.limit(limit);
+      const snapA = await qA.get();
+      let data = snapA.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-      const snap = await q.get(); // ← single read, was up to 4
-      const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      // Strategy B: array-contains on name_words (surname-only searches)
+      // Only fires when Strategy A returns nothing.
+      if (data.length === 0) {
+        let qB: FirebaseFirestore.Query = db.collection("playerStats")
+          .where("name_words", "array-contains", firstWord)
+          .orderBy("player_name_lower")
+          .orderBy("__name__");
 
-      // Build cursor from last doc's field value (no extra fetch needed).
-      const lastDoc   = snap.docs[snap.docs.length - 1];
-      const nextCursor = snap.docs.length === limit && lastDoc
-        ? `${lastDoc.data().player_name_lower}|${lastDoc.id}`
+        if (tournament) qB = qB.where("tournament", "==", tournament);
+        if (gender)     qB = qB.where("gender",     "==", gender);
+        if (format)     qB = qB.where("format",     "==", format);
+        qB = qB.limit(limit);
+
+        const snapB = await qB.get();
+        data = snapB.docs.map((d) => ({ id: d.id, ...d.data() }));
+      }
+
+      const lastDoc    = data[data.length - 1] as Record<string, unknown> | undefined;
+      const nextCursor = data.length === limit && lastDoc
+        ? `${(lastDoc as Record<string, unknown>).player_name_lower}|${(lastDoc as Record<string, unknown>).id}`
         : null;
 
       return NextResponse.json(
         { success: true, data, nextCursor, pageSize: data.length },
-        // Raised from 60 s to 300 s — identical searches no longer hammer Firestore.
         { headers: { "Cache-Control": "public, max-age=300, stale-while-revalidate=60" } }
       );
     }
 
-    // ── Standard query path ───────────────────────────────────────────────
+    // ── Standard query path ───────────────────────────────────────────────────
     let query: FirebaseFirestore.Query = db.collection("playerStats");
 
     if (tournament) query = query.where("tournament", "==", tournament);
@@ -329,10 +354,8 @@ export async function GET(req: NextRequest) {
       const [nameValue, docId] = after.split("|");
       if (nameValue && docId) {
         query = query.startAfter(nameValue, docId);
-      }
-      // If the cursor doesn't match the new format (old clients), fall back
-      // to fetching the doc once. Remove this block after clients have migrated.
-      else {
+      } else {
+        // Fallback for old-format cursors. Remove after clients migrate.
         const cursorDoc = await db.collection("playerStats").doc(after).get();
         if (cursorDoc.exists) query = query.startAfter(cursorDoc);
       }
@@ -343,7 +366,7 @@ export async function GET(req: NextRequest) {
     const snap = await query.get();
     const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-    const lastDoc   = snap.docs[snap.docs.length - 1];
+    const lastDoc    = snap.docs[snap.docs.length - 1];
     const nextCursor = snap.docs.length === limit && lastDoc
       ? `${lastDoc.data().player_name}|${lastDoc.id}`
       : null;
@@ -358,7 +381,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
 }
-
 
 export async function POST(req: NextRequest) {
   let body: Record<string, unknown>;
@@ -394,10 +416,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Persist `player_name_lower` alongside the record so the search index works.
+  const nameLower = stat.player_name.toLowerCase();
+  const words     = nameLower.replace(/[^a-z0-9\s]/g, "").split(" ").filter(Boolean);
+
   const docRef = await db.collection("playerStats").add({
     ...stat,
-    player_name_lower: stat.player_name.toLowerCase(),
+    player_name_lower: nameLower,
+    name_words:        words,       // ["smriti", "mandhana"]
     created_at: FieldValue.serverTimestamp(),
     updated_at: FieldValue.serverTimestamp(),
   });
