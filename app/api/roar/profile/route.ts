@@ -6,22 +6,23 @@ import type { BadgeProgress } from "@/app/models/BadgeProgress";
 import type { Post } from "@/app/models/Post";
 
 export async function GET(req: NextRequest) {
+  console.log("Received GET /api/roar/profile request");
   try {
     const user = await getUser(req);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const [userSnap, badgesSnap, postsSnap, rivalSnap] =
-      await Promise.all([
-        db.collection("users").doc(user.email).get(),
-        db.collection("roarBadges").doc(user.userId).collection("roarProgress").get(),
-        db
-          .collection("roarPosts")
-          .where("authorUid", "==", user.userId)
-          .get(),
-        db.collection("rivals").doc(user.userId).get(),
-      ]);
+    const [userSnap, badgesSnap, postsSnap, rivalSnap] = await Promise.all([
+      db.collection("users").doc(user.userId).get(), // ✅ was user.email
+      db
+        .collection("roarBadges")
+        .doc(user.userId)
+        .collection("roarProgress")
+        .get(),
+      db.collection("roarPosts").where("authorUid", "==", user.userId).get(),
+      db.collection("rivals").doc(user.userId).get(),
+    ]);
 
     if (!userSnap.exists) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
@@ -40,9 +41,15 @@ export async function GET(req: NextRequest) {
       postId: d.id,
     }));
 
-    const sortedPosts = allPosts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-    const predictions = sortedPosts.filter((p) => p.type === "prediction").slice(0, 20);
-    const hotTakes = sortedPosts.filter((p) => p.type === "hot_take").slice(0, 10);
+    const sortedPosts = allPosts.sort(
+      (a, b) => (b.createdAt || 0) - (a.createdAt || 0),
+    );
+    const predictions = sortedPosts
+      .filter((p) => p.type === "prediction")
+      .slice(0, 20);
+    const hotTakes = sortedPosts
+      .filter((p) => p.type === "hot_take")
+      .slice(0, 10);
 
     return NextResponse.json({
       success: true,
@@ -62,7 +69,6 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// PATCH /api/roar/profile  — edit display name, settings, fcmToken
 export async function PATCH(req: NextRequest) {
   try {
     const user = await getUser(req);
@@ -83,8 +89,7 @@ export async function PATCH(req: NextRequest) {
     for (const field of allowedFields) {
       if (body[field] !== undefined) updates[field] = body[field];
     }
-
-    await db.collection("users").doc(user.email).update(updates);
+    await db.collection("users").doc(user.userId).update(updates); // ✅ was user.email
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
