@@ -30,9 +30,20 @@ export async function POST(req: NextRequest) {
 
     const now = Date.now();
 
+    const userDoc = await db.collection("users").doc(user.email).get();
+    let defaultUsername = user.name || user.email.split("@")[0];
+    if (userDoc.exists) {
+      const data = userDoc.data();
+      if (data?.firstName || data?.lastName) {
+        defaultUsername = `${data.firstName || ""} ${data.lastName || ""}`.trim();
+      } else if (data?.username) {
+        defaultUsername = data.username;
+      }
+    }
+
     const userData: User = {
       uid: user.userId,
-      username: user.name || user.email.split("@")[0],
+      username: defaultUsername,
       handle: user.email.split("@")[0].toLowerCase(),
       sports,
       teams: teams ?? [],
