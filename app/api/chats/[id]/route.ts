@@ -11,6 +11,8 @@ import { db } from "@/lib/firebaseAdmin";
 // Path A — Email/password: httpOnly "token" cookie set by /api/auth/login
 // Path B — Google users:   "Authorization: Bearer <token>" sent by chatApi.ts
 // ─────────────────────────────────────────────────────────────────────────────
+const normalizeId = (id: string) => id.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_");
+
 async function getUser(req: NextRequest) {
   const cookieToken = req.cookies.get("token")?.value;
   if (cookieToken) {
@@ -21,7 +23,7 @@ async function getUser(req: NextRequest) {
       };
       const userId = payload.userId ?? payload.uid ?? payload.id ?? payload.email;
       if (userId && payload.email) {
-        return { userId, email: payload.email, name: payload.name ?? "", role: payload.role ?? "user" };
+        return { userId: normalizeId(userId), email: payload.email, name: payload.name ?? "", role: payload.role ?? "user" };
       }
     } catch {}
   }
@@ -36,7 +38,7 @@ async function getUser(req: NextRequest) {
       };
       const userId = payload.userId ?? payload.uid ?? payload.id ?? payload.email;
       if (userId && payload.email) {
-        return { userId, email: payload.email, name: payload.name ?? "", role: payload.role ?? "user" };
+        return { userId: normalizeId(userId), email: payload.email, name: payload.name ?? "", role: payload.role ?? "user" };
       }
     } catch {}
   }
@@ -57,6 +59,12 @@ export async function GET(req: NextRequest) {
     const user = await getUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const CURRENT_USER_ID = user.userId;
+    const isSameUser = (id1: string, id2: string) => {
+      const n1 = normalizeId(id1);
+      const n2 = normalizeId(id2);
+      if (!n1 || !n2) return false;
+      return n1 === n2 || n1.endsWith(n2) || n2.endsWith(n1);
+    };
 
     const id = getIdFromUrl(req);
     if (!id) return NextResponse.json({ error: "Chat ID is required" }, { status: 400 });
@@ -67,11 +75,35 @@ export async function GET(req: NextRequest) {
     if (!doc.exists) return NextResponse.json({ error: "Chat not found" }, { status: 404 });
 
     const data = doc.data()!;
-    if (!(data.participantIds as string[]).includes(CURRENT_USER_ID)) {
+    const pids = (data.participantIds as string[]).map(normalizeId);
+    if (!pids.some(pid => isSameUser(pid, CURRENT_USER_ID))) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    return NextResponse.json({ success: true, chat: { id: doc.id, ...data } });
+    let chatName = data.type === "dm" ? "" : data.name;
+    let avatarUrl = data.avatarUrl || "";
+
+    if (data.type === "dm" && Array.isArray(data.participantIds)) {
+      const otherId = data.participantIds.find(uid => !isSameUser(uid, CURRENT_USER_ID));
+      if (otherId) {
+        const normOtherId = normalizeId(otherId);
+        let userDoc = await db.collection("users").doc(normOtherId).get();
+        if (!userDoc.exists) {
+          const querySnap = await db.collection("users").where("userId", "==", normOtherId).limit(1).get();
+          if (!querySnap.empty) {
+            userDoc = querySnap.docs[0];
+          }
+        }
+
+        if (userDoc && userDoc.exists) {
+          const udata = userDoc.data()!;
+          chatName = udata.name || udata.username || [udata.firstName, udata.lastName].filter(Boolean).join(" ").trim() || chatName;
+          avatarUrl = udata.avatarUrl || udata.avatar || avatarUrl;
+        }
+      }
+    }
+
+    return NextResponse.json({ success: true, chat: { id: doc.id, ...data, name: chatName, avatarUrl } });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
     console.error("GET /api/chats/[chatId] error:", error);
@@ -87,6 +119,12 @@ export async function PATCH(req: NextRequest) {
     const user = await getUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const CURRENT_USER_ID = user.userId;
+    const isSameUser = (id1: string, id2: string) => {
+      const n1 = normalizeId(id1);
+      const n2 = normalizeId(id2);
+      if (!n1 || !n2) return false;
+      return n1 === n2 || n1.endsWith(n2) || n2.endsWith(n1);
+    };
 
     const id = getIdFromUrl(req);
     if (!id) return NextResponse.json({ error: "Chat ID is required" }, { status: 400 });
@@ -98,7 +136,7 @@ export async function PATCH(req: NextRequest) {
     if (!doc.exists) return NextResponse.json({ error: "Chat not found" }, { status: 404 });
 
     const data = doc.data()!;
-    if (!(data.participantIds as string[]).includes(CURRENT_USER_ID)) {
+    if (!(data.participantIds as string[]).some(pid => isSameUser(pid, CURRENT_USER_ID))) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
@@ -120,8 +158,33 @@ export async function PATCH(req: NextRequest) {
 
     await docRef.update(updates);
     const updated = await docRef.get();
+    const updatedData = updated.data()!;
 
-    return NextResponse.json({ success: true, chat: { id: updated.id, ...updated.data() } });
+    let chatName = "";
+    let avatarUrl = updatedData.avatarUrl || "";
+
+    if (updatedData.type === "dm" && Array.isArray(updatedData.participantIds)) {
+      const otherId = updatedData.participantIds.find(uid => !isSameUser(uid, CURRENT_USER_ID));
+      if (otherId) {
+        let userDoc = await db.collection("users").doc(otherId).get();
+        if (!userDoc.exists) {
+          const querySnap = await db.collection("users").where("userId", "==", otherId).limit(1).get();
+          if (!querySnap.empty) {
+            userDoc = querySnap.docs[0];
+          }
+        }
+
+        if (userDoc && userDoc.exists) {
+          const udata = userDoc.data()!;
+          chatName = udata.name || [udata.firstName, udata.lastName].filter(Boolean).join(" ").trim() || "";
+          avatarUrl = udata.avatarUrl || udata.avatar || avatarUrl;
+        }
+      }
+    } else {
+      chatName = updatedData.name;
+    }
+
+    return NextResponse.json({ success: true, chat: { id: updated.id, ...updatedData, name: chatName, avatarUrl } });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
     console.error("PATCH /api/chats/[chatId] error:", error);
@@ -139,6 +202,12 @@ export async function DELETE(req: NextRequest) {
     const user = await getUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const CURRENT_USER_ID = user.userId;
+    const isSameUser = (id1: string, id2: string) => {
+      const n1 = normalizeId(id1);
+      const n2 = normalizeId(id2);
+      if (!n1 || !n2) return false;
+      return n1 === n2 || n1.endsWith(n2) || n2.endsWith(n1);
+    };
 
     const id = getIdFromUrl(req);
     if (!id) return NextResponse.json({ error: "Chat ID is required" }, { status: 400 });
@@ -149,17 +218,17 @@ export async function DELETE(req: NextRequest) {
     if (!doc.exists) return NextResponse.json({ error: "Chat not found" }, { status: 404 });
 
     const data = doc.data()!;
-    if (!(data.participantIds as string[]).includes(CURRENT_USER_ID)) {
+    if (!(data.participantIds as string[]).some(pid => isSameUser(pid, CURRENT_USER_ID))) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    if (data.type === "dm" || data.createdBy === CURRENT_USER_ID) {
+    if (data.type === "dm" || isSameUser(data.createdBy, CURRENT_USER_ID)) {
       await docRef.delete();
       return NextResponse.json({ success: true, message: `Chat ${id} deleted successfully` });
     }
 
     await docRef.update({
-      participantIds: (data.participantIds as string[]).filter((uid) => uid !== CURRENT_USER_ID),
+      participantIds: (data.participantIds as string[]).filter((uid) => !isSameUser(uid, CURRENT_USER_ID)),
       updatedAt: Date.now(),
     });
 

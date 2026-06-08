@@ -54,9 +54,30 @@ export async function GET(req: NextRequest) {
     const hasMore = startIndex + limit < posts.length;
     const lastDoc = paginatedPosts[paginatedPosts.length - 1];
 
+    let userSnap = await db.collection("users").doc(user.email).get();
+    let resolvedUserId = user.email;
+    if (!userSnap.exists) {
+      userSnap = await db.collection("users").doc(user.userId).get();
+      if (userSnap.exists) {
+        resolvedUserId = user.userId;
+      }
+    }
+
+    const postsWithVote = await Promise.all(
+      paginatedPosts.map(async (p) => {
+        const docRef = db.collection("roarPosts").doc(p.postId);
+        const voteSnap = await docRef.collection("votes").doc(resolvedUserId).get();
+        const userVote = voteSnap.exists ? (voteSnap.data() as any).vote : null;
+        return {
+          ...p,
+          userVote,
+        };
+      })
+    );
+
     return NextResponse.json({
       success: true,
-      posts: paginatedPosts,
+      posts: postsWithVote,
       pagination: {
         limit,
         hasMore,

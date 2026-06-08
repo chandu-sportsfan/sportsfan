@@ -9,10 +9,8 @@ import jwt from "jsonwebtoken";
 import { db } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 
-// ─── Auth helper ──────────────────────────────────────────────────────────────
-// Path A — Email/password: httpOnly "token" cookie set by /api/auth/login
-// Path B — Google users:   "Authorization: Bearer <token>" sent by chatApi.ts
-// ─────────────────────────────────────────────────────────────────────────────
+const normalizeId = (id: string) => id.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_");
+
 async function getUser(req: NextRequest) {
   const cookieToken = req.cookies.get("token")?.value;
   if (cookieToken) {
@@ -23,7 +21,7 @@ async function getUser(req: NextRequest) {
       };
       const userId = payload.userId ?? payload.uid ?? payload.id ?? payload.email;
       if (userId && payload.email) {
-        return { userId, email: payload.email, name: payload.name ?? "", role: payload.role ?? "user" };
+        return { userId: normalizeId(userId), email: payload.email, name: payload.name ?? "", role: payload.role ?? "user" };
       }
     } catch {}
   }
@@ -38,7 +36,7 @@ async function getUser(req: NextRequest) {
       };
       const userId = payload.userId ?? payload.uid ?? payload.id ?? payload.email;
       if (userId && payload.email) {
-        return { userId, email: payload.email, name: payload.name ?? "", role: payload.role ?? "user" };
+        return { userId: normalizeId(userId), email: payload.email, name: payload.name ?? "", role: payload.role ?? "user" };
       }
     } catch {}
   }
@@ -61,6 +59,12 @@ export async function GET(req: NextRequest) {
     const user = await getUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const CURRENT_USER_ID = user.userId;
+    const isSameUser = (id1: string, id2: string) => {
+      const n1 = normalizeId(id1);
+      const n2 = normalizeId(id2);
+      if (!n1 || !n2) return false;
+      return n1 === n2 || n1.endsWith(n2) || n2.endsWith(n1);
+    };
 
     const chatId           = getChatIdFromUrl(req);
     const { searchParams } = new URL(req.url);
@@ -72,7 +76,7 @@ export async function GET(req: NextRequest) {
     const chatDoc = await chatRef.get();
 
     if (!chatDoc.exists) return NextResponse.json({ error: "Chat not found" }, { status: 404 });
-    if (!(chatDoc.data()?.participantIds as string[]).includes(CURRENT_USER_ID)) {
+    if (!(chatDoc.data()?.participantIds as string[]).some(pid => isSameUser(pid, CURRENT_USER_ID))) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
@@ -89,11 +93,14 @@ export async function GET(req: NextRequest) {
     }
 
     const snapshot = await query.get();
-    const messages = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })).reverse();
+    const messages = snapshot.docs
+      .map((doc) => ({ id: doc.id, ...doc.data() as any }))
+      .filter((msg) => !msg.deletedForUsers?.includes(CURRENT_USER_ID))
+      .reverse();
     const lastDoc  = snapshot.docs[snapshot.docs.length - 1];
 
     const unreadDocs = snapshot.docs.filter(
-      (doc) => !doc.data().isRead && doc.data().senderId !== CURRENT_USER_ID
+      (doc) => !doc.data().isRead && !isSameUser(doc.data().senderId, CURRENT_USER_ID)
     );
     if (unreadDocs.length > 0) {
       const batch = db.batch();
@@ -129,6 +136,12 @@ export async function POST(req: NextRequest) {
     const user = await getUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const CURRENT_USER_ID = user.userId;
+    const isSameUser = (id1: string, id2: string) => {
+      const n1 = normalizeId(id1);
+      const n2 = normalizeId(id2);
+      if (!n1 || !n2) return false;
+      return n1 === n2 || n1.endsWith(n2) || n2.endsWith(n1);
+    };
 
     const chatId                                           = getChatIdFromUrl(req);
     const body                                             = await req.json();
@@ -145,7 +158,7 @@ export async function POST(req: NextRequest) {
     const chatDoc = await chatRef.get();
 
     if (!chatDoc.exists) return NextResponse.json({ error: "Chat not found" }, { status: 404 });
-    if (!(chatDoc.data()?.participantIds as string[]).includes(CURRENT_USER_ID)) {
+    if (!(chatDoc.data()?.participantIds as string[]).some(pid => isSameUser(pid, CURRENT_USER_ID))) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
@@ -167,7 +180,7 @@ export async function POST(req: NextRequest) {
 
     const msgRef     = await db.collection("messages").add(newMessage);
     const otherCount = (chatDoc.data()?.participantIds as string[]).filter(
-      (id) => id !== CURRENT_USER_ID
+      (id) => !isSameUser(id, CURRENT_USER_ID)
     ).length;
 
     await chatRef.update({

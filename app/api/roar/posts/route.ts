@@ -130,11 +130,28 @@ export async function GET(req: NextRequest) {
       query = query.where("sport", "==", sport);
     }
 
+    let userSnap = await db.collection("users").doc(user.email).get();
+    let resolvedUserId = user.email;
+    if (!userSnap.exists) {
+      userSnap = await db.collection("users").doc(user.userId).get();
+      if (userSnap.exists) {
+        resolvedUserId = user.userId;
+      }
+    }
+
     const snapshot = await query.get();
-    const posts: Post[] = snapshot.docs.map((doc) => ({
-      ...(doc.data() as Post),
-      postId: doc.id,
-    }));
+    const posts = await Promise.all(
+      snapshot.docs.map(async (doc) => {
+        const data = doc.data() as Post;
+        const voteSnap = await doc.ref.collection("votes").doc(resolvedUserId).get();
+        const userVote = voteSnap.exists ? (voteSnap.data() as any).vote : null;
+        return {
+          ...data,
+          postId: doc.id,
+          userVote,
+        };
+      })
+    );
 
     return NextResponse.json({
       success: true,
