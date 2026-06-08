@@ -30,9 +30,20 @@ export async function POST(req: NextRequest) {
 
     const now = Date.now();
 
+    const userDoc = await db.collection("users").doc(user.email).get();
+    let defaultUsername = user.name || user.email.split("@")[0];
+    if (userDoc.exists) {
+      const data = userDoc.data();
+      if (data?.firstName || data?.lastName) {
+        defaultUsername = `${data.firstName || ""} ${data.lastName || ""}`.trim();
+      } else if (data?.username) {
+        defaultUsername = data.username;
+      }
+    }
+
     const userData: User = {
       uid: user.userId,
-      username: user.name || user.email.split("@")[0],
+      username: defaultUsername,
       handle: user.email.split("@")[0].toLowerCase(),
       sports,
       teams: teams ?? [],
@@ -58,7 +69,7 @@ export async function POST(req: NextRequest) {
     // Write user doc
     await db
       .collection("users")
-      .doc(user.userId)
+      .doc(user.email)
       .set(userData, { merge: true });
 
     // Seed starter badge progress
@@ -103,7 +114,13 @@ export async function POST(req: NextRequest) {
 
     // First contribution post
     if (firstContribution) {
-      const postRef = db.collection("posts").doc();
+      const postRef = db.collection("roarPosts").doc();
+      const text = firstContribution === "agree" || firstContribution === "disagree"
+        ? (sports[0] === "cricket"
+          ? "Virat Kohli in 2025 is better than Sachin Tendulkar ever was. Change my mind."
+          : "ISL is now world-class football. Change my mind.")
+        : firstContribution;
+
       batch.set(postRef, {
         postId: postRef.id,
         authorUid: user.userId,
@@ -111,7 +128,7 @@ export async function POST(req: NextRequest) {
         authorBadge: badge,
         type: "hot_take",
         sport: sports[0],
-        text: firstContribution,
+        text,
         audience: "Everyone",
         agreeCount: 0,
         disagreeCount: 0,

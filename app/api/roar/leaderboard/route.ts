@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { getUser } from "@/lib/getUser";
-import type { Leaderboard } from "@/models/LeaderboardEntry";
+import type { Leaderboard, LeaderboardEntry } from "@/app/models/LeaderboardEntry";
 
 export async function GET(req: NextRequest) {
   try {
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     const leaderboard = snap.data() as Leaderboard;
 
     // Find current user's entry for "Your rank" card
-    const userEntry = leaderboard.entries.find((e) => e.uid === user.userId);
+    const userEntry = leaderboard.entries.find((e: LeaderboardEntry) => e.uid === user.userId);
 
     return NextResponse.json({
       success: true,

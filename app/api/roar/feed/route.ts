@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { getUser } from "@/lib/getUser";
-import type { Post } from "@/models/Post";
+import type { Post } from "@/app/models/Post";
 
 // GET  /api/roar/feed?filter=For+You&limit=20&lastDocId=xxx
 export async function GET(req: NextRequest) {
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     const lastDocId = searchParams.get("lastDocId");
 
     let query = db
-      .collection("posts")
+      .collection("roarPosts")
       .where("status", "==", "active")
       .orderBy("createdAt", "desc");
 
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     query = query.limit(limit);
 
     if (lastDocId) {
-      const lastDoc = await db.collection("posts").doc(lastDocId).get();
+      const lastDoc = await db.collection("roarPosts").doc(lastDocId).get();
       if (lastDoc.exists) query = query.startAfter(lastDoc);
     }
 

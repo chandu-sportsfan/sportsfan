@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { getUser } from "@/lib/getUser";
-import type { Notification } from "@/models/Notification";
+import type { Notification } from "@/app/models/Notification";
 
 export async function GET(req: NextRequest) {
   try {
