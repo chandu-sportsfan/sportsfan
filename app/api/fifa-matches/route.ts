@@ -46,6 +46,7 @@ export async function GET(req: NextRequest) {
 }
 //POST
 //api
+//apis
 // POST /api/fifa-matches — single manual entry
 export async function POST(req: NextRequest) {
   let body: Record<string, unknown>;
