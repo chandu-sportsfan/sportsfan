@@ -60,16 +60,6 @@ const POLL_TEMPLATES = [
       { label: "Kolkata Knight Riders", isCorrect: false },
     ],
   },
-  {
-    title: "Who is your pick for the best finisher in limited-overs cricket right now?",
-    type: "poll",
-    options: [
-      { label: "Heinrich Klaasen", isCorrect: false },
-      { label: "Rinku Singh", isCorrect: false },
-      { label: "Liam Livingstone", isCorrect: false },
-      { label: "Tim David", isCorrect: false },
-    ],
-  },
 ];
 
 const QUIZ_BANK = {
@@ -99,17 +89,6 @@ const DEFAULT_QUIZ_BANK = {
   ],
 };
 
-const BATTLE_PLAYERS_TEMPLATES = [
-  { battleName: "Virat Kohli vs Rohit Sharma", selectedPlayers: ["virat_kohli_id", "rohit_sharma_id"] },
-  { battleName: "Jasprit Bumrah vs Mitchell Starc", selectedPlayers: ["jasprit_bumrah_id", "mitchell_starc_id"] },
-  { battleName: "Lionel Messi vs Cristiano Ronaldo", selectedPlayers: ["messi_id", "ronaldo_id"] },
-];
-
-const BATTLE_CLUBS_TEMPLATES = [
-  { battleName: "Chennai Super Kings vs Mumbai Indians", selectedClubs: ["csk_id", "mi_id"] },
-  { battleName: "Royal Challengers Bengaluru vs Kolkata Knight Riders", selectedClubs: ["rcb_id", "kkr_id"] },
-];
-
 const PREDICTION_TEMPLATES = [
   { question: "Who will win the match?", options: ["Home Team", "Away Team", "Draw/No Result"] },
 ];
@@ -117,10 +96,7 @@ const PREDICTION_TEMPLATES = [
 // ─── Gemini AI API Client ─────────────────────────────────────────────────────
 
 async function generateWithGemini(prompt, responseSchema = null) {
-  if (!GEMINI_API_KEY) {
-    console.log("⚠️  GEMINI_API_KEY missing. Falling back to templates.");
-    return null;
-  }
+  if (!GEMINI_API_KEY) return null;
 
   try {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
@@ -137,7 +113,6 @@ async function generateWithGemini(prompt, responseSchema = null) {
 
     const response = await axios.post(url, payload, { timeout: 10000 });
     const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-
     if (text) {
       return JSON.parse(text);
     }
@@ -145,6 +120,34 @@ async function generateWithGemini(prompt, responseSchema = null) {
     console.error("❌ Gemini API request failed:", error.message);
   }
   return null;
+}
+
+// ─── Helper to Fetch Real IDs ─────────────────────────────────────────────────
+
+async function getRealPlayerIds() {
+  try {
+    const snapshot = await db.collection("PlayerProfiles").limit(10).get();
+    return snapshot.docs.map((doc) => ({
+      id: doc.id,
+      name: doc.data().name || doc.data().playerName || "Unknown Player",
+    }));
+  } catch (e) {
+    console.error("Error fetching real player IDs:", e.message);
+    return [];
+  }
+}
+
+async function getRealClubIds() {
+  try {
+    const snapshot = await db.collection("clubProfiles").limit(10).get();
+    return snapshot.docs.map((doc) => ({
+      id: doc.id,
+      name: doc.data().name || doc.data().clubName || "Unknown Club",
+    }));
+  } catch (e) {
+    console.error("Error fetching real club IDs:", e.message);
+    return [];
+  }
 }
 
 // ─── Engagement Generation Functions ──────────────────────────────────────────
@@ -318,60 +321,61 @@ async function generateFanBattleQuizzes() {
   }
 }
 
-// 3. Generate Fan Battles
+// 3. Generate Fan Battles (Player vs Player / Club vs Club)
 async function generateFanBattles() {
   console.log("Generating Fan Battles (Player/Club battles)...");
   const types = ["PLAYERS", "CLUBS"];
 
+  // Fetch real document IDs from db to avoid referential errors
+  const realPlayers = await getRealPlayerIds();
+  const realClubs = await getRealClubIds();
+
   for (const type of types) {
-    let battleData = null;
+    let battleName = "";
+    let selectedPlayers = [];
+    let selectedClubs = [];
 
-    if (GEMINI_API_KEY) {
-      const prompt = `Generate a single trending, highly competitive sports matchup (${type === "PLAYERS" ? "Player vs Player" : "Club vs Club"}) as JSON. Use this exact schema:
-      {
-        "battleName": "Name vs Name (e.g. Virat Kohli vs Steve Smith or Arsenal vs Chelsea)",
-        "selectedPlayers": ["PlayerName1", "PlayerName2"] (only if type is PLAYERS, otherwise empty array),
-        "selectedClubs": ["ClubName1", "ClubName2"] (only if type is CLUBS, otherwise empty array)
-      }`;
-
-      const schema = {
-        type: "OBJECT",
-        properties: {
-          battleName: { type: "STRING" },
-          selectedPlayers: { type: "ARRAY", items: { type: "STRING" } },
-          selectedClubs: { type: "ARRAY", items: { type: "STRING" } },
-        },
-        required: ["battleName", "selectedPlayers", "selectedClubs"],
-      };
-
-      battleData = await generateWithGemini(prompt, schema);
-    }
-
-    // Fallback
-    if (!battleData) {
-      console.log(`💡 Using static fallback for Battle (${type}).`);
-      if (type === "PLAYERS") {
-        battleData = BATTLE_PLAYERS_TEMPLATES[Math.floor(Math.random() * BATTLE_PLAYERS_TEMPLATES.length)];
-      } else {
-        battleData = BATTLE_CLUBS_TEMPLATES[Math.floor(Math.random() * BATTLE_CLUBS_TEMPLATES.length)];
+    if (type === "PLAYERS") {
+      if (realPlayers.length < 2) {
+        console.log("⚠️  Not enough real players in PlayerProfiles. Skipping Players Battle.");
+        continue;
       }
+      // Shuffle & pick 2 distinct players
+      const shuffled = [...realPlayers].sort(() => 0.5 - Math.random());
+      const p1 = shuffled[0];
+      const p2 = shuffled[1];
+
+      battleName = `${p1.name} vs ${p2.name}`;
+      selectedPlayers = [p1.id, p2.id];
+    } else {
+      if (realClubs.length < 2) {
+        console.log("⚠️  Not enough real clubs in clubProfiles. Skipping Clubs Battle.");
+        continue;
+      }
+      // Shuffle & pick 2 distinct clubs
+      const shuffled = [...realClubs].sort(() => 0.5 - Math.random());
+      const c1 = shuffled[0];
+      const c2 = shuffled[1];
+
+      battleName = `${c1.name} vs ${c2.name}`;
+      selectedClubs = [c1.id, c2.id];
     }
 
     const existing = await db
       .collection("fanBattles")
-      .where("battleName", "==", battleData.battleName)
+      .where("battleName", "==", battleName)
       .get();
 
     if (!existing.empty) {
-      console.log(`⏭️  Battle "${battleData.battleName}" already exists. Skipping.`);
+      console.log(`⏭️  Battle "${battleName}" already exists. Skipping.`);
       continue;
     }
 
     const newBattle = {
-      battleName: battleData.battleName,
+      battleName,
       battleType: type,
-      selectedPlayers: battleData.selectedPlayers || [],
-      selectedClubs: battleData.selectedClubs || [],
+      selectedPlayers,
+      selectedClubs,
       invitedFriends: [],
       userId: "admin",
       userName: "Admin User",
@@ -380,7 +384,7 @@ async function generateFanBattles() {
     };
 
     const docRef = await db.collection("fanBattles").add(newBattle);
-    console.log(`✅ Fan Battle (${type}) created! ID: ${docRef.id} - ${battleData.battleName}`);
+    console.log(`✅ Fan Battle (${type}) created! ID: ${docRef.id} - ${battleName}`);
   }
 }
 

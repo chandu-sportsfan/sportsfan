@@ -55,15 +55,6 @@ const DEFAULT_QUIZ_BANK = {
   ],
 };
 
-const BATTLE_PLAYERS_TEMPLATES = [
-  { battleName: "Virat Kohli vs Rohit Sharma", selectedPlayers: ["virat_kohli_id", "rohit_sharma_id"] },
-  { battleName: "Jasprit Bumrah vs Mitchell Starc", selectedPlayers: ["jasprit_bumrah_id", "mitchell_starc_id"] },
-];
-
-const BATTLE_CLUBS_TEMPLATES = [
-  { battleName: "Chennai Super Kings vs Mumbai Indians", selectedClubs: ["csk_id", "mi_id"] },
-];
-
 const PREDICTION_TEMPLATES = [
   { question: "Who will win the match?", options: ["Home Team", "Away Team", "Draw/No Result"] },
 ];
@@ -97,6 +88,34 @@ async function generateWithGemini(prompt: string, responseSchema: any = null) {
     console.error("❌ Gemini API request failed in route:", error);
   }
   return null;
+}
+
+// ─── Helper to Fetch Real IDs ─────────────────────────────────────────────────
+
+async function getRealPlayerIds() {
+  try {
+    const snapshot = await db.collection("PlayerProfiles").limit(10).get();
+    return snapshot.docs.map((doc) => ({
+      id: doc.id,
+      name: doc.data().name || doc.data().playerName || "Unknown Player",
+    }));
+  } catch (e) {
+    console.error("Error fetching real player IDs in route:", e);
+    return [];
+  }
+}
+
+async function getRealClubIds() {
+  try {
+    const snapshot = await db.collection("clubProfiles").limit(10).get();
+    return snapshot.docs.map((doc) => ({
+      id: doc.id,
+      name: doc.data().name || doc.data().clubName || "Unknown Club",
+    }));
+  } catch (e) {
+    console.error("Error fetching real club IDs in route:", e);
+    return [];
+  }
 }
 
 // ─── Route Handler ────────────────────────────────────────────────────────────
@@ -273,49 +292,37 @@ async function handleAutomation() {
 
     // 3. Generate Fan Battles
     const types = ["PLAYERS", "CLUBS"] as const;
+    const realPlayers = await getRealPlayerIds();
+    const realClubs = await getRealClubIds();
+
     for (const type of types) {
-      let battleData: any = null;
+      let battleName = "";
+      let selectedPlayers: string[] = [];
+      let selectedClubs: string[] = [];
 
-      if (GEMINI_API_KEY) {
-        const prompt = `Generate a single trending, highly competitive sports matchup (${type === "PLAYERS" ? "Player vs Player" : "Club vs Club"}) as JSON. Use this exact schema:
-        {
-          "battleName": "Name vs Name (e.g. Virat Kohli vs Steve Smith or Arsenal vs Chelsea)",
-          "selectedPlayers": ["PlayerName1", "PlayerName2"] (only if type is PLAYERS, otherwise empty array),
-          "selectedClubs": ["ClubName1", "ClubName2"] (only if type is CLUBS, otherwise empty array)
-        }`;
-
-        const schema = {
-          type: "OBJECT",
-          properties: {
-            battleName: { type: "STRING" },
-            selectedPlayers: { type: "ARRAY", items: { type: "STRING" } },
-            selectedClubs: { type: "ARRAY", items: { type: "STRING" } },
-          },
-          required: ["battleName", "selectedPlayers", "selectedClubs"],
-        };
-
-        battleData = await generateWithGemini(prompt, schema);
-      }
-
-      if (!battleData) {
-        if (type === "PLAYERS") {
-          battleData = BATTLE_PLAYERS_TEMPLATES[Math.floor(Math.random() * BATTLE_PLAYERS_TEMPLATES.length)];
-        } else {
-          battleData = BATTLE_CLUBS_TEMPLATES[Math.floor(Math.random() * BATTLE_CLUBS_TEMPLATES.length)];
-        }
+      if (type === "PLAYERS") {
+        if (realPlayers.length < 2) continue;
+        const shuffled = [...realPlayers].sort(() => 0.5 - Math.random());
+        battleName = `${shuffled[0].name} vs ${shuffled[1].name}`;
+        selectedPlayers = [shuffled[0].id, shuffled[1].id];
+      } else {
+        if (realClubs.length < 2) continue;
+        const shuffled = [...realClubs].sort(() => 0.5 - Math.random());
+        battleName = `${shuffled[0].name} vs ${shuffled[1].name}`;
+        selectedClubs = [shuffled[0].id, shuffled[1].id];
       }
 
       const existingBattle = await db
         .collection("fanBattles")
-        .where("battleName", "==", battleData.battleName)
+        .where("battleName", "==", battleName)
         .get();
 
       if (existingBattle.empty) {
         await db.collection("fanBattles").add({
-          battleName: battleData.battleName,
+          battleName,
           battleType: type,
-          selectedPlayers: battleData.selectedPlayers || [],
-          selectedClubs: battleData.selectedClubs || [],
+          selectedPlayers,
+          selectedClubs,
           invitedFriends: [],
           userId: "admin",
           userName: "Admin User",
