@@ -39,7 +39,17 @@ export async function POST(req: NextRequest) {
     }
 
     // Fetch author info
-    const userSnap = await db.collection("users").doc(user.email).get();
+    let userDocRef = db.collection("users").doc(user.email);
+    let userSnap = await userDocRef.get();
+    let resolvedUserId = user.email;
+    if (!userSnap.exists) {
+      userDocRef = db.collection("users").doc(user.userId);
+      userSnap = await userDocRef.get();
+      if (userSnap.exists) {
+        resolvedUserId = user.userId;
+      }
+    }
+
     if (!userSnap.exists) {
       return NextResponse.json(
         { error: "User profile not found" },
@@ -53,7 +63,7 @@ export async function POST(req: NextRequest) {
 
     const newPost: Post = {
       postId: postRef.id,
-      authorUid: user.userId,
+      authorUid: resolvedUserId,
       authorUsername: userData.username,
       authorBadge: userData.badge,
       type,
@@ -79,7 +89,7 @@ export async function POST(req: NextRequest) {
     // Increment the right counter on the user doc
     const counterField =
       type === "prediction" ? "predictionCount" : "hotTakeCount";
-    batch.update(db.collection("users").doc(user.email), {
+    batch.update(userDocRef, {
       [counterField]: (userData as any)[counterField]
         ? (userData as any)[counterField] + 1
         : 1,
@@ -120,11 +130,28 @@ export async function GET(req: NextRequest) {
       query = query.where("sport", "==", sport);
     }
 
+    let userSnap = await db.collection("users").doc(user.email).get();
+    let resolvedUserId = user.email;
+    if (!userSnap.exists) {
+      userSnap = await db.collection("users").doc(user.userId).get();
+      if (userSnap.exists) {
+        resolvedUserId = user.userId;
+      }
+    }
+
     const snapshot = await query.get();
-    const posts: Post[] = snapshot.docs.map((doc) => ({
-      ...(doc.data() as Post),
-      postId: doc.id,
-    }));
+    const posts = await Promise.all(
+      snapshot.docs.map(async (doc) => {
+        const data = doc.data() as Post;
+        const voteSnap = await doc.ref.collection("votes").doc(resolvedUserId).get();
+        const userVote = voteSnap.exists ? (voteSnap.data() as any).vote : null;
+        return {
+          ...data,
+          postId: doc.id,
+          userVote,
+        };
+      })
+    );
 
     return NextResponse.json({
       success: true,

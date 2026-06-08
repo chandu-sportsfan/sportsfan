@@ -16,39 +16,72 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 50);
     const lastDocId = searchParams.get("lastDocId");
 
-    let query = db
+    // Fetch the recent active posts to filter in-memory.
+    // This avoids needing complex Firestore composite indexes that would crash the query at runtime.
+    const query = db
       .collection("roarPosts")
       .where("status", "==", "active")
-      .orderBy("createdAt", "desc");
-
-    if (filter === "Cricket") query = query.where("sport", "==", "cricket");
-    if (filter === "Football") query = query.where("sport", "==", "football");
-    if (filter === "Live") query = query.where("isLive", "==", true);
-    if (filter === "Predictions")
-      query = query.where("type", "==", "prediction");
-
-    query = query.limit(limit);
-
-    if (lastDocId) {
-      const lastDoc = await db.collection("roarPosts").doc(lastDocId).get();
-      if (lastDoc.exists) query = query.startAfter(lastDoc);
-    }
+      .orderBy("createdAt", "desc")
+      .limit(500);
 
     const snapshot = await query.get();
-    const posts: Post[] = snapshot.docs.map((doc) => ({
+    let posts: Post[] = snapshot.docs.map((doc) => ({
       ...(doc.data() as Post),
       postId: doc.id,
     }));
 
-    const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+    // Apply filters in-memory
+    if (filter === "Cricket") {
+      posts = posts.filter((p) => p.sport === "cricket");
+    } else if (filter === "Football") {
+      posts = posts.filter((p) => p.sport === "football");
+    } else if (filter === "Live") {
+      posts = posts.filter((p) => p.isLive === true);
+    } else if (filter === "Predictions") {
+      posts = posts.filter((p) => p.type === "prediction");
+    }
+
+    // Paginate the filtered array in-memory
+    let startIndex = 0;
+    if (lastDocId) {
+      const idx = posts.findIndex((p) => p.postId === lastDocId);
+      if (idx !== -1) {
+        startIndex = idx + 1;
+      }
+    }
+
+    const paginatedPosts = posts.slice(startIndex, startIndex + limit);
+    const hasMore = startIndex + limit < posts.length;
+    const lastDoc = paginatedPosts[paginatedPosts.length - 1];
+
+    let userSnap = await db.collection("users").doc(user.email).get();
+    let resolvedUserId = user.email;
+    if (!userSnap.exists) {
+      userSnap = await db.collection("users").doc(user.userId).get();
+      if (userSnap.exists) {
+        resolvedUserId = user.userId;
+      }
+    }
+
+    const postsWithVote = await Promise.all(
+      paginatedPosts.map(async (p) => {
+        const docRef = db.collection("roarPosts").doc(p.postId);
+        const voteSnap = await docRef.collection("votes").doc(resolvedUserId).get();
+        const userVote = voteSnap.exists ? (voteSnap.data() as any).vote : null;
+        return {
+          ...p,
+          userVote,
+        };
+      })
+    );
 
     return NextResponse.json({
       success: true,
-      posts,
+      posts: postsWithVote,
       pagination: {
         limit,
-        hasMore: posts.length === limit,
-        nextCursor: posts.length === limit ? { lastDocId: lastDoc?.id } : null,
+        hasMore,
+        nextCursor: hasMore && lastDoc ? { lastDocId: lastDoc.postId } : null,
       },
     });
   } catch (error: unknown) {
