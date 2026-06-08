@@ -39,7 +39,17 @@ export async function POST(req: NextRequest) {
     }
 
     // Fetch author info
-    const userSnap = await db.collection("users").doc(user.email).get();
+    let userDocRef = db.collection("users").doc(user.email);
+    let userSnap = await userDocRef.get();
+    let resolvedUserId = user.email;
+    if (!userSnap.exists) {
+      userDocRef = db.collection("users").doc(user.userId);
+      userSnap = await userDocRef.get();
+      if (userSnap.exists) {
+        resolvedUserId = user.userId;
+      }
+    }
+
     if (!userSnap.exists) {
       return NextResponse.json(
         { error: "User profile not found" },
@@ -53,7 +63,7 @@ export async function POST(req: NextRequest) {
 
     const newPost: Post = {
       postId: postRef.id,
-      authorUid: user.userId,
+      authorUid: resolvedUserId,
       authorUsername: userData.username,
       authorBadge: userData.badge,
       type,
@@ -79,7 +89,7 @@ export async function POST(req: NextRequest) {
     // Increment the right counter on the user doc
     const counterField =
       type === "prediction" ? "predictionCount" : "hotTakeCount";
-    batch.update(db.collection("users").doc(user.email), {
+    batch.update(userDocRef, {
       [counterField]: (userData as any)[counterField]
         ? (userData as any)[counterField] + 1
         : 1,

@@ -2,25 +2,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { db } from "@/lib/firebaseAdmin";
+import cloudinary from "@/lib/cloudinary";
 
-// ─── COLLECTION & SCHEMA ──────────────────────────────────────────────────────
-//  users/{userId}
-//  ├── name          string   (2–60, letters/spaces/hyphens/apostrophes)
-//  ├── email         string   (valid email)
-//  ├── subtitle      string   (max 160 chars)
-//  ├── description   string   (max 500 chars)
-//  ├── location      string   (max 80 chars)
-//  ├── website       string   (valid URL, max 200 chars)
-//  ├── avatarUrl     string   (absolute URL)
-//  ├── role          string   ("user" | "admin" | "moderator")
-//  ├── joinedDate    string   (e.g. "May 2024")
-//  ├── followers     number
-//  ├── connections   number
-//  ├── createdAt     number   (Unix ms, set once)
-//  └── updatedAt     number   (Unix ms, updated every write)
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 function validateName(value: string): string | null {
   const v = value.trim();
@@ -77,14 +60,6 @@ function validateAvatarUrl(value: string): string | null {
   }
   return null;
 }
-
-// ─── Auth helper ──────────────────────────────────────────────────────────────
-// FIX #1: The original getUser() silently returns null whenever the token is
-// missing or invalid but does NOT set any response headers. The callers already
-// handle the null case, so the helper itself is fine — BUT the frontend was NOT
-// sending the Authorization header at all on the POST request (see page.tsx fix).
-// This version is unchanged functionally; it is included for completeness.
-// ─────────────────────────────────────────────────────────────────────────────
 async function getUser(req: NextRequest) {
   // Path A — httpOnly "token" cookie (email/password login)
   const cookieToken = req.cookies.get("token")?.value;
@@ -102,8 +77,6 @@ async function getUser(req: NextRequest) {
       // Expired / tampered — fall through to Bearer
     }
   }
-
-  // Path B — "Authorization: Bearer <token>" header (Google login)
   const authHeader = req.headers.get("authorization") ?? "";
   if (authHeader.startsWith("Bearer ")) {
     const bearerToken = authHeader.slice(7).trim();
@@ -117,22 +90,18 @@ async function getUser(req: NextRequest) {
         return { userId, email: payload.email, name: payload.name ?? "", role: payload.role ?? "user" };
       }
     } catch {
-      // Invalid token
+     
     }
   }
 
   return null;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GET /api/profile
-// ─────────────────────────────────────────────────────────────────────────────
+
 export async function GET(req: NextRequest) {
   try {
     const authUser = await getUser(req);
     if (!authUser) {
-      // FIX #2: Return CORS-friendly headers so the browser doesn't
-      // misreport a 401 as a "network error" in some environments.
       return NextResponse.json({ error: "Unauthorized" }, {
         status: 401,
         headers: { "Cache-Control": "no-store" },
@@ -163,9 +132,6 @@ export async function GET(req: NextRequest) {
       followers:   data.followers   ?? null,
       connections: data.connections ?? null,
     };
-
-    // FIX #3: Own-profile and visitor-profile returned identical shapes anyway;
-    // collapsed into one return. No logic change — just removes dead duplication.
     void isOwnProfile; // suppress "unused variable" lint warning
 
     return NextResponse.json(payload, { headers: { "Cache-Control": "no-store" } });
@@ -175,23 +141,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /api/profile
-//
-// FIX #4 (ROOT CAUSE of "network error"):
-//   The frontend fetch() in page.tsx did NOT include `credentials: "include"`.
-//   Without it the browser strips the httpOnly "token" cookie from cross-origin
-//   or same-origin requests that are marked as "omit" by default in some
-//   fetch() call-sites, so getUser() always returned null → 401 → the browser's
-//   fetch API reports "network error" when the server returns 401 with no body
-//   in some environments, or the frontend catch() block shows the generic
-//   "network error" message instead of the real 401 text.
-//
-// The route itself is correct. The fix is in page.tsx (credentials: "include").
-// This file adds defensive "no-store" cache headers and explicit Content-Type
-// on responses to prevent proxy/CDN caching of auth-sensitive responses.
-// ─────────────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
     const authUser = await getUser(req);
@@ -204,36 +153,21 @@ export async function POST(req: NextRequest) {
 
     const CURRENT_USER_ID = authUser.userId;
 
-    // FIX #5: Wrap req.json() in its own try/catch.
-    // If the frontend sends a malformed body (e.g. empty string, or the fetch
-    // call threw before attaching a body), req.json() throws a SyntaxError
-    // which was previously caught by the outer catch and returned as a generic
-    // 500 "Unexpected error" — masking the real problem.
-    let body: Record<string, unknown>;
-    try {
-      body = await req.json();
-    } catch {
-      return NextResponse.json(
-        { error: "Invalid JSON body. Ensure Content-Type: application/json is set and the body is valid JSON." },
-        { status: 400, headers: { "Cache-Control": "no-store" } }
-      );
-    }
+    
+      const formData = await req.formData();
+    const name = formData.get("name");
+const subtitle = formData.get("subtitle");
+const description = formData.get("description");
+const location = formData.get("location");
+const website = formData.get("website");
 
-    const { name, email, subtitle, description, location, website, avatarUrl } = body as {
-      name?: unknown; email?: unknown; subtitle?: unknown; description?: unknown;
-      location?: unknown; website?: unknown; avatarUrl?: unknown;
-    };
-
-    // ── Validation ────────────────────────────────────────────────────────────
+const profilePicture =
+  formData.get("profilePicture") as File | null;
     const validationErrors: Record<string, string> = {};
 
     if (name !== undefined) {
       const err = validateName(String(name));
       if (err) validationErrors.name = err;
-    }
-    if (email !== undefined) {
-      const err = validateEmail(String(email));
-      if (err) validationErrors.email = err;
     }
     if (subtitle !== undefined) {
       const err = validateSubtitle(String(subtitle));
@@ -251,10 +185,7 @@ export async function POST(req: NextRequest) {
       const err = validateWebsite(String(website));
       if (err) validationErrors.website = err;
     }
-    if (avatarUrl !== undefined) {
-      const err = validateAvatarUrl(String(avatarUrl));
-      if (err) validationErrors.avatarUrl = err;
-    }
+    
 
     if (Object.keys(validationErrors).length > 0) {
       return NextResponse.json(
@@ -265,14 +196,38 @@ export async function POST(req: NextRequest) {
 
     // ── Build update payload ──────────────────────────────────────────────────
     const updateData: Record<string, unknown> = {};
+    if (
+  profilePicture &&
+  profilePicture.size > 0
+) {
+  const bytes =
+    await profilePicture.arrayBuffer();
+
+  const buffer =
+    Buffer.from(bytes);
+
+  const base64 =
+    `data:${profilePicture.type};base64,${buffer.toString("base64")}`;
+
+  const uploadRes =
+    await cloudinary.uploader.upload(
+      base64,
+      {
+        folder:
+          "profile-images",
+      }
+    );
+
+  updateData.avatarUrl =
+    uploadRes.secure_url;
+}
 
     if (name        !== undefined) updateData.name        = String(name).trim().slice(0, 60);
-    if (email       !== undefined) updateData.email       = String(email).trim().toLowerCase().slice(0, 320);
     if (subtitle    !== undefined) updateData.subtitle    = String(subtitle).trim().slice(0, 160);
     if (description !== undefined) updateData.description = String(description).trim().slice(0, 500);
     if (location    !== undefined) updateData.location    = String(location).trim().slice(0, 80);
     if (website     !== undefined) updateData.website     = String(website).trim().slice(0, 200);
-    if (avatarUrl   !== undefined) updateData.avatarUrl   = String(avatarUrl).trim();
+    // if (avatarUrl   !== undefined) updateData.avatarUrl   = String(avatarUrl).trim();
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json(

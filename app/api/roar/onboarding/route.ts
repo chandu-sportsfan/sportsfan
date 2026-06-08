@@ -30,7 +30,17 @@ export async function POST(req: NextRequest) {
 
     const now = Date.now();
 
-    const userDoc = await db.collection("users").doc(user.email).get();
+    let userDocRef = db.collection("users").doc(user.email);
+    let userDoc = await userDocRef.get();
+    let resolvedUserId = user.email;
+    if (!userDoc.exists) {
+      userDocRef = db.collection("users").doc(user.userId);
+      userDoc = await userDocRef.get();
+      if (userDoc.exists) {
+        resolvedUserId = user.userId;
+      }
+    }
+
     let defaultUsername = user.name || user.email.split("@")[0];
     if (userDoc.exists) {
       const data = userDoc.data();
@@ -41,8 +51,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const hasFirstContribution = !!firstContribution;
+
     const userData: User = {
-      uid: user.userId,
+      uid: resolvedUserId,
       username: defaultUsername,
       handle: user.email.split("@")[0].toLowerCase(),
       sports,
@@ -54,7 +66,7 @@ export async function POST(req: NextRequest) {
       reputationScore: 0,
       predictionCount: 0,
       correctPredictions: 0,
-      hotTakeCount: 0,
+      hotTakeCount: hasFirstContribution ? 1 : 0,
       rank: 9999,
       rivalUid: null,
       fcmToken: null,
@@ -67,20 +79,17 @@ export async function POST(req: NextRequest) {
     };
 
     // Write user doc
-    await db
-      .collection("users")
-      .doc(user.email)
-      .set(userData, { merge: true });
+    await userDocRef.set(userData, { merge: true });
 
     // Seed starter badge progress
     await db
       .collection("roarBadges")
-      .doc(user.userId)
+      .doc(resolvedUserId)
       .collection("roarProgress")
       .doc(badge)
       .set({
         badgeId: badge,
-        uid: user.userId,
+        uid: resolvedUserId,
         unlocked: true,
         progress: 100,
         earnedAt: now,
@@ -101,12 +110,12 @@ export async function POST(req: NextRequest) {
     for (const b of otherBadges) {
       const ref = db
         .collection("roarBadges")
-        .doc(user.userId)
+        .doc(resolvedUserId)
         .collection("roarProgress")
         .doc(b);
       batch.set(ref, {
         badgeId: b,
-        uid: user.userId,
+        uid: resolvedUserId,
         unlocked: false,
         progress: 0,
       });
@@ -123,7 +132,7 @@ export async function POST(req: NextRequest) {
 
       batch.set(postRef, {
         postId: postRef.id,
-        authorUid: user.userId,
+        authorUid: resolvedUserId,
         authorUsername: userData.username,
         authorBadge: badge,
         type: "hot_take",
@@ -142,7 +151,7 @@ export async function POST(req: NextRequest) {
 
     await batch.commit();
 
-    return NextResponse.json({ success: true, badge, uid: user.userId });
+    return NextResponse.json({ success: true, badge, uid: resolvedUserId });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
     console.error("POST /api/roar/onboarding error:", error);
