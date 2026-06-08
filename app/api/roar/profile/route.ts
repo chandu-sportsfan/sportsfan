@@ -26,6 +26,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
+    const userData = userSnap.data() as User;
+    if (!userData || !userData.username || !userData.badge) {
+      return NextResponse.json({ error: "ROAR profile not onboarded", onboarded: false }, { status: 404 });
+    }
+
     const [badgesSnap, postsSnap, rivalSnap] = await Promise.all([
       db
         .collection("roarBadges")
@@ -36,7 +41,6 @@ export async function GET(req: NextRequest) {
       db.collection("rivals").doc(resolvedUserId).get(),
     ]);
 
-    const userData = userSnap.data() as User;
     const accuracy =
       userData.predictionCount > 0
         ? Math.round(

@@ -51,6 +51,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const hasFirstContribution = !!firstContribution;
+
     const userData: User = {
       uid: resolvedUserId,
       username: defaultUsername,
@@ -64,7 +66,7 @@ export async function POST(req: NextRequest) {
       reputationScore: 0,
       predictionCount: 0,
       correctPredictions: 0,
-      hotTakeCount: 0,
+      hotTakeCount: hasFirstContribution ? 1 : 0,
       rank: 9999,
       rivalUid: null,
       fcmToken: null,

@@ -64,9 +64,13 @@ export async function POST(
     }
     const userData = userSnap.data() as { username: string; badge: string };
 
-    const commentRef = db
-      .collection("roarPosts")
-      .doc(postId)
+    const postRef = db.collection("roarPosts").doc(postId);
+    const postSnap = await postRef.get();
+    if (!postSnap.exists) {
+      return NextResponse.json({ error: "Post not found" }, { status: 404 });
+    }
+
+    const commentRef = postRef
       .collection("comments")
       .doc();
 
@@ -82,7 +86,7 @@ export async function POST(
 
     const batch = db.batch();
     batch.set(commentRef, newComment);
-    batch.update(db.collection("roarPosts").doc(postId), {
+    batch.update(postRef, {
       replyCount: FieldValue.increment(1),
       updatedAt: Date.now(),
     });

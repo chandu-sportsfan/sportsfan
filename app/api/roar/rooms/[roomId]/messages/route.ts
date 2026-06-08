@@ -95,10 +95,14 @@ export async function POST(
     }
     const userData = userSnap.data() as { username: string; badge: string };
 
+    const roomRef = db.collection("roarRooms").doc(roomId);
+    const roomSnap = await roomRef.get();
+    if (!roomSnap.exists) {
+      return NextResponse.json({ error: "Room not found" }, { status: 404 });
+    }
+
     const now = Date.now();
-    const msgRef = db
-      .collection("roarRooms")
-      .doc(roomId)
+    const msgRef = roomRef
       .collection("messages")
       .doc();
 
@@ -118,7 +122,7 @@ export async function POST(
     const batch = db.batch();
     batch.set(msgRef, message);
     // Bump room's fanCount as a presence proxy
-    batch.update(db.collection("roarRooms").doc(roomId), {
+    batch.update(roomRef, {
       fanCount: FieldValue.increment(1),
     });
 
