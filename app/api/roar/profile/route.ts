@@ -13,20 +13,28 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const [userSnap, badgesSnap, postsSnap, rivalSnap] = await Promise.all([
-      db.collection("users").doc(user.userId).get(), // ✅ was user.email
-      db
-        .collection("roarBadges")
-        .doc(user.userId)
-        .collection("roarProgress")
-        .get(),
-      db.collection("roarPosts").where("authorUid", "==", user.userId).get(),
-      db.collection("rivals").doc(user.userId).get(),
-    ]);
+    let resolvedUserId = user.email;
+    let userSnap = await db.collection("users").doc(user.email).get();
+    if (!userSnap.exists) {
+      userSnap = await db.collection("users").doc(user.userId).get();
+      if (userSnap.exists) {
+        resolvedUserId = user.userId;
+      }
+    }
 
     if (!userSnap.exists) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
+
+    const [badgesSnap, postsSnap, rivalSnap] = await Promise.all([
+      db
+        .collection("roarBadges")
+        .doc(resolvedUserId)
+        .collection("roarProgress")
+        .get(),
+      db.collection("roarPosts").where("authorUid", "==", resolvedUserId).get(),
+      db.collection("rivals").doc(resolvedUserId).get(),
+    ]);
 
     const userData = userSnap.data() as User;
     const accuracy =
@@ -89,7 +97,18 @@ export async function PATCH(req: NextRequest) {
     for (const field of allowedFields) {
       if (body[field] !== undefined) updates[field] = body[field];
     }
-    await db.collection("users").doc(user.userId).update(updates); // ✅ was user.email
+    let userDocRef = db.collection("users").doc(user.email);
+    let userSnap = await userDocRef.get();
+    if (!userSnap.exists) {
+      userDocRef = db.collection("users").doc(user.userId);
+      userSnap = await userDocRef.get();
+    }
+
+    if (!userSnap.exists) {
+      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    }
+
+    await userDocRef.update(updates);
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";

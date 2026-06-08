@@ -79,7 +79,14 @@ export async function POST(
       return NextResponse.json({ error: "text is required" }, { status: 400 });
     }
 
-    const userSnap = await db.collection("users").doc(user.email).get();
+    let userSnap = await db.collection("users").doc(user.email).get();
+    let resolvedUserId = user.email;
+    if (!userSnap.exists) {
+      userSnap = await db.collection("users").doc(user.userId).get();
+      if (userSnap.exists) {
+        resolvedUserId = user.userId;
+      }
+    }
     if (!userSnap.exists) {
       return NextResponse.json(
         { error: "User profile not found" },
@@ -98,7 +105,7 @@ export async function POST(
     const message: RoomMessage = {
       msgId: msgRef.id,
       roomId: roomId,
-      authorUid: user.userId,
+      authorUid: resolvedUserId,
       authorUsername: userData.username,
       authorBadge: userData.badge,
       text: text.trim(),
