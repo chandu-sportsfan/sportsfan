@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { Timestamp } from "firebase-admin/firestore";
+import axios from "axios";
 
-// ─── Data Banks ───────────────────────────────────────────────────────────────
+// ─── Static Fallbacks ─────────────────────────────────────────────────────────
 
 const POLL_TEMPLATES = [
   {
@@ -25,46 +26,6 @@ const POLL_TEMPLATES = [
       { label: "Kolkata Knight Riders", isCorrect: false },
     ],
   },
-  {
-    title: "Who is your pick for the best finisher in limited-overs cricket right now?",
-    type: "poll" as const,
-    options: [
-      { label: "Heinrich Klaasen", isCorrect: false },
-      { label: "Rinku Singh", isCorrect: false },
-      { label: "Liam Livingstone", isCorrect: false },
-      { label: "Tim David", isCorrect: false },
-    ],
-  },
-  {
-    title: "Which team is the strongest contender for the UEFA Champions League title?",
-    type: "poll" as const,
-    options: [
-      { label: "Real Madrid", isCorrect: false },
-      { label: "Manchester City", isCorrect: false },
-      { label: "Bayern Munich", isCorrect: false },
-      { label: "Arsenal", isCorrect: false },
-    ],
-  },
-  {
-    title: "Who holds the record for the fastest century in ODI cricket history?",
-    type: "quiz" as const,
-    options: [
-      { label: "AB de Villiers (31 balls)", isCorrect: true },
-      { label: "Corey Anderson (36 balls)", isCorrect: false },
-      { label: "Shahid Afridi (37 balls)", isCorrect: false },
-      { label: "Brian Lara (45 balls)", isCorrect: false },
-    ],
-  },
-  {
-    title: "Which country has won the most FIFA World Cup titles?",
-    type: "quiz" as const,
-    options: [
-      { label: "Brazil (5 titles)", isCorrect: true },
-      { label: "Germany (4 titles)", isCorrect: false },
-      { label: "Italy (4 titles)", isCorrect: false },
-      { label: "Argentina (3 titles)", isCorrect: false },
-    ],
-  },
 ];
 
 const QUIZ_BANK = {
@@ -72,27 +33,12 @@ const QUIZ_BANK = {
     easy: [
       { question: "How many players are there on a cricket field from one team?", options: ["9", "10", "11", "12"], correctAnswer: "11", points: 10 },
       { question: "What is the length of a standard cricket pitch in yards?", options: ["20 yards", "22 yards", "24 yards", "26 yards"], correctAnswer: "22 yards", points: 10 },
-      { question: "Which tournament is played between England and Australia?", options: ["Border-Gavaskar", "The Ashes", "Asia Cup", "Ranji Trophy"], correctAnswer: "The Ashes", points: 10 },
     ],
     medium: [
       { question: "Who was the first batsman to score a double century in ODI cricket?", options: ["Virender Sehwag", "Sachin Tendulkar", "Rohit Sharma", "Chris Gayle"], correctAnswer: "Sachin Tendulkar", points: 15 },
-      { question: "Which bowler has taken the most wickets in Test cricket history?", options: ["Shane Warne", "Muthiah Muralidaran", "James Anderson", "Anil Kumble"], correctAnswer: "Muthiah Muralidaran", points: 15 },
     ],
     difficult: [
       { question: "Who is the only player to score 100 international centuries?", options: ["Sachin Tendulkar", "Virat Kohli", "Ricky Ponting", "Jacques Kallis"], correctAnswer: "Sachin Tendulkar", points: 20 },
-      { question: "Who bowled the famous 'Ball of the Century' to Mike Gatting in 1993?", options: ["Shane Warne", "Glenn McGrath", "Wasim Akram", "Curtly Ambrose"], correctAnswer: "Shane Warne", points: 20 },
-    ],
-  },
-  Football: {
-    easy: [
-      { question: "How long is a standard professional football match?", options: ["80 minutes", "90 minutes", "100 minutes", "120 minutes"], correctAnswer: "90 minutes", points: 10 },
-      { question: "Which player is famously known as 'CR7'?", options: ["Lionel Messi", "Cristiano Ronaldo", "Neymar Jr", "Kylian Mbappe"], correctAnswer: "Cristiano Ronaldo", points: 10 },
-    ],
-    medium: [
-      { question: "Which club has won the most UEFA Champions League titles?", options: ["AC Milan", "FC Barcelona", "Liverpool", "Real Madrid"], correctAnswer: "Real Madrid", points: 15 },
-    ],
-    difficult: [
-      { question: "Which country won the first ever FIFA World Cup in 1930?", options: ["Argentina", "Uruguay", "Brazil", "Italy"], correctAnswer: "Uruguay", points: 20 },
     ],
   },
 };
@@ -100,7 +46,6 @@ const QUIZ_BANK = {
 const DEFAULT_QUIZ_BANK = {
   easy: [
     { question: "Which sport uses a shuttlecock?", options: ["Tennis", "Badminton", "Squash", "Table Tennis"], correctAnswer: "Badminton", points: 10 },
-    { question: "How many rings are there on the Olympic flag?", options: ["4", "5", "6", "7"], correctAnswer: "5", points: 10 },
   ],
   medium: [
     { question: "Who is the legendary sprinter with the world record in 100m?", options: ["Tyson Gay", "Yohan Blake", "Usain Bolt", "Justin Gatlin"], correctAnswer: "Usain Bolt", points: 15 },
@@ -113,21 +58,48 @@ const DEFAULT_QUIZ_BANK = {
 const BATTLE_PLAYERS_TEMPLATES = [
   { battleName: "Virat Kohli vs Rohit Sharma", selectedPlayers: ["virat_kohli_id", "rohit_sharma_id"] },
   { battleName: "Jasprit Bumrah vs Mitchell Starc", selectedPlayers: ["jasprit_bumrah_id", "mitchell_starc_id"] },
-  { battleName: "Lionel Messi vs Cristiano Ronaldo", selectedPlayers: ["messi_id", "ronaldo_id"] },
 ];
 
 const BATTLE_CLUBS_TEMPLATES = [
   { battleName: "Chennai Super Kings vs Mumbai Indians", selectedClubs: ["csk_id", "mi_id"] },
-  { battleName: "Royal Challengers Bengaluru vs Kolkata Knight Riders", selectedClubs: ["rcb_id", "kkr_id"] },
 ];
 
 const PREDICTION_TEMPLATES = [
   { question: "Who will win the match?", options: ["Home Team", "Away Team", "Draw/No Result"] },
-  { question: "Will any player score a fifty in this match?", options: ["Yes", "No"] },
-  { question: "How many wickets will fall in the first 10 overs?", options: ["0 to 1", "2 to 3", "4 or more"] },
 ];
 
-// ─── Route Handlers ──────────────────────────────────────────────────────────
+// ─── Gemini Client ────────────────────────────────────────────────────────────
+
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+
+async function generateWithGemini(prompt: string, responseSchema: any = null) {
+  if (!GEMINI_API_KEY) return null;
+
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const payload: any = {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseMimeType: "application/json",
+      },
+    };
+
+    if (responseSchema) {
+      payload.generationConfig.responseSchema = responseSchema;
+    }
+
+    const response = await axios.post(url, payload, { timeout: 10000 });
+    const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (text) {
+      return JSON.parse(text);
+    }
+  } catch (error) {
+    console.error("❌ Gemini API request failed in route:", error);
+  }
+  return null;
+}
+
+// ─── Route Handler ────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
   return handleAutomation();
@@ -146,27 +118,66 @@ async function handleAutomation() {
       matchesPredicted: 0,
     };
 
-    // 1. Generate Poll
-    const pollTemplate = POLL_TEMPLATES[Math.floor(Math.random() * POLL_TEMPLATES.length)];
+    // 1. Generate Poll / Quiz
+    let pollData: any = null;
+    if (GEMINI_API_KEY) {
+      const prompt = `Generate a single interesting, trending sports poll (about Cricket, Football, or general sports) as JSON. Use this exact schema:
+      {
+        "title": "Question text (e.g. Who will win the next Ballon d'Or?)",
+        "type": "poll" or "quiz",
+        "options": [
+          { "label": "Option text 1", "isCorrect": false },
+          { "label": "Option text 2", "isCorrect": true }
+        ]
+      }
+      Make sure to provide 2 to 4 options. If type is "quiz", mark one option as "isCorrect": true. If type is "poll", all isCorrect must be false.`;
+
+      const schema = {
+        type: "OBJECT",
+        properties: {
+          title: { type: "STRING" },
+          type: { type: "STRING", enum: ["poll", "quiz"] },
+          options: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                label: { type: "STRING" },
+                isCorrect: { type: "BOOLEAN" },
+              },
+              required: ["label", "isCorrect"],
+            },
+          },
+        },
+        required: ["title", "type", "options"],
+      };
+
+      pollData = await generateWithGemini(prompt, schema);
+    }
+
+    if (!pollData) {
+      pollData = POLL_TEMPLATES[Math.floor(Math.random() * POLL_TEMPLATES.length)];
+    }
+
     const existingPoll = await db
       .collection("polls")
-      .where("title", "==", pollTemplate.title)
+      .where("title", "==", pollData.title)
       .get();
 
     if (existingPoll.empty) {
-      const options = pollTemplate.options.map((o, i) => ({
+      const options = pollData.options.map((o: any, i: number) => ({
         id: `opt_${i + 1}`,
         label: o.label,
         votes: 0,
-        ...(pollTemplate.type === "quiz" ? { isCorrect: o.isCorrect } : {}),
+        ...(pollData.type === "quiz" ? { isCorrect: !!o.isCorrect } : {}),
       }));
 
       const now = Timestamp.now();
       const endsAt = Timestamp.fromDate(new Date(Date.now() + 24 * 60 * 60 * 1000));
 
       await db.collection("polls").add({
-        title: pollTemplate.title,
-        type: pollTemplate.type,
+        title: pollData.title,
+        type: pollData.type,
         options,
         active: true,
         endsAt,
@@ -181,30 +192,78 @@ async function handleAutomation() {
 
     for (const level of levels) {
       const category = categories[Math.floor(Math.random() * categories.length)];
-      let questionPool = [];
+      let quizQuestions: any = null;
 
-      if (QUIZ_BANK[category] && QUIZ_BANK[category][level]) {
-        questionPool = QUIZ_BANK[category][level];
-      } else {
-        questionPool = DEFAULT_QUIZ_BANK[level];
+      if (GEMINI_API_KEY) {
+        const prompt = `Generate a 5-question trivia quiz on category "${category}" and difficulty level "${level}" as JSON. Use this exact schema:
+        {
+          "questions": [
+            {
+              "question": "Question text?",
+              "options": ["Option A", "Option B", "Option C", "Option D"],
+              "correctAnswer": "Option A (must exactly match one of the options)",
+              "points": ${level === "easy" ? 10 : level === "medium" ? 15 : 20}
+            }
+          ]
+        }`;
+
+        const schema = {
+          type: "OBJECT",
+          properties: {
+            questions: {
+              type: "ARRAY",
+              items: {
+                type: "OBJECT",
+                properties: {
+                  question: { type: "STRING" },
+                  options: { type: "ARRAY", items: { type: "STRING" } },
+                  correctAnswer: { type: "STRING" },
+                  points: { type: "INTEGER" },
+                },
+                required: ["question", "options", "correctAnswer", "points"],
+              },
+            },
+          },
+          required: ["questions"],
+        };
+
+        const result = await generateWithGemini(prompt, schema);
+        if (result && result.questions && result.questions.length > 0) {
+          quizQuestions = result.questions.map((q: any, i: number) => ({
+            questionNumber: i + 1,
+            question: q.question,
+            options: q.options,
+            correctAnswer: q.correctAnswer,
+            points: q.points,
+          }));
+        }
       }
 
-      const shuffled = [...questionPool].sort(() => 0.5 - Math.random()).slice(0, 5);
-      const questionsMapped = shuffled.map((q, i) => ({
-        questionNumber: i + 1,
-        question: q.question,
-        options: q.options,
-        correctAnswer: q.correctAnswer,
-        points: q.points,
-      }));
+      if (!quizQuestions) {
+        let questionPool = [];
+        if (QUIZ_BANK[category] && QUIZ_BANK[category][level]) {
+          questionPool = QUIZ_BANK[category][level];
+        } else {
+          questionPool = DEFAULT_QUIZ_BANK[level];
+        }
 
-      if (questionsMapped.length > 0) {
+        const shuffled = [...questionPool].sort(() => 0.5 - Math.random()).slice(0, 5);
+        quizQuestions = shuffled.map((q, i) => ({
+          questionNumber: i + 1,
+          question: q.question,
+          options: q.options,
+          correctAnswer: q.correctAnswer,
+          points: q.points,
+        }));
+      }
+
+      if (quizQuestions.length > 0) {
         await db.collection("fanBattleQuizzes").add({
           level,
           category,
-          questions: questionsMapped,
-          totalQuestions: questionsMapped.length,
-          totalPoints: questionsMapped.reduce((sum, q) => sum + q.points, 0),
+          questions: quizQuestions,
+          totalQuestions: quizQuestions.length,
+          totalPoints: quizQuestions.reduce((sum: number, q: any) => sum + q.points, 0),
           createdAt: Date.now(),
           updatedAt: Date.now(),
         });
@@ -215,21 +274,48 @@ async function handleAutomation() {
     // 3. Generate Fan Battles
     const types = ["PLAYERS", "CLUBS"] as const;
     for (const type of types) {
-      const template = type === "PLAYERS"
-        ? BATTLE_PLAYERS_TEMPLATES[Math.floor(Math.random() * BATTLE_PLAYERS_TEMPLATES.length)]
-        : BATTLE_CLUBS_TEMPLATES[Math.floor(Math.random() * BATTLE_CLUBS_TEMPLATES.length)];
+      let battleData: any = null;
+
+      if (GEMINI_API_KEY) {
+        const prompt = `Generate a single trending, highly competitive sports matchup (${type === "PLAYERS" ? "Player vs Player" : "Club vs Club"}) as JSON. Use this exact schema:
+        {
+          "battleName": "Name vs Name (e.g. Virat Kohli vs Steve Smith or Arsenal vs Chelsea)",
+          "selectedPlayers": ["PlayerName1", "PlayerName2"] (only if type is PLAYERS, otherwise empty array),
+          "selectedClubs": ["ClubName1", "ClubName2"] (only if type is CLUBS, otherwise empty array)
+        }`;
+
+        const schema = {
+          type: "OBJECT",
+          properties: {
+            battleName: { type: "STRING" },
+            selectedPlayers: { type: "ARRAY", items: { type: "STRING" } },
+            selectedClubs: { type: "ARRAY", items: { type: "STRING" } },
+          },
+          required: ["battleName", "selectedPlayers", "selectedClubs"],
+        };
+
+        battleData = await generateWithGemini(prompt, schema);
+      }
+
+      if (!battleData) {
+        if (type === "PLAYERS") {
+          battleData = BATTLE_PLAYERS_TEMPLATES[Math.floor(Math.random() * BATTLE_PLAYERS_TEMPLATES.length)];
+        } else {
+          battleData = BATTLE_CLUBS_TEMPLATES[Math.floor(Math.random() * BATTLE_CLUBS_TEMPLATES.length)];
+        }
+      }
 
       const existingBattle = await db
         .collection("fanBattles")
-        .where("battleName", "==", template.battleName)
+        .where("battleName", "==", battleData.battleName)
         .get();
 
       if (existingBattle.empty) {
         await db.collection("fanBattles").add({
-          battleName: template.battleName,
+          battleName: battleData.battleName,
           battleType: type,
-          selectedPlayers: "selectedPlayers" in template ? template.selectedPlayers : [],
-          selectedClubs: "selectedClubs" in template ? template.selectedClubs : [],
+          selectedPlayers: battleData.selectedPlayers || [],
+          selectedClubs: battleData.selectedClubs || [],
           invitedFriends: [],
           userId: "admin",
           userName: "Admin User",
@@ -248,31 +334,67 @@ async function handleAutomation() {
       const predictionsSnap = await matchDoc.ref.collection("predictions").limit(1).get();
 
       if (predictionsSnap.empty) {
-        const shuffledTemplates = [...PREDICTION_TEMPLATES].sort(() => 0.5 - Math.random()).slice(0, 3);
+        let predictionsList: any = null;
+        const home = matchData.homeTeam || "Home Team";
+        const away = matchData.awayTeam || "Away Team";
 
-        for (const t of shuffledTemplates) {
-          let question = t.question;
-          let options = [...t.options];
+        if (GEMINI_API_KEY) {
+          const prompt = `For a live sports match between "${home}" and "${away}", generate 3 highly engaging match prediction questions as JSON. Use this exact schema:
+          {
+            "predictions": [
+              {
+                "question": "Prediction Question (e.g. Will ${home} score in the first half?)",
+                "options": ["Yes", "No"]
+              }
+            ]
+          }`;
 
-          if (matchData.homeTeam && matchData.awayTeam) {
-            question = question
-              .replace("Home Team", matchData.homeTeam)
-              .replace("Away Team", matchData.awayTeam);
-            options = options.map((opt) =>
-              opt
-                .replace("Home Team", matchData.homeTeam)
-                .replace("Away Team", matchData.awayTeam)
-            );
+          const schema = {
+            type: "OBJECT",
+            properties: {
+              predictions: {
+                type: "ARRAY",
+                items: {
+                  type: "OBJECT",
+                  properties: {
+                    question: { type: "STRING" },
+                    options: { type: "ARRAY", items: { type: "STRING" } },
+                  },
+                  required: ["question", "options"],
+                },
+              },
+            },
+            required: ["predictions"],
+          };
+
+          const result = await generateWithGemini(prompt, schema);
+          if (result && result.predictions && result.predictions.length > 0) {
+            predictionsList = result.predictions;
           }
+        }
 
+        if (!predictionsList) {
+          const shuffledTemplates = [...PREDICTION_TEMPLATES].sort(() => 0.5 - Math.random()).slice(0, 3);
+          predictionsList = shuffledTemplates.map((t) => {
+            let question = t.question
+              .replace("Home Team", home)
+              .replace("Away Team", away);
+            let options = t.options.map((opt) =>
+              opt.replace("Home Team", home).replace("Away Team", away)
+            );
+            return { question, options };
+          });
+        }
+
+        for (const t of predictionsList) {
           const votes: Record<string, number> = {};
-          options.forEach((opt) => {
+          t.options.forEach((opt: string) => {
             votes[opt] = 0;
           });
 
           await matchDoc.ref.collection("predictions").add({
-            question,
-            options,
+            question: t.question,
+            options: t.options,
             votes,
             totalVotes: 0,
             closesAt: Date.now() + 12 * 60 * 60 * 1000,
