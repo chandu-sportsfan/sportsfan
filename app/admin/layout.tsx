@@ -719,6 +719,13 @@ const FULL_NAV: NavGroup[] = [
           { href: "/admin/fifaplayerstats-management/fifaplayerstats-list", label: "FIFA Players Stats List" },
         ],
       },
+       {
+        label: "FIFA Clubs", icon: "◉",
+        children: [
+          { href: "/admin/fifaclub-management/add-fifaclub", label: "Add FIFA Club" },
+          { href: "/admin/fifaclub-management/fifaclub-list", label: "FIFA Club List" },
+        ],
+      },
       {
         label: "Fan Battle", icon: "◉",
         children: [
