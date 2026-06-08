@@ -48,36 +48,42 @@ export async function POST(
 
       if (!postSnap.exists) throw new Error("Post not found");
 
-      // Remove previous vote if exists
+      const postData = postSnap.data() as any;
+      let agreeCount: number = postData.agreeCount ?? 0;
+      let disagreeCount: number = postData.disagreeCount ?? 0;
+
+      // Step 1: Undo previous vote
       if (voteSnap.exists) {
         const prev = (voteSnap.data() as Vote).vote;
-        const decrementField =
-          prev === "agree" ? "agreeCount" : "disagreeCount";
-        tx.update(postRef, {
-          [decrementField]: Math.max(
-            (postSnap.data() as any)[decrementField] - 1,
-            0,
-          ),
-          updatedAt: now,
-        });
+        if (prev === "agree") {
+          agreeCount = Math.max(agreeCount - 1, 0);
+        } else if (prev === "disagree") {
+          disagreeCount = Math.max(disagreeCount - 1, 0);
+        }
         tx.delete(voteRef);
       }
 
-      // Apply new vote
+      // Step 2: Apply new vote
       if (vote) {
-        const incrementField =
-          vote === "agree" ? "agreeCount" : "disagreeCount";
+        if (vote === "agree") {
+          agreeCount += 1;
+        } else {
+          disagreeCount += 1;
+        }
         tx.set(voteRef, {
           uid: resolvedUserId,
-          postId: postId,
+          postId,
           vote,
           createdAt: now,
         } satisfies Vote);
-        tx.update(postRef, {
-          [incrementField]: ((postSnap.data() as any)[incrementField] ?? 0) + 1,
-          updatedAt: now,
-        });
       }
+
+      // Single atomic write to the post doc (avoids double-write issue in Firestore)
+      tx.update(postRef, {
+        agreeCount,
+        disagreeCount,
+        updatedAt: now,
+      });
     });
 
     return NextResponse.json({ success: true, vote });
