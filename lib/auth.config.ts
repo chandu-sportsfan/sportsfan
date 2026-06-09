@@ -94,7 +94,7 @@
 
 
 
-//lib/auth.config.ts
+//lib/auth.config.ts - Admin panel
 
 
 

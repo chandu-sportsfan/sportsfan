@@ -1,3 +1,5 @@
+//lib/auth.ts - Admin panel
+
 import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth.config";
 import jwt from "jsonwebtoken";

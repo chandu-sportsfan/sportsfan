@@ -726,6 +726,13 @@ const FULL_NAV: NavGroup[] = [
           { href: "/admin/fifaclub-management/fifaclub-list", label: "FIFA Club List" },
         ],
       },
+        {
+        label: "WT20 Clubs", icon: "◉",
+        children: [
+          { href: "/admin/wt20club-management/add-wt20club", label: "Add WT20 Club" },
+          { href: "/admin/wt20club-management/wt20club-list", label: "WT20 Club List" },
+        ],
+      },
       {
         label: "Fan Battle", icon: "◉",
         children: [
