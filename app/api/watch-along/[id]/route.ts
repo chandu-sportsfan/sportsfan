@@ -88,9 +88,8 @@ export async function PUT(req: NextRequest) {
       roomData.coHostUserId.toLowerCase() === user.email?.toLowerCase()
     );
 
-    const authorizedRoles = ["super_admin", "admin", "host"];
-    const isDevTester = user.email?.includes("prisha") || user.userId?.includes("prisha") || user.userId?.includes("admin_user");
-    if (!authorizedRoles.includes(user.role) && !isDevTester && !isCoHost) {
+    const authorizedRoles = ["super_admin", "admin", "host", "user"];
+    if (!authorizedRoles.includes(user.role) && !isCoHost) {
       return NextResponse.json(
         { success: false, message: "Forbidden - Insufficient permissions" },
         { status: 403 }
@@ -98,7 +97,7 @@ export async function PUT(req: NextRequest) {
     }
 
     // Ownership check: Host can only modify their own room
-    if (user.role === "host" && roomData?.hostUserId !== user.userId && !isDevTester && !isCoHost) {
+    if (user.role === "host" && roomData?.hostUserId !== user.userId && !isCoHost) {
       return NextResponse.json(
         { success: false, message: "Forbidden - You do not own this watchroom" },
         { status: 403 }
@@ -192,9 +191,8 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const authorizedRoles = ["super_admin", "admin", "host"];
-    const isDevTester = user.email?.includes("prisha") || user.userId?.includes("prisha") || user.userId?.includes("admin_user");
-    if (!authorizedRoles.includes(user.role) && !isDevTester) {
+    const authorizedRoles = ["super_admin", "admin", "host", "user"];
+    if (!authorizedRoles.includes(user.role)) {
       return NextResponse.json(
         { success: false, message: "Forbidden - Insufficient permissions" },
         { status: 403 }
@@ -219,7 +217,7 @@ export async function DELETE(req: NextRequest) {
 
     // Ownership check: Host can only delete their own room
     const roomData = existing.data();
-    if (user.role === "host" && roomData?.hostUserId !== user.userId && !isDevTester) {
+    if (user.role === "host" && roomData?.hostUserId !== user.userId) {
       return NextResponse.json(
         { success: false, message: "Forbidden - You do not own this watchroom" },
         { status: 403 }

@@ -102,9 +102,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const authorizedRoles = ["super_admin", "admin"];
-    const isDevTester = user.email?.includes("prisha") || user.userId?.includes("prisha") || user.userId?.includes("admin_user");
-    if (!authorizedRoles.includes(user.role) && !isDevTester) {
+    const authorizedRoles = ["super_admin", "admin", "user"];
+    if (!authorizedRoles.includes(user.role)) {
       return NextResponse.json(
         { success: false, message: "Forbidden - Insufficient permissions" },
         { status: 403 }
