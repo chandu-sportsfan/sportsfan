@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const authorizedRoles = ["super_admin", "admin", "host", "user"];
+    const authorizedRoles = ["super_admin", "admin", "host"];
     if (!authorizedRoles.includes(user.role)) {
       return NextResponse.json(
         { success: false, message: "Forbidden - Insufficient permissions" },
