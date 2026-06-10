@@ -44,7 +44,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
 }
-
+//POST
+//api
+//apis
 // POST /api/fifa-matches — single manual entry
 export async function POST(req: NextRequest) {
   let body: Record<string, unknown>;

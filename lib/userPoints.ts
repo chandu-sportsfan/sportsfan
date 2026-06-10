@@ -319,6 +319,18 @@ export async function awardUserPoints({
 
   const now = Date.now();
   const batch = db.batch();
+  const defaultActivityLabel =
+    reason === "LISTEN_AUDIO_DROP" || reason === "LISTEN_COMPLETE"
+      ? "Listen Audio Drops"
+      : reason;
+  const defaultActivityType =
+    reason === "LISTEN_AUDIO_DROP" || reason === "LISTEN_COMPLETE"
+      ? "LISTEN_AUDIO_DROP"
+      : reason;
+  const activityLabel =
+    typeof metadata?.activityLabel === "string" ? metadata.activityLabel : defaultActivityLabel;
+  const activityType =
+    typeof metadata?.activityType === "string" ? metadata.activityType : defaultActivityType;
 
   // 1. Transaction record (idempotency guard)
   batch.set(transactionRef, {
@@ -327,6 +339,8 @@ export async function awardUserPoints({
     userName,
     points,
     reason,
+    type: activityType,
+    label: activityLabel,
     metadata: metadata ?? {},
     createdAt: now,
   });

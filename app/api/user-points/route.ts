@@ -263,7 +263,8 @@ import { awardUserPoints, getUserInfo } from "@/lib/userPoints";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { userId, userEmail, userName, reason, transactionId, points, metadata } = body;
+    const { actualUserId, userId: requestedUserId, userEmail, userName, reason, transactionId, points, metadata } = body;
+    const userId = requestedUserId || actualUserId;
 
     // ── Validation ────────────────────────────────────────────────────────────
     if (!userId || typeof userId !== "string") {
