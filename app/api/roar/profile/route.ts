@@ -8,16 +8,6 @@ import type { Post } from "@/app/models/Post";
 
 // ── Validation helpers ────────────────────────────────────────────────────────
 
-function validateDisplayName(value: string): string | null {
-  const v = value.trim();
-  if (v.length === 0) return null; // optional field — empty is fine
-  if (v.length < 2) return "Display name must be at least 2 characters.";
-  if (v.length > 60) return "Display name must be 60 characters or fewer.";
-  if (!/^[A-Za-zÀ-ÖØ-öø-ÿ0-9\s'.\-_]+$/.test(v))
-    return "Display name contains invalid characters.";
-  return null;
-}
-
 function validateUsername(value: string): string | null {
   const v = value.trim();
   if (!v) return "Username is required.";
@@ -28,18 +18,45 @@ function validateUsername(value: string): string | null {
   return null;
 }
 
-function validateFavouritePlayer(value: string): string | null {
+function validateFavPlayer(value: string): string | null {
   const v = value.trim();
   if (v.length === 0) return null; // optional
   if (v.length > 60) return "Favourite player name must be 60 characters or fewer.";
   return null;
 }
 
-function validateAboutMe(value: string): string | null {
+function validateAbout(value: string): string | null {
   const v = value.trim();
   if (v.length === 0) return null; // optional
   if (v.length > 300) return "About me must be 300 characters or fewer.";
   return null;
+}
+
+function validateAvatarUrl(value: string): string | null {
+  const v = value.trim();
+  if (v.length === 0) return null; // optional
+  // Allow base64 data URIs (avatar picker) or standard https URLs
+  if (
+    !v.startsWith("data:image/") &&
+    !v.startsWith("https://") &&
+    !v.startsWith("http://")
+  ) {
+    return "Avatar must be a valid image URL or base64 data URI.";
+  }
+  return null;
+}
+
+// ── Resolve Firestore user doc ────────────────────────────────────────────────
+
+async function resolveUserDoc(userId: string, email: string) {
+  let docRef = db.collection("users").doc(email);
+  let snap = await docRef.get();
+  if (!snap.exists) {
+    docRef = db.collection("users").doc(userId);
+    snap = await docRef.get();
+    if (!snap.exists) return null;
+  }
+  return { docRef, snap };
 }
 
 // ── GET ───────────────────────────────────────────────────────────────────────
@@ -52,20 +69,20 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    let resolvedUserId = user.email;
-    let userSnap = await db.collection("users").doc(user.email).get();
-    if (!userSnap.exists) {
-      userSnap = await db.collection("users").doc(user.userId).get();
-      if (userSnap.exists) {
-        resolvedUserId = user.userId;
-      }
-    }
-
-    if (!userSnap.exists) {
+    const resolved = await resolveUserDoc(user.userId, user.email);
+    if (!resolved) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const userData = userSnap.data() as User;
+    const { docRef, snap } = resolved;
+    const resolvedUserId = docRef.id; // the actual Firestore doc ID used
+
+    const userData = snap.data() as User & {
+      favPlayer?: string;
+      about?: string;
+      avatarUrl?: string;
+    };
+
     if (!userData || !userData.username || !userData.badge) {
       return NextResponse.json(
         { error: "ROAR profile not onboarded", onboarded: false },
@@ -79,7 +96,10 @@ export async function GET(req: NextRequest) {
         .doc(resolvedUserId)
         .collection("roarProgress")
         .get(),
-      db.collection("roarPosts").where("authorUid", "==", resolvedUserId).get(),
+      db
+        .collection("roarPosts")
+        .where("authorUid", "==", resolvedUserId)
+        .get(),
       db.collection("rivals").doc(resolvedUserId).get(),
     ]);
 
@@ -109,11 +129,18 @@ export async function GET(req: NextRequest) {
       user: {
         ...userData,
         accuracy,
-        // Explicitly surface the new editable fields so the frontend
-        // can pre-fill them even if they weren't in the original User type
-        displayName:      (userData as any).displayName      ?? null,
-        favouritePlayer:  (userData as any).favouritePlayer  ?? null,
-        aboutMe:          (userData as any).aboutMe          ?? null,
+        // ── Editable profile fields — use the canonical names the frontend
+        // expects (favPlayer, about, avatarUrl).  Fall back gracefully if the
+        // old camelCase variants were stored by an earlier version.
+        favPlayer:
+          userData.favPlayer ??
+          (userData as any).favouritePlayer ??
+          null,
+        about:
+          userData.about ??
+          (userData as any).aboutMe ??
+          null,
+        avatarUrl: userData.avatarUrl ?? null,
       },
       badges: badgesSnap.docs.map((d) => ({
         ...(d.data() as BadgeProgress),
@@ -148,17 +175,17 @@ export async function PATCH(req: NextRequest) {
       const err = validateUsername(String(body.username));
       if (err) validationErrors.username = err;
     }
-    if (body.displayName !== undefined) {
-      const err = validateDisplayName(String(body.displayName));
-      if (err) validationErrors.displayName = err;
+    if (body.favPlayer !== undefined) {
+      const err = validateFavPlayer(String(body.favPlayer));
+      if (err) validationErrors.favPlayer = err;
     }
-    if (body.favouritePlayer !== undefined) {
-      const err = validateFavouritePlayer(String(body.favouritePlayer));
-      if (err) validationErrors.favouritePlayer = err;
+    if (body.about !== undefined) {
+      const err = validateAbout(String(body.about));
+      if (err) validationErrors.about = err;
     }
-    if (body.aboutMe !== undefined) {
-      const err = validateAboutMe(String(body.aboutMe));
-      if (err) validationErrors.aboutMe = err;
+    if (body.avatarUrl !== undefined) {
+      const err = validateAvatarUrl(String(body.avatarUrl));
+      if (err) validationErrors.avatarUrl = err;
     }
 
     if (Object.keys(validationErrors).length > 0) {
@@ -170,20 +197,28 @@ export async function PATCH(req: NextRequest) {
 
     // ── Build the update payload ────────────────────────────────────────────
     // Original allowed fields kept exactly as-is
-    const allowedFields = ["username", "fcmToken", "settings", "teams", "sports"];
+    const allowedPassthroughFields = [
+      "username",
+      "fcmToken",
+      "settings",
+      "teams",
+      "sports",
+    ];
     const updates: Record<string, unknown> = { updatedAt: Date.now() };
 
-    for (const field of allowedFields) {
+    for (const field of allowedPassthroughFields) {
       if (body[field] !== undefined) updates[field] = body[field];
     }
 
-    // New profile fields
-    if (body.displayName !== undefined)
-      updates.displayName = String(body.displayName).trim().slice(0, 60);
-    if (body.favouritePlayer !== undefined)
-      updates.favouritePlayer = String(body.favouritePlayer).trim().slice(0, 60);
-    if (body.aboutMe !== undefined)
-      updates.aboutMe = String(body.aboutMe).trim().slice(0, 300);
+    // New profile fields — store under the same names the frontend uses
+    if (body.favPlayer !== undefined)
+      updates.favPlayer = String(body.favPlayer).trim().slice(0, 60);
+    if (body.about !== undefined)
+      updates.about = String(body.about).trim().slice(0, 300);
+    if (body.avatarUrl !== undefined)
+      updates.avatarUrl = String(body.avatarUrl).trim();
+    if (body.showPredHistory !== undefined)
+      updates.showPredHistory = Boolean(body.showPredHistory);
 
     // Nothing meaningful to save?
     const meaningfulKeys = Object.keys(updates).filter((k) => k !== "updatedAt");
@@ -195,18 +230,13 @@ export async function PATCH(req: NextRequest) {
     }
 
     // ── Resolve the user's Firestore document ───────────────────────────────
-    let userDocRef = db.collection("users").doc(user.email);
-    let userSnap = await userDocRef.get();
-    if (!userSnap.exists) {
-      userDocRef = db.collection("users").doc(user.userId);
-      userSnap = await userDocRef.get();
-    }
-    if (!userSnap.exists) {
+    const resolved = await resolveUserDoc(user.userId, user.email);
+    if (!resolved) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
     // ── Persist with merge so we never overwrite unrelated fields ───────────
-    await userDocRef.set(updates, { merge: true });
+    await resolved.docRef.set(updates, { merge: true });
 
     return NextResponse.json({
       success: true,
