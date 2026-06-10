@@ -1,8 +1,13 @@
-// //api/roar/posts/route.ts
+
+
+
+
+// // api/roar/posts/route.ts
 
 // import { NextRequest, NextResponse } from "next/server";
 // import { db } from "@/lib/firebaseAdmin";
 // import { getUser } from "@/lib/getUser";
+// import { awardRoarPoints } from "@/lib/roarPoints";
 // import type { Post, PostType, SportType } from "@/app/models/Post";
 
 // export async function POST(req: NextRequest) {
@@ -22,6 +27,7 @@
 //       matchId,
 //       confidence,
 //       audience = "Everyone",
+//       mediaUrls,
 //     }: {
 //       type: PostType;
 //       text: string;
@@ -31,6 +37,7 @@
 //       matchId?: string;
 //       confidence?: number;
 //       audience?: string;
+//       mediaUrls?: string[];
 //     } = body;
 
 //     if (!type || !text?.trim()) {
@@ -40,10 +47,11 @@
 //       );
 //     }
 
-//     // Fetch author info
+//     // ── Resolve user doc ──────────────────────────────────────────────────────
 //     let userDocRef = db.collection("users").doc(user.email);
 //     let userSnap = await userDocRef.get();
 //     let resolvedUserId = user.email;
+
 //     if (!userSnap.exists) {
 //       userDocRef = db.collection("users").doc(user.userId);
 //       userSnap = await userDocRef.get();
@@ -58,8 +66,23 @@
 //         { status: 404 },
 //       );
 //     }
-//     const userData = userSnap.data() as { username: string; badge: string };
 
+//     const userData = userSnap.data() as {
+//       username: string;
+//       badge: string;
+//       firstName?: string;
+//       lastName?: string;
+//       name?: string;
+//       email?: string;
+//     };
+
+//     // ── Resolve display name for points ──────────────────────────────────────
+//     const resolvedName = userData.firstName
+//       ? [userData.firstName, userData.lastName].filter(Boolean).join(" ")
+//       : userData.name || userData.username || "User";
+//     const resolvedEmail = userData.email || user.email || "";
+
+//     // ── Build and save the ROAR post ─────────────────────────────────────────
 //     const now = Date.now();
 //     const postRef = db.collection("roarPosts").doc();
 
@@ -71,18 +94,18 @@
 //       type,
 //       sport,
 //       text: text.trim(),
-//       ...(sideA && { sideA }),
-//       ...(sideB && { sideB }),
-//       ...(matchId && { matchId }),
+//       ...(sideA     && { sideA }),
+//       ...(sideB     && { sideB }),
+//       ...(matchId   && { matchId }),
 //       ...(confidence !== undefined && { confidence }),
 //       audience,
-//       agreeCount: 0,
+//       agreeCount:    0,
 //       disagreeCount: 0,
-//       replyCount: 0,
-//       isLive: false,
-//       status: "active",
-//       createdAt: now,
-//       updatedAt: now,
+//       replyCount:    0,
+//       isLive:        false,
+//       status:        "active",
+//       createdAt:     now,
+//       updatedAt:     now,
 //     };
 
 //     const batch = db.batch();
@@ -100,11 +123,49 @@
 
 //     await batch.commit();
 
-//     return NextResponse.json({
-//       success: true,
-//       postId: postRef.id,
-//       post: newPost,
-//     });
+//     // ── Award ROAR points ─────────────────────────────────────────────────────
+//     let pointsAwarded = 0;
+//     try {
+//       const transactionId = `${resolvedUserId}_${postRef.id}_ROAR_${type.toUpperCase()}`;
+//       const { awarded, points } = await awardRoarPoints({
+//         actualUserId:  resolvedUserId,
+//         authUserId:    user.userId !== resolvedUserId ? user.userId : undefined,
+//         userName:      resolvedName,
+//         userEmail:     resolvedEmail,
+//         userExists:    true,
+//         postType:      type,
+//         transactionId,
+//         metadata: {
+//           postId: postRef.id,
+//           sport,
+//           ...(sideA && { sideA }),
+//           ...(sideB && { sideB }),
+//         },
+//       });
+
+//       if (awarded) {
+//         pointsAwarded = points;
+//         console.log(
+//           ` ROAR post created: ${postRef.id} | +${points} pts (${type}) awarded to ${resolvedUserId}`,
+//         );
+//       }
+//     } catch (pointsErr) {
+//       // Points failure must never block the post response
+//       console.error("[roar/posts] Failed to award points:", pointsErr);
+//     }
+
+//     return NextResponse.json(
+//       {
+//         success:       true,
+//         postId:        postRef.id,
+//         post:          newPost,
+//         pointsAwarded,
+//         message:       pointsAwarded
+//           ? `ROAR posted! +${pointsAwarded} points awarded!`
+//           : "ROAR posted successfully!",
+//       },
+//       { status: 201 },
+//     );
 //   } catch (error: unknown) {
 //     const msg = error instanceof Error ? error.message : "Unexpected error";
 //     console.error("POST /api/roar/posts error:", error);
@@ -145,20 +206,18 @@
 //     const posts = await Promise.all(
 //       snapshot.docs.map(async (doc) => {
 //         const data = doc.data() as Post;
-//         const voteSnap = await doc.ref.collection("votes").doc(resolvedUserId).get();
-//         const userVote = voteSnap.exists ? (voteSnap.data() as any).vote : null;
-//         return {
-//           ...data,
-//           postId: doc.id,
-//           userVote,
-//         };
-//       })
+//         const voteSnap = await doc.ref
+//           .collection("roarVotes")
+//           .doc(resolvedUserId)
+//           .get();
+//         const userVote = voteSnap.exists
+//           ? (voteSnap.data() as any).vote
+//           : null;
+//         return { ...data, postId: doc.id, userVote };
+//       }),
 //     );
 
-//     return NextResponse.json({
-//       success: true,
-//       posts,
-//     });
+//     return NextResponse.json({ success: true, posts });
 //   } catch (error: unknown) {
 //     const msg = error instanceof Error ? error.message : "Unexpected error";
 //     console.error("GET /api/roar/posts error:", error);
@@ -170,11 +229,15 @@
 
 
 
+
+
+
 // api/roar/posts/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { getUser } from "@/lib/getUser";
+import { getUserInfo } from "@/lib/userPoints"; // ✅ Add this import
 import { awardRoarPoints } from "@/lib/roarPoints";
 import type { Post, PostType, SportType } from "@/app/models/Post";
 
@@ -215,27 +278,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── Resolve user doc ──────────────────────────────────────────────────────
-    let userDocRef = db.collection("users").doc(user.email);
-    let userSnap = await userDocRef.get();
-    let resolvedUserId = user.email;
+    // ✅ FIX: Use getUserInfo instead of manual resolution
+    const { 
+      actualUserId, 
+      userName: resolvedName, 
+      userEmail: resolvedEmail, 
+      exists 
+    } = await getUserInfo(
+      user.userId,      // auth user ID (might be email or sanitized)
+      user.name,        // fallback name
+      user.email        // fallback email
+    );
 
-    if (!userSnap.exists) {
-      userDocRef = db.collection("users").doc(user.userId);
-      userSnap = await userDocRef.get();
-      if (userSnap.exists) {
-        resolvedUserId = user.userId;
-      }
-    }
+    console.log("Original userId:", user.userId);
+    console.log("Original email:", user.email);
+    console.log("Resolved actualUserId:", actualUserId);
+    console.log("User exists:", exists);
 
-    if (!userSnap.exists) {
+    if (!exists) {
       return NextResponse.json(
         { error: "User profile not found" },
         { status: 404 },
       );
     }
 
-    const userData = userSnap.data() as {
+    // Get user data for additional fields (username, badge, etc.)
+    const userDoc = await db.collection("users").doc(actualUserId).get();
+    const userData = userDoc.data() as {
       username: string;
       badge: string;
       firstName?: string;
@@ -244,19 +313,13 @@ export async function POST(req: NextRequest) {
       email?: string;
     };
 
-    // ── Resolve display name for points ──────────────────────────────────────
-    const resolvedName = userData.firstName
-      ? [userData.firstName, userData.lastName].filter(Boolean).join(" ")
-      : userData.name || userData.username || "User";
-    const resolvedEmail = userData.email || user.email || "";
-
     // ── Build and save the ROAR post ─────────────────────────────────────────
     const now = Date.now();
     const postRef = db.collection("roarPosts").doc();
 
     const newPost: Post = {
       postId: postRef.id,
-      authorUid: resolvedUserId,
+      authorUid: actualUserId,  // ✅ Use resolved actualUserId
       authorUsername: userData.username,
       authorBadge: userData.badge,
       type,
@@ -282,7 +345,7 @@ export async function POST(req: NextRequest) {
     // Increment the right counter on the user doc
     const counterField =
       type === "prediction" ? "predictionCount" : "hotTakeCount";
-    batch.update(userDocRef, {
+    batch.update(db.collection("users").doc(actualUserId), {
       [counterField]: (userData as any)[counterField]
         ? (userData as any)[counterField] + 1
         : 1,
@@ -294,14 +357,14 @@ export async function POST(req: NextRequest) {
     // ── Award ROAR points ─────────────────────────────────────────────────────
     let pointsAwarded = 0;
     try {
-      const transactionId = `${resolvedUserId}_${postRef.id}_ROAR_${type.toUpperCase()}`;
+      const transactionId = `${actualUserId}_${postRef.id}_ROAR_${type.toUpperCase()}`;
       const { awarded, points } = await awardRoarPoints({
-        actualUserId:  resolvedUserId,
-        authUserId:    user.userId !== resolvedUserId ? user.userId : undefined,
-        userName:      resolvedName,
-        userEmail:     resolvedEmail,
-        userExists:    true,
-        postType:      type,
+        actualUserId: actualUserId,     // ✅ Use resolved actualUserId
+        authUserId: user.userId,        // Original auth ID for leaderboard
+        userName: resolvedName,
+        userEmail: resolvedEmail,
+        userExists: true,
+        postType: type,
         transactionId,
         metadata: {
           postId: postRef.id,
@@ -314,7 +377,7 @@ export async function POST(req: NextRequest) {
       if (awarded) {
         pointsAwarded = points;
         console.log(
-          ` ROAR post created: ${postRef.id} | +${points} pts (${type}) awarded to ${resolvedUserId}`,
+          `✅ ROAR post created: ${postRef.id} | +${points} pts (${type}) awarded to ${actualUserId}`,
         );
       }
     } catch (pointsErr) {
@@ -361,14 +424,12 @@ export async function GET(req: NextRequest) {
       query = query.where("sport", "==", sport);
     }
 
-    let userSnap = await db.collection("users").doc(user.email).get();
-    let resolvedUserId = user.email;
-    if (!userSnap.exists) {
-      userSnap = await db.collection("users").doc(user.userId).get();
-      if (userSnap.exists) {
-        resolvedUserId = user.userId;
-      }
-    }
+    // ✅ FIX: Use getUserInfo to resolve the correct user ID
+    const { actualUserId } = await getUserInfo(
+      user.userId,
+      user.name,
+      user.email
+    );
 
     const snapshot = await query.get();
     const posts = await Promise.all(
@@ -376,7 +437,7 @@ export async function GET(req: NextRequest) {
         const data = doc.data() as Post;
         const voteSnap = await doc.ref
           .collection("roarVotes")
-          .doc(resolvedUserId)
+          .doc(actualUserId)  // ✅ Use resolved actualUserId
           .get();
         const userVote = voteSnap.exists
           ? (voteSnap.data() as any).vote
