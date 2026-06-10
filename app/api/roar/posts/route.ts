@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
       matchId,
       confidence,
       audience = "Everyone",
+      mediaUrls,
     }: {
       type: PostType;
       text: string;
@@ -29,6 +30,7 @@ export async function POST(req: NextRequest) {
       matchId?: string;
       confidence?: number;
       audience?: string;
+      mediaUrls?: string[];
     } = body;
 
     if (!type || !text?.trim()) {
@@ -79,6 +81,7 @@ export async function POST(req: NextRequest) {
       replyCount: 0,
       isLive: false,
       status: "active",
+      mediaUrls: mediaUrls || [],
       createdAt: now,
       updatedAt: now,
     };
