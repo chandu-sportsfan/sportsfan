@@ -3,12 +3,26 @@ import { db } from "@/lib/firebaseAdmin";
 import { getUser } from "@/lib/getUser";
 import type { Notification } from "@/app/models/Notification";
 
+async function getResolvedUserId(user: { email: string; userId: string }) {
+  let resolvedUserId = user.email;
+  let userSnap = await db.collection("users").doc(user.email).get();
+  if (!userSnap.exists) {
+    userSnap = await db.collection("users").doc(user.userId).get();
+    if (userSnap.exists) {
+      resolvedUserId = user.userId;
+    }
+  }
+  return resolvedUserId;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const user = await getUser(req);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const resolvedUserId = await getResolvedUserId(user);
 
     const { searchParams } = new URL(req.url);
     const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 50);
@@ -17,7 +31,7 @@ export async function GET(req: NextRequest) {
 
     let query = db
       .collection("notifications")
-      .doc(user.userId)
+      .doc(resolvedUserId)
       .collection("items")
       .orderBy("createdAt", "desc")
       .limit(limit);
@@ -27,7 +41,7 @@ export async function GET(req: NextRequest) {
     if (lastDocId) {
       const lastDoc = await db
         .collection("notifications")
-        .doc(user.userId)
+        .doc(resolvedUserId)
         .collection("items")
         .doc(lastDocId)
         .get();
@@ -68,12 +82,14 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const resolvedUserId = await getResolvedUserId(user);
+
     const body = await req.json();
     const { notifId, markAll } = body;
 
     const baseRef = db
       .collection("notifications")
-      .doc(user.userId)
+      .doc(resolvedUserId)
       .collection("items");
 
     if (markAll) {

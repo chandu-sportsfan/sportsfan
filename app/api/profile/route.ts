@@ -121,17 +121,20 @@ export async function GET(req: NextRequest) {
     const isOwnProfile = requestedUserId === authUser.userId;
 
     const payload = {
-      name:        data.name        ?? null,
-      subtitle:    data.subtitle    ?? null,
-      description: data.description ?? null,
-      location:    data.location    ?? null,
-      website:     data.website     ?? null,
-      avatarUrl:   data.avatarUrl   ?? null,
-      joinedDate:  data.joinedDate  ?? null,
-      role:        data.role        ?? null,
-      followers:   data.followers   ?? null,
-      connections: data.connections ?? null,
-    };
+  name:        data.name        ?? null,
+  subtitle:    data.subtitle    ?? null,
+  description: data.description ?? null,
+  location:    data.location    ?? null,
+  website:     data.website     ?? null,
+  avatarUrl:   data.avatarUrl   ?? null,
+  joinedDate:  data.joinedDate  ?? null,
+  role:        data.role        ?? null,
+
+  followers:   data.followers   ?? 0,
+  following:   data.following   ?? 0,
+
+  connections: data.connections ?? null,
+};
     void isOwnProfile; // suppress "unused variable" lint warning
 
     return NextResponse.json(payload, { headers: { "Cache-Control": "no-store" } });
@@ -241,14 +244,24 @@ const profilePicture =
     updateData.updatedAt = now;
 
     const existingDoc = await db.collection("users").doc(CURRENT_USER_ID).get();
-    if (!existingDoc.exists) {
-      updateData.createdAt  = now;
-      updateData.joinedDate = new Date().toLocaleDateString("en-US", {
-        month: "long", year: "numeric",
-      });
-      updateData.role = updateData.role ?? "user";
-    }
+   if (!existingDoc.exists) {
+  updateData.createdAt = now;
 
+  updateData.joinedDate =
+    new Date().toLocaleDateString(
+      "en-US",
+      {
+        month: "long",
+        year: "numeric",
+      }
+    );
+
+  updateData.role =
+    updateData.role ?? "user";
+
+  updateData.followers = 0;
+  updateData.following = 0;
+}
     // ── Persist ───────────────────────────────────────────────────────────────
     await db.collection("users").doc(CURRENT_USER_ID).set(updateData, { merge: true });
 

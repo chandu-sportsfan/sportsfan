@@ -14,6 +14,9 @@ import { db } from "@/lib/firebaseAdmin";
 // NOTE: No auth() / NextAuth import needed. The Bearer token approach works
 // cross-domain because it's just a JWT in a header, not a cookie.
 // ─────────────────────────────────────────────────────────────────────────────
+const normalizeId = (id: string) =>
+  id.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_");
+
 async function getUser(req: NextRequest) {
   // ── Path A: JWT cookie (email/password users) ─────────────────────────────
   const cookieToken = req.cookies.get("token")?.value;
@@ -31,7 +34,7 @@ async function getUser(req: NextRequest) {
         payload.userId ?? payload.uid ?? payload.id ?? payload.email;
       if (userId && payload.email) {
         return {
-          userId,
+          userId: normalizeId(userId),
           email: payload.email,
           name: payload.name ?? "",
           role: payload.role ?? "user",
@@ -59,7 +62,7 @@ async function getUser(req: NextRequest) {
         payload.userId ?? payload.uid ?? payload.id ?? payload.email;
       if (userId && payload.email) {
         return {
-          userId,
+          userId: normalizeId(userId),
           email: payload.email,
           name: payload.name ?? "",
           role: payload.role ?? "user",
@@ -74,12 +77,19 @@ async function getUser(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
+  console.log("hit chat api");
   try {
     const user = await getUser(req);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const CURRENT_USER_ID = user.userId;
+    const isSameUser = (id1: string, id2: string) => {
+      const n1 = normalizeId(id1);
+      const n2 = normalizeId(id2);
+      if (!n1 || !n2) return false;
+      return n1 === n2 || n1.endsWith(n2) || n2.endsWith(n1);
+    };
 
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type");
@@ -112,9 +122,123 @@ export async function GET(req: NextRequest) {
     const chats = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
     const lastDoc = snapshot.docs[snapshot.docs.length - 1];
 
+    // Enrich DM chats with latest recipient profiles (name, avatarUrl)
+    const otherParticipantIds = new Set<string>();
+    chats.forEach((chat: any) => {
+      if (chat.type === "dm" && Array.isArray(chat.participantIds)) {
+        const otherId = chat.participantIds.find(
+          (id: string) => !isSameUser(id, CURRENT_USER_ID),
+        );
+        if (otherId) otherParticipantIds.add(normalizeId(otherId));
+      }
+    });
+
+    const userProfiles: Record<string, { name?: string; avatarUrl?: string }> =
+      {};
+    if (otherParticipantIds.size > 0) {
+      const idsArray = Array.from(otherParticipantIds);
+
+      // 1. Fetch by document ID (emails / exact IDs)
+      const docRefs = idsArray.map((id) => db.collection("users").doc(id));
+      const docSnaps = await db.getAll(...docRefs);
+      docSnaps.forEach((doc) => {
+        if (doc.exists) {
+          const udata = doc.data();
+          const fullName =
+            udata?.name ||
+            udata?.username ||
+            [udata?.firstName, udata?.lastName]
+              .filter(Boolean)
+              .join(" ")
+              .trim() ||
+            "";
+          const avatarUrl = udata?.avatarUrl || udata?.avatar || "";
+          userProfiles[doc.id] = { name: fullName, avatarUrl };
+          if (udata?.userId) {
+            userProfiles[normalizeId(udata.userId)] = {
+              name: fullName,
+              avatarUrl,
+            };
+          }
+        }
+      });
+
+      // 2. Query by userId field for any IDs that we couldn't resolve yet
+      const unresolvedIds = idsArray.filter((id) => !userProfiles[id]);
+      if (unresolvedIds.length > 0) {
+        const chunks: string[][] = [];
+        for (let i = 0; i < unresolvedIds.length; i += 30) {
+          chunks.push(unresolvedIds.slice(i, i + 30));
+        }
+
+        for (const chunk of chunks) {
+          const snap = await db
+            .collection("users")
+            .where("userId", "in", chunk)
+            .get();
+          snap.docs.forEach((doc) => {
+            const udata = doc.data();
+            const fullName =
+              udata.name ||
+              udata.username ||
+              [udata.firstName, udata.lastName]
+                .filter(Boolean)
+                .join(" ")
+                .trim() ||
+              "";
+            const avatarUrl = udata.avatarUrl || udata.avatar || "";
+            if (udata.userId) {
+              userProfiles[normalizeId(udata.userId)] = {
+                name: fullName,
+                avatarUrl,
+              };
+            }
+            userProfiles[doc.id] = { name: fullName, avatarUrl };
+          });
+        }
+      }
+    }
+
+ const enrichedChats = await Promise.all(
+  chats.map(async (chat: any) => {
+    // ✅ WORKAROUND: Fetch all unread, then filter in code
+    const messagesSnap = await db
+      .collection("messages")
+      .where("chatId", "==", chat.id)
+      .where("isRead", "==", false)
+      .get();
+
+    // Filter out own messages in JavaScript (not in query)
+    // Use isSameUser() to handle normalized IDs correctly (e.g. dots/@ replaced with _)
+    const unreadFromOther = messagesSnap.docs.filter(
+      (doc) => !isSameUser(doc.data().senderId, CURRENT_USER_ID)
+    );
+
+    const unreadCount = unreadFromOther.length;
+
+    if (chat.type === "dm" && Array.isArray(chat.participantIds)) {
+      const otherId = chat.participantIds.find(
+        (id: string) => !isSameUser(id, CURRENT_USER_ID)
+      );
+      const profile = otherId ? userProfiles[normalizeId(otherId)] : null;
+      return {
+        ...chat,
+        unreadCount,
+        name: profile?.name || "",
+        avatarUrl: profile?.avatarUrl || chat.avatarUrl || "",
+      };
+    }
+
+    return {
+      ...chat,
+      unreadCount,
+    };
+  })
+);
+
     return NextResponse.json({
       success: true,
-      chats,
+      chats: enrichedChats,
       pagination: {
         limit,
         hasMore: chats.length === limit,
@@ -166,29 +290,66 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      const normParticipantId = normalizeId(participantId);
+
       const existing = await db
         .collection("chats")
         .where("type", "==", "dm")
         .where("participantIds", "array-contains", CURRENT_USER_ID)
         .get();
 
-      const alreadyExists = existing.docs.find((d) =>
-        (d.data().participantIds as string[]).includes(participantId),
-      );
+      const alreadyExists = existing.docs.find((d) => {
+        const pids = (d.data().participantIds as string[]).map(normalizeId);
+        return pids.includes(normParticipantId);
+      });
+
       if (alreadyExists) {
+        let name = "";
+        let avatarUrl = alreadyExists.data().avatarUrl || "";
+
+        let userDoc = await db.collection("users").doc(normParticipantId).get();
+        if (!userDoc.exists) {
+          const querySnap = await db
+            .collection("users")
+            .where("userId", "==", normParticipantId)
+            .limit(1)
+            .get();
+          if (!querySnap.empty) {
+            userDoc = querySnap.docs[0];
+          }
+        }
+
+        if (userDoc && userDoc.exists) {
+          const udata = userDoc.data()!;
+          name =
+            udata.name ||
+            udata.username ||
+            [udata.firstName, udata.lastName]
+              .filter(Boolean)
+              .join(" ")
+              .trim() ||
+            name;
+          avatarUrl = udata.avatarUrl || udata.avatar || avatarUrl;
+        }
+
         return NextResponse.json({
           success: true,
           id: alreadyExists.id,
-          chat: { id: alreadyExists.id, ...alreadyExists.data() },
+          chat: {
+            id: alreadyExists.id,
+            ...alreadyExists.data(),
+            name,
+            avatarUrl,
+          },
           message: "Existing DM returned",
         });
       }
 
       const now = Date.now();
-      const newChat = {
+      const newChat: any = {
         type: "dm",
-        name: body.name?.trim() || "",
-        participantIds: [CURRENT_USER_ID, participantId],
+        name: "", // Store as empty string in Firestore for DM
+        participantIds: [CURRENT_USER_ID, normParticipantId],
         lastMessageContent: "",
         lastMessageAt: now,
         unreadCount: 0,
@@ -201,9 +362,36 @@ export async function POST(req: NextRequest) {
         updatedAt: now,
       };
 
+      let recipientName = "";
+      let userDoc = await db.collection("users").doc(normParticipantId).get();
+      if (!userDoc.exists) {
+        const querySnap = await db
+          .collection("users")
+          .where("userId", "==", normParticipantId)
+          .limit(1)
+          .get();
+        if (!querySnap.empty) {
+          userDoc = querySnap.docs[0];
+        }
+      }
+
+      if (userDoc && userDoc.exists) {
+        const udata = userDoc.data()!;
+        recipientName =
+          udata.name ||
+          udata.username ||
+          [udata.firstName, udata.lastName].filter(Boolean).join(" ").trim() ||
+          recipientName;
+        newChat.avatarUrl = udata.avatarUrl || udata.avatar || "";
+      }
+
       const docRef = await db.collection("chats").add(newChat);
       return NextResponse.json(
-        { success: true, id: docRef.id, chat: { id: docRef.id, ...newChat } },
+        {
+          success: true,
+          id: docRef.id,
+          chat: { id: docRef.id, ...newChat, name: recipientName },
+        },
         { status: 201 },
       );
     }
