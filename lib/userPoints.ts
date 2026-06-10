@@ -1,7 +1,23 @@
+
+
 // // lib/userPoints.ts
-// //chandu's code
 // import { db } from "@/lib/firebaseAdmin";
 // import { FieldValue } from "firebase-admin/firestore";
+
+// // ─── Activity label map ───────────────────────────────────────────────────────
+// const ACTIVITY_LABELS: Record<string, (meta?: Record<string, unknown>) => string> = {
+//   LISTEN_COMPLETE:  (m) => `Listened to "${m?.title ?? "audio drop"}"`,
+//   FAN_BATTLE_WIN:   (m) => `Won a Fan Battle${m?.opponent ? ` vs ${m.opponent}` : ""}`,
+//   FAN_BATTLE_PLAY:  ()  => "Played a Fan Battle",
+//   POST_CREATED:     ()  => "Created a Fan Zone post",
+//   TRIVIA_CORRECT:   (m) => `Answered trivia correctly${m?.topic ? ` — ${m.topic}` : ""}`,
+//   REGISTRATION:     ()  => "Joined SportsFan360",
+//   INVITE_ACCEPTED:  (m) => `Friend ${m?.friendName ?? "someone"} joined via your invite`,
+// };
+
+// function getActivityLabel(reason: string, meta?: Record<string, unknown>): string {
+//   return ACTIVITY_LABELS[reason]?.(meta) ?? reason.replace(/_/g, " ").toLowerCase();
+// }
 
 // // ─── getUserInfo ──────────────────────────────────────────────────────────────
 // // Resolves canonical user info from Firestore.
@@ -85,6 +101,7 @@
 // //
 // // Idempotent: if transactionId already exists, returns false and does nothing.
 // // Dynamic breakdown keys: increment() on a missing field initialises it to 0+n.
+// // Also writes an activityLog entry atomically with the points — same batch.
 
 // export async function awardUserPoints({
 //   actualUserId,
@@ -98,7 +115,7 @@
 //   metadata,
 // }: {
 //   actualUserId: string;
-//   authUserId?: string;  // optional — defaults to actualUserId when not supplied
+//   authUserId?: string;
 //   userName: string;
 //   userEmail: string;
 //   userExists: boolean;
@@ -109,10 +126,6 @@
 // }): Promise<boolean> {
 //   if (points <= 0) return false;
 
-//   // When authUserId is not provided (battle-vote, battle/route, user-points),
-//   // fall back to actualUserId — both are the same value for those callers.
-//   // Only fanbattle/response needs to pass authUserId explicitly because
-//   // getUserInfo may resolve a different actualUserId via email lookup there.
 //   const leaderboardUserId = authUserId ?? actualUserId;
 
 //   const transactionRef = db.collection("userPointTransactions").doc(transactionId);
@@ -122,7 +135,7 @@
 //   const now = Date.now();
 //   const batch = db.batch();
 
-//   // 1. Transaction record
+//   // 1. Transaction record (idempotency guard)
 //   batch.set(transactionRef, {
 //     userId: leaderboardUserId,
 //     userEmail,
@@ -143,9 +156,7 @@
 //     });
 //   }
 
-//   // 3. Global leaderboard — keyed on leaderboardUserId (= authUserId when provided,
-//   //    otherwise actualUserId). Using authUserId for trivia ensures the doc ID
-//   //    matches what the frontend sends and what sessions/responses are stored under.
+//   // 3. Global leaderboard — keyed on leaderboardUserId
 //   const globalRef = db.collection("globalLeaderboard").doc(leaderboardUserId);
 //   batch.set(
 //     globalRef,
@@ -159,11 +170,25 @@
 //     { merge: true }
 //   );
 
+//   // 4. Activity log — one doc per event, subcollection under the user
+//   //    Written in the same batch so it's atomic with the points write.
+//   const activityRef = db
+//     .collection("users")
+//     .doc(actualUserId)
+//     .collection("activityLog")
+//     .doc();
+
+//   batch.set(activityRef, {
+//     type:      reason,
+//     points:    points,
+//     label:     getActivityLabel(reason, metadata),
+//     metadata:  metadata ?? {},
+//     createdAt: now,
+//   });
+
 //   await batch.commit();
 //   return true;
 // }
-
-
 
 
 
@@ -184,6 +209,13 @@ const ACTIVITY_LABELS: Record<string, (meta?: Record<string, unknown>) => string
   TRIVIA_CORRECT:   (m) => `Answered trivia correctly${m?.topic ? ` — ${m.topic}` : ""}`,
   REGISTRATION:     ()  => "Joined SportsFan360",
   INVITE_ACCEPTED:  (m) => `Friend ${m?.friendName ?? "someone"} joined via your invite`,
+
+  // ── ROAR ──────────────────────────────────────────────────────────────────
+  ROAR_HOT_TAKE:    ()  => "Posted a ROAR Hot Take",
+  ROAR_PREDICTION:  (m) => `Made a ROAR Prediction${m?.sport ? ` — ${m.sport}` : ""}`,
+  ROAR_DEBATE:      (m) => `Started a ROAR Debate${m?.sideA ? ` (${m.sideA} vs ${m.sideB})` : ""}`,
+  ROAR_MEMORY:      ()  => "Shared a ROAR Memory",
+  ROAR_POST:        ()  => "Shared a ROAR Post",
 };
 
 function getActivityLabel(reason: string, meta?: Record<string, unknown>): string {
@@ -191,13 +223,6 @@ function getActivityLabel(reason: string, meta?: Record<string, unknown>): strin
 }
 
 // ─── getUserInfo ──────────────────────────────────────────────────────────────
-// Resolves canonical user info from Firestore.
-// Falls back to email lookup for Google auth users whose UID may differ.
-//
-// Returns:
-//   actualUserId — Firestore DOCUMENT ID of the users doc  → use for users collection writes
-//   authUserId   — the original ID the client sent          → use for sessions + globalLeaderboard
-
 export async function getUserInfo(
   userId: string,
   fallbackName?: string,
@@ -263,17 +288,6 @@ export async function getUserInfo(
 }
 
 // ─── awardUserPoints ──────────────────────────────────────────────────────────
-// Awards points to a user for any reason.
-//
-//  actualUserId  — Firestore doc ID → users collection writes
-//  authUserId    — stable auth ID   → globalLeaderboard doc ID + transactionId
-//                  For most users these are identical. They diverge only when
-//                  a Google auth user's Firestore doc was found via email lookup.
-//
-// Idempotent: if transactionId already exists, returns false and does nothing.
-// Dynamic breakdown keys: increment() on a missing field initialises it to 0+n.
-// Also writes an activityLog entry atomically with the points — same batch.
-
 export async function awardUserPoints({
   actualUserId,
   authUserId,
@@ -331,7 +345,7 @@ export async function awardUserPoints({
     createdAt: now,
   });
 
-  // 2. User doc — keyed on actualUserId (real Firestore doc ID)
+  // 2. User doc — keyed on actualUserId
   if (userExists) {
     const userRef = db.collection("users").doc(actualUserId);
     batch.update(userRef, {
@@ -355,8 +369,7 @@ export async function awardUserPoints({
     { merge: true }
   );
 
-  // 4. Activity log — one doc per event, subcollection under the user
-  //    Written in the same batch so it's atomic with the points write.
+  // 4. Activity log — atomic with the points write
   const activityRef = db
     .collection("users")
     .doc(actualUserId)
