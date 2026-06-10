@@ -126,19 +126,31 @@ export async function DELETE(req: NextRequest) {
     const resolvedUserId = await getResolvedUserId(user);
 
     const body = await req.json();
-    const { notifId } = body;
+    const { notifId, all } = body;
 
-    if (notifId) {
-      await db
-        .collection("notifications")
-        .doc(resolvedUserId)
-        .collection("items")
-        .doc(notifId)
-        .delete();
+    const baseRef = db
+      .collection("notifications")
+      .doc(resolvedUserId)
+      .collection("items");
+
+    if (notifId && !all) {
+      await baseRef.doc(notifId).delete();
       return NextResponse.json({ success: true });
     }
 
-    return NextResponse.json({ error: "Provide notifId" }, { status: 400 });
+    if (all) {
+      const snapshot = await baseRef.get();
+      if (snapshot.empty) {
+        return NextResponse.json({ success: true, deleted: 0 });
+      }
+
+      const batch = db.batch();
+      snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+      await batch.commit();
+      return NextResponse.json({ success: true, deleted: snapshot.size });
+    }
+
+    return NextResponse.json({ error: "Provide notifId or all: true" }, { status: 400 });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
     console.error("DELETE /api/roar/notifications error:", error);
