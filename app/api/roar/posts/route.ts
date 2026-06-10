@@ -148,10 +148,19 @@ export async function GET(req: NextRequest) {
         const data = doc.data() as Post;
         const voteSnap = await doc.ref.collection("votes").doc(resolvedUserId).get();
         const userVote = voteSnap.exists ? (voteSnap.data() as any).vote : null;
+
+        let userLiked = false;
+        if (data.type === "post") {
+          const likeSnap = await doc.ref.collection("likes").doc(resolvedUserId).get();
+          userLiked = likeSnap.exists;
+        }
+
         return {
           ...data,
           postId: doc.id,
           userVote,
+          likeCount: data.likeCount ?? 0,
+          userLiked,
         };
       })
     );
