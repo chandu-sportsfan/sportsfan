@@ -13,8 +13,8 @@ function validateUsername(value: string): string | null {
   if (!v) return "Username is required.";
   if (v.length < 2) return "Username must be at least 2 characters.";
   if (v.length > 30) return "Username must be 30 characters or fewer.";
-  if (!/^[A-Za-z0-9_]+$/.test(v))
-    return "Username may only contain letters, numbers, and underscores.";
+  if (!/^[A-Za-z0-9_ ]+$/.test(v))
+    return "Username may only contain letters, numbers, underscores, and spaces.";
   return null;
 }
 
