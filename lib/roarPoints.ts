@@ -98,7 +98,7 @@
 
 
 
-
+import "server-only";
 
 // lib/roarPoints.ts
 import { FieldValue } from "firebase-admin/firestore";

@@ -31,7 +31,7 @@
 // export { db };
 
 
-
+import "server-only";
 
 import admin from "firebase-admin";
 
