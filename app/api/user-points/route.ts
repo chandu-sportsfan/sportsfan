@@ -291,7 +291,6 @@ export async function POST(req: NextRequest) {
       userName: resolvedName,
       userEmail: resolvedEmail,
       exists: userExists,
-      actualUserId,
     } = await getUserInfo(userId, userName, userEmail);
 
     // ── Award points (idempotent — no-ops if transactionId already exists) ────
