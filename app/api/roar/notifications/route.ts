@@ -115,3 +115,33 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await getUser(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const resolvedUserId = await getResolvedUserId(user);
+
+    const body = await req.json();
+    const { notifId } = body;
+
+    if (notifId) {
+      await db
+        .collection("notifications")
+        .doc(resolvedUserId)
+        .collection("items")
+        .doc(notifId)
+        .delete();
+      return NextResponse.json({ success: true });
+    }
+
+    return NextResponse.json({ error: "Provide notifId" }, { status: 400 });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Unexpected error";
+    console.error("DELETE /api/roar/notifications error:", error);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
