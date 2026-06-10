@@ -25,6 +25,7 @@ export interface Post {
   isLive: boolean;
   status: PostStatus;
   mediaUrls?: string[];
+  likeCount?: number;
   createdAt: number;
   updatedAt: number;
 }
