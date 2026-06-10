@@ -15,11 +15,11 @@ export async function POST(
     }
 
     const body = await req.json();
-    const { reaction }: { reaction: "fire" | "noChance" } = body;
+    const { reaction }: { reaction: "fire" | "noChance" | "heart" } = body;
 
-    if (reaction !== "fire" && reaction !== "noChance") {
+    if (reaction !== "fire" && reaction !== "noChance" && reaction !== "heart") {
       return NextResponse.json(
-        { error: "reaction must be 'fire' or 'noChance'" },
+        { error: "reaction must be 'fire', 'noChance' or 'heart'" },
         { status: 400 },
       );
     }
@@ -34,7 +34,9 @@ export async function POST(
       }
     }
 
-    const field = reaction === "fire" ? "fireCount" : "noChanceCount";
+    let field = "fireCount";
+    if (reaction === "noChance") field = "noChanceCount";
+    else if (reaction === "heart") field = "heartCount";
     const msgRef = db
       .collection("roarRooms")
       .doc(roomId)
