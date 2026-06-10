@@ -4,7 +4,7 @@ import { db } from "@/lib/firebaseAdmin";
 export async function GET(req: NextRequest) {
   const userId = req.nextUrl.searchParams.get("userId");
   const limit  = parseInt(req.nextUrl.searchParams.get("limit") ?? "20");
-
+  
   if (!userId) {
     return NextResponse.json({ success: false, error: "userId required" }, { status: 400 });
   }

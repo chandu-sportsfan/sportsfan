@@ -207,7 +207,7 @@ export async function POST(req: NextRequest) {
         });
 
         pointsAwarded = POST_POINTS_REWARD;
-        console.log(`✅ Post created: ${docRef.id} | +${POST_POINTS_REWARD} pts awarded to ${userId}`);
+        console.log(` Post created: ${docRef.id} | +${POST_POINTS_REWARD} pts awarded to ${userId}`);
       } catch (pointsErr) {
         console.error("[createpost] Failed to award points:", pointsErr);
       }

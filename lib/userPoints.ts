@@ -223,6 +223,74 @@ function getActivityLabel(reason: string, meta?: Record<string, unknown>): strin
   return ACTIVITY_LABELS[reason]?.(meta) ?? reason.replace(/_/g, " ").toLowerCase();
 }
 
+// // ─── getUserInfo 
+// export async function getUserInfo(
+//   userId: string,
+//   fallbackName?: string,
+//   fallbackEmail?: string
+// ): Promise<{
+//   userName: string;
+//   userEmail: string;
+//   exists: boolean;
+//   actualUserId: string;
+//   authUserId: string;
+// }> {
+//   try {
+//     let snap = await db.collection("users").doc(userId).get();
+//     let actualUserId = userId;
+
+//     if (!snap.exists && fallbackEmail) {
+//       const emailQuery = await db
+//         .collection("users")
+//         .where("email", "==", fallbackEmail)
+//         .limit(1)
+//         .get();
+
+//       if (!emailQuery.empty) {
+//         snap = emailQuery.docs[0];
+//         actualUserId = snap.id;
+//         console.log(`[getUserInfo] Found user by email: ${actualUserId} for authUserId: ${userId}`);
+//       }
+//     }
+
+//     if (snap.exists) {
+//       const d = snap.data()!;
+//       const userName = d.firstName
+//         ? [d.firstName, d.lastName].filter(Boolean).join(" ")
+//         : d.name ||
+//           (d.email ? d.email.split("@")[0] : fallbackName) ||
+//           "User";
+//       return {
+//         userName,
+//         userEmail: d.email || fallbackEmail || "",
+//         exists: true,
+//         actualUserId,
+//         authUserId: userId,
+//       };
+//     }
+
+//     return {
+//       userName: fallbackName || "User",
+//       userEmail: fallbackEmail || "",
+//       exists: false,
+//       actualUserId: userId,
+//       authUserId: userId,
+//     };
+//   } catch (err) {
+//     console.error("[getUserInfo] error:", err);
+//     return {
+//       userName: fallbackName || "User",
+//       userEmail: fallbackEmail || "",
+//       exists: false,
+//       actualUserId: userId,
+//       authUserId: userId,
+//     };
+//   }
+// }
+
+
+
+
 // ─── getUserInfo ──────────────────────────────────────────────────────────────
 export async function getUserInfo(
   userId: string,
@@ -239,6 +307,7 @@ export async function getUserInfo(
     let snap = await db.collection("users").doc(userId).get();
     let actualUserId = userId;
 
+    // If not found by exact ID, try email lookup
     if (!snap.exists && fallbackEmail) {
       const emailQuery = await db
         .collection("users")
@@ -250,6 +319,30 @@ export async function getUserInfo(
         snap = emailQuery.docs[0];
         actualUserId = snap.id;
         console.log(`[getUserInfo] Found user by email: ${actualUserId} for authUserId: ${userId}`);
+      }
+    }
+
+    // ✅ NEW: If userId contains '@' (email format), try the sanitized version
+    if (!snap.exists && userId.includes('@')) {
+      const sanitizedId = userId.replace(/\./g, '_').replace(/@/g, '_');
+      const sanitizedSnap = await db.collection("users").doc(sanitizedId).get();
+      
+      if (sanitizedSnap.exists) {
+        snap = sanitizedSnap;
+        actualUserId = sanitizedId;
+        console.log(`[getUserInfo] Found user by sanitized ID: ${actualUserId} for authUserId: ${userId}`);
+      }
+    }
+
+    // ✅ NEW: If userId is sanitized format (contains '_' and no '@'), try email format
+    if (!snap.exists && userId.includes('_') && !userId.includes('@')) {
+      const emailFormatId = userId.replace(/_/g, '.');
+      const emailSnap = await db.collection("users").doc(emailFormatId).get();
+      
+      if (emailSnap.exists) {
+        snap = emailSnap;
+        actualUserId = emailFormatId;
+        console.log(`[getUserInfo] Found user by email format: ${actualUserId} for authUserId: ${userId}`);
       }
     }
 
@@ -287,6 +380,8 @@ export async function getUserInfo(
     };
   }
 }
+
+
 
 // ─── awardUserPoints ──────────────────────────────────────────────────────────
 export async function awardUserPoints({
