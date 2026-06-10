@@ -322,17 +322,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── If audio is >95% listened — clear progress (treat as finished) ───
-    if (pct >= LISTEN_COMPLETE_THRESHOLD) {
-      await AudioProgressModel.markCompleted(userId, audioId);
-      return NextResponse.json({
-        success: true,
-        message: "Progress cleared — audio finished",
-        pointsAwarded: 0,
-      });
-    }
-
-    // ── Save / update progress ────────────────────────────────────────────
+    // -- Save / update progress ────────────────────────────────────────────
     const progress = await AudioProgressModel.saveProgress(userId, {
       audioId,
       title,
@@ -343,61 +333,56 @@ export async function POST(req: NextRequest) {
       url,
     });
 
-    // ── Award points when user crosses threshold (exactly once) ───────────
+    // -- Award points when user crosses threshold (exactly once) -----------
     let pointsAwarded = 0;
 
     if (pct >= LISTEN_POINTS_THRESHOLD) {
-      const transactionId = `${userId}_${encodeURIComponent(audioId)}_LISTEN_COMPLETE`;
+      const transactionId = `${userId}_${encodeURIComponent(audioId)}_LISTEN_AUDIO_DROP`;
 
-      // Check if points already awarded
-      const { exists: pointsAlreadyAwarded } = await AudioProgressModel.getOrCreateTransaction(
-        transactionId,
-        audioId,
-        userId,
-        title,
-        pct
-      );
+      let resolvedName = userName || "User";
+      let resolvedEmail = userEmail || "";
+      let userExists = false;
 
-      if (!pointsAlreadyAwarded) {
-        // Resolve user info (name / email) from Firestore if not supplied
-        let resolvedName = userName || "User";
-        let resolvedEmail = userEmail || "";
-        let userExists = false;
+      try {
+        const userSnap = await db.collection("users").doc(userId).get();
+        userExists = userSnap.exists;
 
-        try {
-          const userSnap = await db.collection("users").doc(userId).get();
-          userExists = userSnap.exists;
-
-          if (userSnap.exists) {
-            const data = userSnap.data()!;
-            if (!userName || userName === "User") {
-              resolvedName =
-                data.firstName
-                  ? [data.firstName, data.lastName].filter(Boolean).join(" ")
-                  : data.name || data.email?.split("@")[0] || "User";
-            }
-            resolvedEmail = resolvedEmail || data.email || "";
+        if (userSnap.exists) {
+          const data = userSnap.data()!;
+          if (!userName || userName === "User") {
+            resolvedName =
+              data.firstName
+                ? [data.firstName, data.lastName].filter(Boolean).join(" ")
+                : data.name || data.email?.split("@")[0] || "User";
           }
-        } catch (lookupErr) {
-          console.error("[audio-progress] user lookup error:", lookupErr);
+          resolvedEmail = resolvedEmail || data.email || "";
         }
+      } catch (lookupErr) {
+        console.error("[audio-progress] user lookup error:", lookupErr);
+      }
 
-        await awardUserPoints({
-          actualUserId: userId,
-          userName: resolvedName,
-          userEmail: resolvedEmail,
-          userExists,
-          points: LISTEN_POINTS_REWARD,
-          reason: "LISTEN_COMPLETE",
+      const awarded = await awardUserPoints({
+        actualUserId: userId,
+        userName: resolvedName,
+        userEmail: resolvedEmail,
+        userExists,
+        points: LISTEN_POINTS_REWARD,
+        reason: "LISTEN_AUDIO_DROP",
+        transactionId,
+        metadata: {
+          audioId,
+          audioTitle: title || "",
+          title: title || "",
+          subtitle: subtitle || "Audio Drop",
+          url: url || "",
+          pct,
+          activityType: "LISTEN_AUDIO_DROP",
+          activityLabel: "Listen Audio Drops",
           transactionId,
-          metadata: {
-            audioId,
-            title: title || "",
-            pct,
-          },
-        });
+        },
+      });
 
-        // Mark points as awarded in progress record
+      if (awarded) {
         await AudioProgressModel.markPointsAwarded(userId, audioId);
         pointsAwarded = LISTEN_POINTS_REWARD;
 
@@ -405,6 +390,16 @@ export async function POST(req: NextRequest) {
           `[audio-progress] +${LISTEN_POINTS_REWARD} pts awarded to ${userId} for listening to "${title}" (${pct}%)`
         );
       }
+    }
+
+    if (pct >= LISTEN_COMPLETE_THRESHOLD) {
+      await AudioProgressModel.markCompleted(userId, audioId);
+      return NextResponse.json({
+        success: true,
+        message: "Progress cleared - audio finished",
+        progress,
+        pointsAwarded,
+      });
     }
 
     return NextResponse.json({
