@@ -1,4 +1,4 @@
-export type PostType = "hot_take" | "prediction" | "debate" | "memory";
+export type PostType = "hot_take" | "prediction" | "debate" | "memory" | "post";
 export type PostStatus =
   | "active"
   | "settled_correct"
@@ -24,6 +24,7 @@ export interface Post {
   replyCount: number;
   isLive: boolean;
   status: PostStatus;
+  mediaUrls?: string[];
   createdAt: number;
   updatedAt: number;
 }

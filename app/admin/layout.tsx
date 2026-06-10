@@ -781,6 +781,12 @@ const FULL_NAV: NavGroup[] = [
           { href: "/admin/iplpulse-management", label: "IPL Pulse Reports" },
         ],
       },
+      {
+        label: "Sentiment Engine", icon: "◉",
+        children: [
+          { href: "/admin/sentiment-management", label: "Sentiment Dashboard" },
+        ],
+      },
       { href: "/admin/content", icon: "◧", label: "Content / Posts" },
       { href: "/admin/orders", icon: "◫", label: "Orders & Payments", badge: "8" },
     ],

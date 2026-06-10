@@ -151,10 +151,24 @@ export default function RoarPostsPage() {
                         className={`px-2 py-0.5 rounded text-xs font-semibold uppercase ${
                           post.type === "hot_take"
                             ? "bg-red-500/10 text-red-400 border border-red-500/20"
-                            : "bg-orange-500/10 text-orange-400 border border-orange-500/20"
+                            : post.type === "prediction"
+                            ? "bg-orange-500/10 text-orange-400 border border-orange-500/20"
+                            : post.type === "debate"
+                            ? "bg-purple-500/10 text-purple-400 border border-purple-500/20"
+                            : post.type === "memory"
+                            ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+                            : "bg-green-500/10 text-green-400 border border-green-500/20"
                         }`}
                       >
-                        {post.type === "hot_take" ? "Hot Take" : "Prediction"}
+                        {post.type === "hot_take"
+                          ? "Hot Take"
+                          : post.type === "prediction"
+                          ? "Prediction"
+                          : post.type === "debate"
+                          ? "Debate"
+                          : post.type === "memory"
+                          ? "Memory"
+                          : "Post"}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-300 capitalize">
