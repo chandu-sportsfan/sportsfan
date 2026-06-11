@@ -8,4 +8,6 @@ export interface ChatRoom {
   isActive: boolean;
   fanCount: number;
   scheduledStartTime?: number;
+  score?: string;
+  scoreSubtitle?: string;
 }
