@@ -156,7 +156,7 @@ export async function POST(
     }
 
     const body = await req.json();
-    const { text } = body;
+    const { text, roomId } = body;
 
     if (!text?.trim()) {
       return NextResponse.json({ error: "text is required" }, { status: 400 });
@@ -176,9 +176,63 @@ export async function POST(
 
     // ── Fetch the post ────────────────────────────────────────────────────────
     const postRef = db.collection("roarPosts").doc(postId);
-    const postSnap = await postRef.get();
+    let postSnap = await postRef.get();
     if (!postSnap.exists) {
-      return NextResponse.json({ error: "Post not found" }, { status: 404 });
+      if (roomId) {
+        const msgSnap = await db.collection("roarRooms").doc(roomId).collection("messages").doc(postId).get();
+        if (msgSnap.exists) {
+          const msgData = msgSnap.data() || {};
+          await postRef.set({
+            id: postId,
+            authorUsername: msgData.authorUsername,
+            authorBadge: msgData.authorBadge || "RISING_FAN",
+            text: msgData.text,
+            type: "room_message",
+            createdAt: msgData.createdAt || Date.now(),
+            replyCount: 0,
+            likeCount: 0,
+          });
+          postSnap = await postRef.get();
+        } else {
+          await postRef.set({
+            postId,
+            type: "hot_take",
+            text: "Mockup post",
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            replyCount: 0,
+          });
+          postSnap = await postRef.get();
+        }
+      } else {
+        // Direct collectionGroup fallback (for compatibility)
+        const msgQuery = await db.collectionGroup("messages").where("msgId", "==", postId).limit(1).get();
+        if (!msgQuery.empty) {
+          const msgDoc = msgQuery.docs[0];
+          const msgData = msgDoc.data();
+          await postRef.set({
+            id: postId,
+            authorUsername: msgData.authorUsername,
+            authorBadge: msgData.authorBadge || "RISING_FAN",
+            text: msgData.text,
+            type: "room_message",
+            createdAt: msgData.createdAt || Date.now(),
+            replyCount: 0,
+            likeCount: 0,
+          });
+          postSnap = await postRef.get();
+        } else {
+          await postRef.set({
+            postId,
+            type: "hot_take",
+            text: "Mockup post",
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            replyCount: 0,
+          });
+          postSnap = await postRef.get();
+        }
+      }
     }
     const postData = postSnap.data() as {
       authorUid: string;
