@@ -245,8 +245,8 @@ export default function RoarPostsPage() {
                     <tr key={post.postId} className="border-b border-[#21262d] hover:bg-[#0d1117] transition">
                       <td className="px-4 py-3 text-sm text-gray-400">{index + 1}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-white">
-                        {post.authorUsername}
-                        <span className="block text-xs font-normal text-gray-500">{post.authorBadge}</span>
+                        {post.authorUsername || post.authorUid || "Anonymous"}
+                        <span className="block text-xs font-normal text-gray-500">{post.authorBadge || "RISING_FAN"}</span>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-300">
                         <span
@@ -381,8 +381,8 @@ export default function RoarPostsPage() {
                       <tr key={msg.msgId} className="border-b border-[#21262d] hover:bg-[#0d1117] transition">
                         <td className="px-4 py-3 text-sm text-gray-400">{index + 1}</td>
                         <td className="px-4 py-3 text-sm font-semibold text-white">
-                          {msg.authorUsername}
-                          <span className="block text-xs font-normal text-gray-500">{msg.authorBadge}</span>
+                          {msg.authorUsername || msg.authorUid || "Anonymous"}
+                          <span className="block text-xs font-normal text-gray-500">{msg.authorBadge || "RISING_FAN"}</span>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-300">
                           <span
@@ -440,7 +440,7 @@ export default function RoarPostsPage() {
             <div className="p-4 border-b border-[#21262d] flex justify-between items-center bg-[#1c2330]">
               <div>
                 <h2 className="text-lg font-bold text-white">Thread Moderation</h2>
-                <p className="text-xs text-gray-400">Post by @{selectedPost.authorUsername}</p>
+                <p className="text-xs text-gray-400">Post by @{selectedPost.authorUsername || "Anonymous"}</p>
               </div>
               <button
                 onClick={() => setSelectedPost(null)}
@@ -483,10 +483,10 @@ export default function RoarPostsPage() {
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-sm font-semibold text-white">
-                            @{comment.authorUsername}
+                            @{comment.authorUsername || "Anonymous"}
                           </span>
                           <span className="text-[10px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded">
-                            {comment.authorBadge}
+                            {comment.authorBadge || "RISING_FAN"}
                           </span>
                           <span className="text-xs text-gray-500 ml-auto">
                             {new Date(comment.createdAt).toLocaleTimeString([], {
