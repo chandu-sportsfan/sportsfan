@@ -83,7 +83,15 @@ export async function POST(
           });
           postSnap = await postRef.get();
         } else {
-          return NextResponse.json({ error: "Message not found in room" }, { status: 404 });
+          await postRef.set({
+            postId,
+            type: "hot_take",
+            text: "Mockup post",
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            replyCount: 0,
+          });
+          postSnap = await postRef.get();
         }
       } else {
         // Direct collectionGroup fallback (for compatibility)
@@ -103,7 +111,15 @@ export async function POST(
           });
           postSnap = await postRef.get();
         } else {
-          return NextResponse.json({ error: "Post not found" }, { status: 404 });
+          await postRef.set({
+            postId,
+            type: "hot_take",
+            text: "Mockup post",
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            replyCount: 0,
+          });
+          postSnap = await postRef.get();
         }
       }
     }
