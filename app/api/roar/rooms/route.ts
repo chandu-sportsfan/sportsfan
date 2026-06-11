@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { name, icon, sport } = body;
+    const { name, icon, sport, description, isActive, scheduledStartTime } = body;
 
     if (!name?.trim()) {
       return NextResponse.json({ error: "Room name is required" }, { status: 400 });
@@ -55,9 +55,11 @@ export async function POST(req: NextRequest) {
       name: name.trim(),
       ...(icon && { icon }),
       sport: sport || "general",
+      ...(description && { description: description.trim() }),
       createdAt: Date.now(),
-      isActive: true,
+      isActive: isActive !== undefined ? isActive : true,
       fanCount: 0,
+      ...(scheduledStartTime && { scheduledStartTime: Number(scheduledStartTime) }),
     };
 
     await roomRef.set(newRoom);
