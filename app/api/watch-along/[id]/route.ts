@@ -88,20 +88,19 @@ export async function PUT(req: NextRequest) {
       roomData.coHostUserId.toLowerCase() === user.email?.toLowerCase()
     );
 
-    const authorizedRoles = ["super_admin", "admin", "host"];
-    if (!authorizedRoles.includes(user.role) && !isCoHost) {
-      return NextResponse.json(
-        { success: false, message: "Forbidden - Insufficient permissions" },
-        { status: 403 }
-      );
-    }
-
-    // Ownership check: Host can only modify their own room
     const isOwner = roomData?.hostUserId && (
       roomData.hostUserId.toLowerCase() === user.userId?.toLowerCase() ||
       roomData.hostUserId.toLowerCase() === user.name?.toLowerCase() ||
       roomData.hostUserId.toLowerCase() === user.email?.toLowerCase()
     );
+
+    const authorizedRoles = ["super_admin", "admin", "host"];
+    if (!authorizedRoles.includes(user.role) && !isOwner && !isCoHost) {
+      return NextResponse.json(
+        { success: false, message: "Forbidden - Insufficient permissions" },
+        { status: 403 }
+      );
+    }
 
     if (user.role === "host" && !isOwner && !isCoHost) {
       return NextResponse.json(
