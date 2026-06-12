@@ -1753,7 +1753,7 @@ export default function CreateWatchAlong({
             <Section title={editingMatchId ? "Edit Match" : "Create New Match"}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <TextInput label="Match No *" name="matchNo" value={matchForm.matchNo} onChange={handleMatchChange} placeholder="e.g. 23" />
-                <TextInput label="Tournament" name="tournament" value={matchForm.tournament} onChange={handleMatchChange} placeholder="e.g. IPL 2026" />
+                <TextInput label="Tournament" name="tournament" value={matchForm.tournament} onChange={handleMatchChange} placeholder="e.g. Women's T20 World Cup" />
                 <TextInput label="Stadium" name="stadium" value={matchForm.stadium} onChange={handleMatchChange} placeholder="e.g. M. Chinnaswamy Stadium" />
               </div>
             </Section>
