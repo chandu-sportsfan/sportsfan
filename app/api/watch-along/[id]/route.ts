@@ -97,7 +97,13 @@ export async function PUT(req: NextRequest) {
     }
 
     // Ownership check: Host can only modify their own room
-    if (user.role === "host" && roomData?.hostUserId !== user.userId && !isCoHost) {
+    const isOwner = roomData?.hostUserId && (
+      roomData.hostUserId.toLowerCase() === user.userId?.toLowerCase() ||
+      roomData.hostUserId.toLowerCase() === user.name?.toLowerCase() ||
+      roomData.hostUserId.toLowerCase() === user.email?.toLowerCase()
+    );
+
+    if (user.role === "host" && !isOwner && !isCoHost) {
       return NextResponse.json(
         { success: false, message: "Forbidden - You do not own this watchroom" },
         { status: 403 }
@@ -217,7 +223,13 @@ export async function DELETE(req: NextRequest) {
 
     // Ownership check: Host can only delete their own room
     const roomData = existing.data();
-    if (user.role === "host" && roomData?.hostUserId !== user.userId) {
+    const isOwner = roomData?.hostUserId && (
+      roomData.hostUserId.toLowerCase() === user.userId?.toLowerCase() ||
+      roomData.hostUserId.toLowerCase() === user.name?.toLowerCase() ||
+      roomData.hostUserId.toLowerCase() === user.email?.toLowerCase()
+    );
+
+    if (user.role === "host" && !isOwner) {
       return NextResponse.json(
         { success: false, message: "Forbidden - You do not own this watchroom" },
         { status: 403 }
