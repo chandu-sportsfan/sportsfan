@@ -13,6 +13,8 @@ export default function AddRoarForm() {
   const [description, setDescription] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [scheduledStartTime, setScheduledStartTime] = useState('');
+  const [score, setScore] = useState('');
+  const [scoreSubtitle, setScoreSubtitle] = useState('');
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -29,6 +31,8 @@ export default function AddRoarForm() {
         description: description.trim(),
         isActive,
         scheduledStartTime: scheduledTimeMs,
+        score: score.trim(),
+        scoreSubtitle: scoreSubtitle.trim(),
       });
       router.push('/admin/roar-management/roar-list');
     } catch (error: any) {
@@ -90,6 +94,34 @@ export default function AddRoarForm() {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="e.g. 3rd Test · Day 2 · Adelaide Oval"
+            className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500"
+          />
+        </div>
+
+        {/* Score Input */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-300 mb-2">
+            Match Score (Optional)
+          </label>
+          <input
+            type="text"
+            value={score}
+            onChange={(e) => setScore(e.target.value)}
+            placeholder="e.g. 287/4"
+            className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500"
+          />
+        </div>
+
+        {/* Score Subtitle Input */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-300 mb-2">
+            Score Subtitle (Optional)
+          </label>
+          <input
+            type="text"
+            value={scoreSubtitle}
+            onChange={(e) => setScoreSubtitle(e.target.value)}
+            placeholder="e.g. IND • 88 ov"
             className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500"
           />
         </div>

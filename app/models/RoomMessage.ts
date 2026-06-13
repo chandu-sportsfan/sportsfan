@@ -11,4 +11,5 @@ export interface RoomMessage {
   fireCount: number;
   noChanceCount: number;
   createdAt: number;
+  mediaUrls?: string[];
 }

@@ -88,16 +88,21 @@ export async function PUT(req: NextRequest) {
       roomData.coHostUserId.toLowerCase() === user.email?.toLowerCase()
     );
 
+    const isOwner = roomData?.hostUserId && (
+      roomData.hostUserId.toLowerCase() === user.userId?.toLowerCase() ||
+      roomData.hostUserId.toLowerCase() === user.name?.toLowerCase() ||
+      roomData.hostUserId.toLowerCase() === user.email?.toLowerCase()
+    );
+
     const authorizedRoles = ["super_admin", "admin", "host"];
-    if (!authorizedRoles.includes(user.role) && !isCoHost) {
+    if (!authorizedRoles.includes(user.role) && !isOwner && !isCoHost) {
       return NextResponse.json(
         { success: false, message: "Forbidden - Insufficient permissions" },
         { status: 403 }
       );
     }
 
-    // Ownership check: Host can only modify their own room
-    if (user.role === "host" && roomData?.hostUserId !== user.userId && !isCoHost) {
+    if (user.role === "host" && !isOwner && !isCoHost) {
       return NextResponse.json(
         { success: false, message: "Forbidden - You do not own this watchroom" },
         { status: 403 }
@@ -108,11 +113,11 @@ export async function PUT(req: NextRequest) {
     const updates: Record<string, unknown> = { updatedAt: Date.now() };
 
     // Only update fields that were actually sent
-    const fields = ["name", "role", "badge", "badgeColor", "borderColor", "watching", "engagement", "active", "coHostUserId"];
+    const fields = ["name", "role", "badge", "badgeColor", "borderColor", "watching", "engagement", "active", "hostUserId", "coHostUserId"];
     for (const field of fields) {
       const val = formData.get(field);
       if (val !== null) {
-        if (field === "coHostUserId" && (val === "null" || val === "")) {
+        if ((field === "coHostUserId" || field === "hostUserId") && (val === "null" || val === "")) {
           updates[field] = null;
         } else {
           updates[field] = val as string;
@@ -217,7 +222,13 @@ export async function DELETE(req: NextRequest) {
 
     // Ownership check: Host can only delete their own room
     const roomData = existing.data();
-    if (user.role === "host" && roomData?.hostUserId !== user.userId) {
+    const isOwner = roomData?.hostUserId && (
+      roomData.hostUserId.toLowerCase() === user.userId?.toLowerCase() ||
+      roomData.hostUserId.toLowerCase() === user.name?.toLowerCase() ||
+      roomData.hostUserId.toLowerCase() === user.email?.toLowerCase()
+    );
+
+    if (user.role === "host" && !isOwner) {
       return NextResponse.json(
         { success: false, message: "Forbidden - You do not own this watchroom" },
         { status: 403 }

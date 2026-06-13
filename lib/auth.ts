@@ -23,12 +23,14 @@ export async function getUserSessionAndRole(req: NextRequest): Promise<UserSessi
   const headerRole = req.headers.get("x-user-role") || req.nextUrl?.searchParams?.get("x-user-role");
   const headerUserId = req.headers.get("x-user-id") || req.nextUrl?.searchParams?.get("x-user-id");
   const headerEmail = req.headers.get("x-user-email") || req.nextUrl?.searchParams?.get("x-user-email");
+  const headerName = req.headers.get("x-user-name") || req.nextUrl?.searchParams?.get("x-user-name");
 
   if (headerRole) {
     return {
       role: headerRole.toLowerCase(), // e.g. "super_admin", "admin", "host", "user"
       userId: headerUserId || headerEmail || "test_user",
       email: headerEmail || "test@sportsfan360.com",
+      name: headerName || undefined,
       source: "headers"
     };
   }

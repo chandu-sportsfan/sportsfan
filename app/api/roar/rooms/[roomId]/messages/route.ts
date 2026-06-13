@@ -73,7 +73,7 @@ export async function POST(
     }
 
     const body = await req.json();
-    const { text, type = "chat" }: { text: string; type: MessageType } = body;
+    const { text, type = "chat", mediaUrls }: { text: string; type: MessageType; mediaUrls?: string[] } = body;
 
     if (!text?.trim()) {
       return NextResponse.json({ error: "text is required" }, { status: 400 });
@@ -117,6 +117,7 @@ export async function POST(
       fireCount: 0,
       noChanceCount: 0,
       createdAt: now,
+      ...(mediaUrls && { mediaUrls }),
     };
 
     const batch = db.batch();

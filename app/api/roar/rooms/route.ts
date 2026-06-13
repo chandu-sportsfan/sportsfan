@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { name, icon, sport, description, isActive, scheduledStartTime } = body;
+    const { name, icon, sport, description, isActive, scheduledStartTime, score, scoreSubtitle } = body;
 
     if (!name?.trim()) {
       return NextResponse.json({ error: "Room name is required" }, { status: 400 });
@@ -60,6 +60,8 @@ export async function POST(req: NextRequest) {
       isActive: isActive !== undefined ? isActive : true,
       fanCount: 0,
       ...(scheduledStartTime && { scheduledStartTime: Number(scheduledStartTime) }),
+      ...(score && { score }),
+      ...(scoreSubtitle && { scoreSubtitle }),
     };
 
     await roomRef.set(newRoom);
