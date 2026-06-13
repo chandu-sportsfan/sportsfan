@@ -245,6 +245,14 @@ export async function POST(
       ? (voteSnap.data() as { vote: "agree" | "disagree" }).vote
       : null;
 
+    const postType = (postData as any).type;
+    if (postType === "debate" && previousVote !== null && vote !== null) {
+      return NextResponse.json(
+        { success: false, error: "Already voted on this debate", userVote: previousVote },
+        { status: 409 },
+      );
+    }
+
     // ── Build Firestore counter deltas ────────────────────────────────────────
     const agreeData =
       (vote === "agree" ? 1 : 0) - (previousVote === "agree" ? 1 : 0);
