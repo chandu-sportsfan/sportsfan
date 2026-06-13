@@ -1,3 +1,5 @@
+//api/roar/rooms/[roomId]/messages/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { getUser } from "@/lib/getUser";
@@ -73,7 +75,20 @@ export async function POST(
     }
 
     const body = await req.json();
-    const { text, type = "chat", mediaUrls }: { text: string; type: MessageType; mediaUrls?: string[] } = body;
+    // const { text, type = "chat", mediaUrls }: { text: string; type: MessageType; mediaUrls?: string[] } = body;
+    const { 
+  text, 
+  type = "chat", 
+  mediaUrls,
+  sideA,
+  sideB,
+}: { 
+  text: string; 
+  type: MessageType; 
+  mediaUrls?: string[];
+  sideA?: string;
+  sideB?: string;
+} = body;
 
     if (!text?.trim()) {
       return NextResponse.json({ error: "text is required" }, { status: 400 });
@@ -106,19 +121,36 @@ export async function POST(
       .collection("messages")
       .doc();
 
+    // const message: RoomMessage = {
+    //   msgId: msgRef.id,
+    //   roomId: roomId,
+    //   authorUid: resolvedUserId,
+    //   authorUsername: userData.username,
+    //   authorBadge: userData.badge,
+    //   text: text.trim(),
+    //   type,
+    //   fireCount: 0,
+    //   noChanceCount: 0,
+    //   createdAt: now,
+    //   ...(mediaUrls && { mediaUrls }),
+    // };
+
     const message: RoomMessage = {
-      msgId: msgRef.id,
-      roomId: roomId,
-      authorUid: resolvedUserId,
-      authorUsername: userData.username,
-      authorBadge: userData.badge,
-      text: text.trim(),
-      type,
-      fireCount: 0,
-      noChanceCount: 0,
-      createdAt: now,
-      ...(mediaUrls && { mediaUrls }),
-    };
+  msgId: msgRef.id,
+  roomId: roomId,
+  authorUid: resolvedUserId,
+  authorUsername: userData.username,
+  authorBadge: userData.badge,
+  text: text.trim(),
+  type,
+  fireCount: 0,
+  noChanceCount: 0,
+  heartCount: 0,
+  createdAt: now,
+  ...(mediaUrls && { mediaUrls }),
+  ...(sideA && { sideA }),
+  ...(sideB && { sideB }),
+};
 
     const batch = db.batch();
     batch.set(msgRef, message);

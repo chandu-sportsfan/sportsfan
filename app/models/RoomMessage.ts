@@ -12,4 +12,7 @@ export interface RoomMessage {
   noChanceCount: number;
   createdAt: number;
   mediaUrls?: string[];
+  heartCount?: number;   // ← add
+  sideA?: string;        // ← add
+  sideB?: string;    
 }
