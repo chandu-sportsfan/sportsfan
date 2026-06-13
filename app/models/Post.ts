@@ -1,4 +1,4 @@
-export type PostType = "hot_take" | "prediction" | "debate" | "memory" | "post";
+export type PostType = "hot_take" | "prediction" | "debate" | "memory" | "post" | "quiz";
 export type PostStatus =
   | "active"
   | "settled_correct"
@@ -26,6 +26,12 @@ export interface Post {
   status: PostStatus;
   mediaUrls?: string[];
   likeCount?: number;
+  quizQuestion?: string;
+  quizOptions?: { label: string; text: string }[];
+  quizCorrectOption?: string;
+  quizTimer?: number;
+  quizPoints?: number;
+  quizParticipants?: number;
   createdAt: number;
   updatedAt: number;
 }

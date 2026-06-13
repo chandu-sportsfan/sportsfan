@@ -15,6 +15,7 @@ export const ROAR_POINTS: Record<PostType | "post", number> = {
   debate:     2,
   memory:     2,
   post:       2,
+  quiz: 2,
 };
 
 // ─── Reason key from post type ────────────────────────────────────────────────
@@ -25,6 +26,7 @@ export function roarReasonFromType(type: PostType | "post"): string {
     debate:     "ROAR_DEBATE",
     memory:     "ROAR_MEMORY",
     post:       "ROAR_POST",
+     quiz:       "ROAR_QUIZ",  
   };
   return map[type];
 }

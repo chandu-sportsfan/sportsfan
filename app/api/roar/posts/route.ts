@@ -21,6 +21,11 @@ export async function POST(req: NextRequest) {
       confidence,
       audience = "Everyone",
       mediaUrls,
+      quizQuestion,
+      quizOptions,
+      quizCorrectOption,
+      quizTimer,
+      quizPoints,
     }: {
       type: PostType;
       text: string;
@@ -31,11 +36,16 @@ export async function POST(req: NextRequest) {
       confidence?: number;
       audience?: string;
       mediaUrls?: string[];
+      quizQuestion?: string;
+      quizOptions?: { label: string; text: string }[];
+      quizCorrectOption?: string;
+      quizTimer?: number;
+      quizPoints?: number;
     } = body;
 
-    if (!type || (!text?.trim() && (!mediaUrls || mediaUrls.length === 0))) {
+    if (!type || (!text?.trim() && !quizQuestion?.trim() && (!mediaUrls || mediaUrls.length === 0))) {
       return NextResponse.json(
-        { error: "type and text are required" },
+        { error: "type and text (or quiz question) are required" },
         { status: 400 },
       );
     }
@@ -70,11 +80,17 @@ export async function POST(req: NextRequest) {
       authorBadge: userData.badge,
       type,
       sport,
-      text: text?.trim() || "",
+      text: text?.trim() || quizQuestion?.trim() || "",
       ...(sideA && { sideA }),
       ...(sideB && { sideB }),
       ...(matchId && { matchId }),
       ...(confidence !== undefined && { confidence }),
+      ...(quizQuestion && { quizQuestion }),
+      ...(quizOptions && { quizOptions }),
+      ...(quizCorrectOption && { quizCorrectOption }),
+      ...(quizTimer && { quizTimer }),
+      ...(quizPoints && { quizPoints }),
+      quizParticipants: 0,
       audience,
       agreeCount: 0,
       disagreeCount: 0,
