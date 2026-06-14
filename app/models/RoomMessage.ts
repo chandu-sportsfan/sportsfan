@@ -10,6 +10,9 @@ export interface RoomMessage {
   type: MessageType;
   fireCount: number;
   noChanceCount: number;
+  agreeCount: number;
+  disagreeCount: number;
+  replyCount: number;
   createdAt: number;
   mediaUrls?: string[];
   heartCount?: number;   // ← add
