@@ -48,8 +48,9 @@ export async function DELETE(
     }
 
     const RESTRICTED_USERS = [
-      "venkyiimb@gmail.com",
-      "sethi.anshul39@gmail.com"
+      // "venkyiimb@gmail.com",
+      // "sethi.anshul39@gmail.com"
+      ""
     ];
     const post = snap.data() as Post;
     if (post.authorUid !== user.userId && user.role !== "admin") {

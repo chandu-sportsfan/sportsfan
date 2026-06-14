@@ -1,4 +1,4 @@
-export type PostType = "hot_take" | "prediction" | "debate" | "memory" | "post" | "quiz";
+export type PostType = "hot_take" | "prediction" | "debate" | "raw_reactions" | "post" | "quiz";
 export type PostStatus =
   | "active"
   | "settled_correct"

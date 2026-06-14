@@ -821,8 +821,9 @@ const LIMITED_NAV: NavGroup[] = [
 
 // List of restricted users (only see Watch Along module)
 const RESTRICTED_USERS = [
-  "venkyiimb@gmail.com",
-  "sethi.anshul39@gmail.com"
+  // "venkyiimb@gmail.com",
+  // "sethi.anshul39@gmail.com"
+  ""
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

@@ -30,8 +30,9 @@ export async function DELETE(
     const commentData = snap.data() as { authorUid: string };
     
     const RESTRICTED_USERS = [
-      "venkyiimb@gmail.com",
-      "sethi.anshul39@gmail.com"
+      // "venkyiimb@gmail.com",
+      // "sethi.anshul39@gmail.com"
+      ""
     ];
     // Check if author or admin
     if (commentData.authorUid !== user.userId && user.role !== "admin") {
