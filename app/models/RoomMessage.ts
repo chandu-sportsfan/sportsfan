@@ -18,5 +18,7 @@ export interface RoomMessage {
   heartCount?: number;   // ← add
   sideA?: string;        // ← add
   sideB?: string;    
+  memGifUrl?: string;
+memTag?: string;
 
 }

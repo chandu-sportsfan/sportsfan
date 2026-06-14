@@ -309,12 +309,17 @@ export async function POST(
       mediaUrls,
       sideA,
       sideB,
+        memGifUrl,   // ← ADD
+  memTag,      // ← ADD
+
     }: {
       text: string;
       type: MessageType;
       mediaUrls?: string[];
       sideA?: string;
       sideB?: string;
+      memGifUrl?: string;  // ← ADD
+  memTag?: string;   
     } = body;
 
     if (!text?.trim()) {
@@ -369,6 +374,8 @@ export async function POST(
       ...(mediaUrls?.length && { mediaUrls }),
       ...(sideA && { sideA }),
       ...(sideB && { sideB }),
+      ...(memGifUrl && { memGifUrl }),  // ← ADD
+  ...(memTag && { memTag }),   
     };
 
     const batch = db.batch();

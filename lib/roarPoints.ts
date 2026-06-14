@@ -13,7 +13,7 @@ export const ROAR_POINTS: Record<PostType | "post", number> = {
   hot_take:   2,
   prediction: 2,
   debate:     2,
-  memory:     2,
+  raw_reactions:     2,
   post:       2,
   quiz: 2,
 };
@@ -24,7 +24,7 @@ export function roarReasonFromType(type: PostType | "post"): string {
     hot_take:   "ROAR_HOT_TAKE",
     prediction: "ROAR_PREDICTION",
     debate:     "ROAR_DEBATE",
-    memory:     "ROAR_MEMORY",
+    raw_reactions:     "ROAR_RAW_REACTIONS",
     post:       "ROAR_POST",
      quiz:       "ROAR_QUIZ",  
   };
