@@ -32,6 +32,8 @@ export interface Post {
   quizTimer?: number;
   quizPoints?: number;
   quizParticipants?: number;
+   memGifUrl?: string,
+  memTag?: string,
   createdAt: number;
   updatedAt: number;
 }

@@ -228,6 +228,8 @@ export async function POST(req: NextRequest) {
       quizCorrectOption,
       quizTimer,
       quizPoints,
+      memGifUrl,
+      memTag,
     }: {
       type: PostType;
       text: string;
@@ -243,6 +245,8 @@ export async function POST(req: NextRequest) {
       quizCorrectOption?: string;
       quizTimer?: number;
       quizPoints?: number;
+      memGifUrl?: string;   // ADD
+      memTag?: string;
     } = body;
 
     if (!type || (!text?.trim() && !quizQuestion?.trim() && (!mediaUrls || mediaUrls.length === 0))) {
@@ -270,7 +274,7 @@ export async function POST(req: NextRequest) {
         { status: 404 },
       );
     }
-    const userData = userSnap.data() as { username: string; badge: string; [key: string]: any };
+    const userData = userSnap.data() as { username: string; badge: string;[key: string]: any };
 
     const now = Date.now();
     const postRef = db.collection("roarPosts").doc();
@@ -292,6 +296,8 @@ export async function POST(req: NextRequest) {
       ...(quizCorrectOption && { quizCorrectOption }),
       ...(quizTimer && { quizTimer }),
       ...(quizPoints && { quizPoints }),
+      ...(memGifUrl && { memGifUrl }),
+      ...(memTag && { memTag }),
       quizParticipants: 0,
       audience,
       agreeCount: 0,
