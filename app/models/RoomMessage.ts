@@ -1,3 +1,6 @@
+// app/models/RoomMessage.ts
+
+
 export type MessageType = "chat" | "prediction" | "hottake";
 
 export interface RoomMessage {
