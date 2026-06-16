@@ -204,9 +204,13 @@ import { FieldValue } from "firebase-admin/firestore";
 // ─── Activity label map ───────────────────────────────────────────────────────
 const ACTIVITY_LABELS: Record<string, (meta?: Record<string, unknown>) => string> = {
   LISTEN_COMPLETE:  (m) => `Listened to "${m?.title ?? "audio drop"}"`,
+  LISTEN_AUDIO_DROP: (m) => `Listened to "${m?.title ?? "audio drop"}"`,
   FAN_BATTLE_WIN:   (m) => `Won a Fan Battle${m?.opponent ? ` vs ${m.opponent}` : ""}`,
   FAN_BATTLE_PLAY:  ()  => "Played a Fan Battle",
+  CREATE_BATTLE:     ()  => "Created a Fan Battle",
+  PLAY_BATTLE:      ()  => "Played a Fan Battle",
   POST_CREATED:     ()  => "Created a Fan Zone post",
+  CREATE_POST:      ()  => "Created a Fan Zone post",
   TRIVIA_CORRECT:   (m) => `Answered trivia correctly${m?.topic ? ` — ${m.topic}` : ""}`,
   REGISTRATION:     ()  => "Joined SportsFan360",
   INVITE_ACCEPTED:  (m) => `Friend ${m?.friendName ?? "someone"} joined via your invite`,
@@ -217,6 +221,8 @@ const ACTIVITY_LABELS: Record<string, (meta?: Record<string, unknown>) => string
   ROAR_DEBATE:      (m) => `Started a ROAR Debate${m?.sideA ? ` (${m.sideA} vs ${m.sideB})` : ""}`,
   ROAR_MEMORY:      ()  => "Shared a ROAR Memory",
   ROAR_POST:        ()  => "Shared a ROAR Post",
+  ROAR_QUIZ:        ()  => "Answered a ROAR Quiz",
+  ROAR_RAW_REACTIONS: () => "Posted ROAR Raw Reactions",
 };
 
 function getActivityLabel(reason: string, meta?: Record<string, unknown>): string {
