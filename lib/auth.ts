@@ -138,12 +138,18 @@ export async function isAuthorizedForMatch(user: UserSession, matchId: string): 
     if (!roomsSnap.empty) {
       const roomData = roomsSnap.docs[0].data();
       // Allow both host and co-host (by user ID, email, or name)
+      const coHosts = roomData.coHostUserId
+        ? roomData.coHostUserId.split(",").map((id: string) => id.trim().toLowerCase())
+        : [];
       if (
         roomData.hostUserId === user.userId ||
         roomData.hostUserId === user.name ||
-        roomData.coHostUserId === user.userId ||
-        roomData.coHostUserId === user.name ||
-        roomData.coHostUserId === user.email
+        coHosts.some(
+          (id: string) =>
+            id === user.userId?.toLowerCase() ||
+            id === user.name?.toLowerCase() ||
+            id === user.email?.toLowerCase()
+        )
       ) {
         return true;
       }
