@@ -256,15 +256,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Fetch author info
-    let userDocRef = db.collection("users").doc(user.email);
+    // Use the auth ID as the canonical write key so ROAR matches Audio Drop.
+    const resolvedUserId = user.userId;
+    const userDocRef = db.collection("users").doc(resolvedUserId);
     let userSnap = await userDocRef.get();
-    let resolvedUserId = user.email;
-    if (!userSnap.exists) {
-      userDocRef = db.collection("users").doc(user.userId);
-      userSnap = await userDocRef.get();
-      if (userSnap.exists) {
-        resolvedUserId = user.userId;
+
+    if (!userSnap.exists && user.email) {
+      const emailUserSnap = await db.collection("users").doc(user.email).get();
+      if (emailUserSnap.exists) {
+        userSnap = emailUserSnap;
       }
     }
 
@@ -313,12 +313,20 @@ export async function POST(req: NextRequest) {
     const batch = db.batch();
     batch.set(postRef, newPost);
 
-    // Increment the right counter on the user doc
+    // Increment the right counter on the canonical auth-ID user doc.
     const counterField = type === "prediction" ? "predictionCount" : "hotTakeCount";
-    batch.update(userDocRef, {
-      [counterField]: (userData[counterField] ? userData[counterField] + 1 : 1),
-      updatedAt: now,
-    });
+    batch.set(
+      userDocRef,
+      {
+        userId: resolvedUserId,
+        email: user.email,
+        username: userData.username,
+        badge: userData.badge,
+        [counterField]: (userData[counterField] ? userData[counterField] + 1 : 1),
+        updatedAt: now,
+      },
+      { merge: true }
+    );
 
     await batch.commit();
 
