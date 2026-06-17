@@ -82,10 +82,14 @@ export async function PUT(req: NextRequest) {
     }
 
     const roomData = existing.data();
-    const isCoHost = roomData?.coHostUserId && (
-      roomData.coHostUserId.toLowerCase() === user.userId?.toLowerCase() ||
-      roomData.coHostUserId.toLowerCase() === user.name?.toLowerCase() ||
-      roomData.coHostUserId.toLowerCase() === user.email?.toLowerCase()
+    const coHosts = roomData?.coHostUserId
+      ? roomData.coHostUserId.split(",").map((id: string) => id.trim().toLowerCase())
+      : [];
+    const isCoHost = coHosts.some(
+      (id: string) =>
+        id === user.userId?.toLowerCase() ||
+        id === user.name?.toLowerCase() ||
+        id === user.email?.toLowerCase()
     );
 
     const isOwner = roomData?.hostUserId && (
