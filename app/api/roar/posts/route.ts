@@ -264,30 +264,8 @@ async function resolveUser(
   return null;
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+
 // GET  /api/roar/posts
-// ────────────────────────────────────────────────────────────────────────────
-//
-// Optimisations vs original:
-//
-//  1. User resolution + posts query run IN PARALLEL — cuts one full serial
-//     round-trip off every request.
-//
-//  2. Subcollection reads batched per-type in parallel instead of N×3 serial
-//     reads inside Promise.all.  All vote reads fire together, all like reads
-//     fire together, all quiz reads fire together — three parallel rounds
-//     instead of up to 90 serial reads.
-//
-//  3. `where` placed before `orderBy` — required by Firestore for compound
-//     queries; also ensures the composite index (sport ASC + createdAt DESC)
-//     is used correctly.
-//
-//  4. Timestamp-based cursor pagination — no full-collection scan on every
-//     request. Client passes `?lastCreatedAt=<ts>` for the next page.
-//
-//  5. `includeUserState=false` escape hatch — skips ALL subcollection reads
-//     (votes/likes/quiz answers) for clients that don't need per-user state
-//     (e.g. public feed, SSR, admin views). Saves up to limit×3 reads.
 //
 export async function GET(req: NextRequest) {
   try {

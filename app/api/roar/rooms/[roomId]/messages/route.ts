@@ -265,25 +265,12 @@ export async function GET(
     const limit = Math.min(parseInt(searchParams.get("limit") || "30"), 100);
     const lastDocId = searchParams.get("lastDocId");
 
-    // ── Resolve user — 1 read total ──────────────────────────────────────────
     const resolved = await resolveUser(user.email, user.userId);
     if (!resolved) {
       return NextResponse.json({ error: "User profile not found" }, { status: 404 });
     }
     const resolvedUserId = resolved.id;
 
-    // ── Fetch messages — no extra cursor read ────────────────────────────────
-    // FIX: Previously we did an extra .doc(lastDocId).get() just to get a
-    // DocumentSnapshot for startAfter(). The SDK's startAfter(id) overload
-    // (passing a plain document ID string to startAt/startAfter is not
-    // supported directly), but we can pass the doc reference via
-    // startAfter(docRef) — which requires 0 extra reads when combined with
-    // collection().doc(id) reference (no .get() needed for cursor-only use).
-    //
-    // Actually the cleanest zero-read approach: store `createdAt` as the
-    // cursor value on the client and pass it as `lastCreatedAt`. We use that
-    // here as the preferred path. If the caller still passes `lastDocId` we
-    // fall back to the one doc-fetch (unchanged behaviour, but isolated).
     const messagesRef = db
       .collection("roarRooms")
       .doc(roomId)
@@ -294,10 +281,8 @@ export async function GET(
     let query = messagesRef.orderBy("createdAt", "desc").limit(limit);
 
     if (lastCreatedAt) {
-      // Zero extra reads — numeric cursor coming from the previous page's last message
       query = query.startAfter(parseInt(lastCreatedAt, 10));
     } else if (lastDocId) {
-      // Legacy path — still 1 extra read, but only when client sends lastDocId
       const cursorDoc = await messagesRef.doc(lastDocId).get();
       if (cursorDoc.exists) query = query.startAfter(cursorDoc);
     }
@@ -311,11 +296,23 @@ export async function GET(
       });
     }
 
-    // ── Batch vote reads — votable types only ────────────────────────────────
+    // ── Batch subcollection reads — votes + heart reactions in parallel ───────
+    //
+    // Previously: only votes were batched; heart reactions were never read,
+    // so userLiked was always missing from the response and defaulted to false
+    // on the frontend — causing the heart icon to never show as filled after
+    // a page refresh even though the like was correctly saved in Firestore.
+    //
+    // Fix: batch-read reactions/:userId_heart docs alongside votes, in the
+    // same Promise.all round-trip. Cost: 1 extra read per message per GET,
+    // same pattern already used in the posts route for likes.
+
     const VOTABLE_TYPES = new Set(["hottake", "prediction", "hot_take"]);
 
     const votableIndices: number[] = [];
     const votePromises: Promise<FirebaseFirestore.DocumentSnapshot>[] = [];
+    // NEW: heart reaction refs for every message
+    const heartPromises: Promise<FirebaseFirestore.DocumentSnapshot>[] = [];
 
     snapshot.docs.forEach((doc, i) => {
       const type = (doc.data() as RoomMessage).type;
@@ -323,14 +320,28 @@ export async function GET(
         votableIndices.push(i);
         votePromises.push(doc.ref.collection("votes").doc(resolvedUserId).get());
       }
+      // NEW: read reactions/:userId_heart for every message
+      heartPromises.push(
+        doc.ref.collection("reactions").doc(`${resolvedUserId}_heart`).get()
+      );
     });
 
-    const voteResults = await Promise.all(votePromises);
+    // Fire votes and heart reactions in parallel
+    const [voteResults, heartResults] = await Promise.all([
+      Promise.all(votePromises),
+      Promise.all(heartPromises), // NEW
+    ]);
 
     const userVoteByIndex = new Map<number, string | null>();
     votableIndices.forEach((docIdx, resultIdx) => {
       const snap = voteResults[resultIdx];
       userVoteByIndex.set(docIdx, snap.exists ? ((snap.data() as any).vote ?? null) : null);
+    });
+
+    // NEW: userLiked map — doc index → boolean
+    const userLikedByIndex = new Map<number, boolean>();
+    snapshot.docs.forEach((_, i) => {
+      userLikedByIndex.set(i, heartResults[i].exists);
     });
 
     // ── Assemble response ────────────────────────────────────────────────────
@@ -344,6 +355,7 @@ export async function GET(
         heartCount: data.heartCount ?? 0,
         replyCount: data.replyCount ?? 0,
         userVote: userVoteByIndex.has(i) ? userVoteByIndex.get(i) : null,
+        userLiked: userLikedByIndex.get(i) ?? false, // NEW
       };
     });
 
@@ -356,7 +368,6 @@ export async function GET(
       pagination: {
         limit,
         hasMore: messages.length === limit,
-        // Return both cursor forms so clients can migrate to the zero-read path
         nextCursor:
           messages.length === limit
             ? { lastDocId: lastDoc?.id, lastCreatedAt: lastMsg?.createdAt ?? null }
