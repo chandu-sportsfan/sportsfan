@@ -232,6 +232,7 @@ import { db } from "@/lib/firebaseAdmin";
 import { getUser } from "@/lib/getUser";
 import { FieldValue } from "firebase-admin/firestore";
 import type { RoomMessage, MessageType } from "@/app/models/RoomMessage";
+import { awardPoints } from "@/lib/awardPoints";
 
 // ── Shared helper — always 1 read, never 2 ──────────────────────────────────
 // Previously: emailSnap read → miss → uidSnap read (2 reads on cache miss).
@@ -473,6 +474,36 @@ export async function POST(
     batch.set(msgRef, message);
     batch.update(roomRef, { fanCount: FieldValue.increment(1) });
     await batch.commit();
+
+    // ── Award points based on message type ────────────────────────────────────
+    // Map message types to activity types for profile stats tracking
+    const typeToActivityMap: Record<string, string> = {
+      debate: "ROAR_DEBATE",
+      prediction: "ROAR_PREDICTION",
+      post: "ROAR_POST",
+      hottake: "ROAR_HOT_TAKE",
+      hot_take: "ROAR_HOT_TAKE",
+      memory: "ROAR_MEMORY",
+    };
+
+    const activityType = typeToActivityMap[type] || "ROAR_POST";
+    const transactionId = `roar_${type}_${msgRef.id}`;
+    
+    // Award points (fire and forget - don't block response)
+    awardPoints({
+      userId: resolvedUserId,
+      activityType,
+      transactionId,
+      metadata: {
+        postId: msgRef.id,
+        roomId,
+        type,
+        ...(sideA && { sideA }),
+        ...(sideB && { sideB }),
+      },
+    }).catch((err) => {
+      console.warn(`[POST rooms/messages] Failed to award points for ${activityType}:`, err);
+    });
 
     return NextResponse.json({ success: true, msgId: msgRef.id, message });
   } catch (error: unknown) {
