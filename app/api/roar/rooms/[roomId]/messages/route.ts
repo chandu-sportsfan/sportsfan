@@ -474,6 +474,40 @@ export async function POST(
     batch.update(roomRef, { fanCount: FieldValue.increment(1) });
     await batch.commit();
 
+    // ── Award points based on message type (fire and forget) ──────────────────
+    // Map message types to activity types for profile stats tracking
+    const typeToActivityMap: Record<string, string> = {
+      debate: "ROAR_DEBATE",
+      prediction: "ROAR_PREDICTION",
+      post: "ROAR_POST",
+      hottake: "ROAR_HOT_TAKE",
+      hot_take: "ROAR_HOT_TAKE",
+      memory: "ROAR_MEMORY",
+    };
+
+    const activityType = typeToActivityMap[type] || "ROAR_POST";
+    const transactionId = `roar_${type}_${msgRef.id}`;
+    
+    // Call the award-points API endpoint (don't await - fire and forget)
+    fetch(new URL("/api/award-points", new URL(req.url).origin).toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: resolvedUserId,
+        activityType,
+        transactionId,
+        metadata: {
+          postId: msgRef.id,
+          roomId,
+          type,
+          ...(sideA && { sideA }),
+          ...(sideB && { sideB }),
+        },
+      }),
+    }).catch((err) => {
+      console.warn(`[POST rooms/messages] Failed to award points for ${activityType}:`, err);
+    });
+
     return NextResponse.json({ success: true, msgId: msgRef.id, message });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
