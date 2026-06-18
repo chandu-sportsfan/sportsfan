@@ -232,7 +232,6 @@ import { db } from "@/lib/firebaseAdmin";
 import { getUser } from "@/lib/getUser";
 import { FieldValue } from "firebase-admin/firestore";
 import type { RoomMessage, MessageType } from "@/app/models/RoomMessage";
-import { awardPoints } from "@/lib/awardPoints";
 
 // ── Shared helper — always 1 read, never 2 ──────────────────────────────────
 // Previously: emailSnap read → miss → uidSnap read (2 reads on cache miss).
@@ -475,7 +474,7 @@ export async function POST(
     batch.update(roomRef, { fanCount: FieldValue.increment(1) });
     await batch.commit();
 
-    // ── Award points based on message type ────────────────────────────────────
+    // ── Award points based on message type (fire and forget) ──────────────────
     // Map message types to activity types for profile stats tracking
     const typeToActivityMap: Record<string, string> = {
       debate: "ROAR_DEBATE",
@@ -489,18 +488,22 @@ export async function POST(
     const activityType = typeToActivityMap[type] || "ROAR_POST";
     const transactionId = `roar_${type}_${msgRef.id}`;
     
-    // Award points (fire and forget - don't block response)
-    awardPoints({
-      userId: resolvedUserId,
-      activityType,
-      transactionId,
-      metadata: {
-        postId: msgRef.id,
-        roomId,
-        type,
-        ...(sideA && { sideA }),
-        ...(sideB && { sideB }),
-      },
+    // Call the award-points API endpoint (don't await - fire and forget)
+    fetch(new URL("/api/award-points", new URL(req.url).origin).toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: resolvedUserId,
+        activityType,
+        transactionId,
+        metadata: {
+          postId: msgRef.id,
+          roomId,
+          type,
+          ...(sideA && { sideA }),
+          ...(sideB && { sideB }),
+        },
+      }),
     }).catch((err) => {
       console.warn(`[POST rooms/messages] Failed to award points for ${activityType}:`, err);
     });
