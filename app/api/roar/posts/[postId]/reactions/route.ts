@@ -1,21 +1,20 @@
 // api/roar/posts/[postId]/reactions/route.ts
 // GET  /api/roar/posts/:postId/reactions
-//   Returns the list of users who reacted and what reaction they gave.
-//   Used by the ReactionsDialog (LinkedIn-style viewer).
 //
-// Firestore structure expected:
-//   roarPosts/{postId}/likes/{userId}  →  { reaction: "heart"|"fire"|"laugh"|"sad"|"thumb", ... }
+// Returns the list of users who reacted and what reaction they gave,
+// sorted most-recent first. Used by ReactionsDialog (LinkedIn-style viewer).
+//
+// Firestore structure:
+//   roarPosts/{postId}/likes/{userId}
+//     { reaction: "heart"|"fire"|"laugh"|"sad"|"thumb", reactedAt: number, userId: string }
 //
 // Quota cost per request:
-//   1  — user auth check
-//   1  — roarPost doc (ownership check)
-//   N  — likes subcollection docs (up to `limit`, default 100)
-//   M  — user profile docs (batch, for username/avatarUrl/badge)
+//   1      — user auth
+//   1      — roarPost doc (existence check)
+//   N      — likes subcollection docs (up to `limit`, default 100)
+//   M      — user profile docs (batch, parallel)
 //   ─────────────────────────────────────────────
 //   2 + N + M  reads total
-//
-// Only the post author is allowed to view the full reactor list.
-// Regular users only see the aggregate counts (via the posts list endpoint).
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
@@ -27,66 +26,52 @@ export async function GET(
 ) {
   try {
     const user = await getUser(req);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { postId } = params;
-    if (!postId) {
-      return NextResponse.json({ error: "postId is required" }, { status: 400 });
-    }
+    if (!postId) return NextResponse.json({ error: "postId is required" }, { status: 400 });
 
     const { searchParams } = new URL(req.url);
     const limit = Math.min(parseInt(searchParams.get("limit") || "100"), 200);
 
-    // ── Fetch the post to verify it exists (and optionally gate to author only) ──
+    // Existence check — one read, also lets us return 404 cleanly
     const postSnap = await db.collection("roarPosts").doc(postId).get();
-    if (!postSnap.exists) {
-      return NextResponse.json({ error: "Post not found" }, { status: 404 });
-    }
+    if (!postSnap.exists) return NextResponse.json({ error: "Post not found" }, { status: 404 });
 
-    // ── Fetch likes subcollection ─────────────────────────────────────────────
+    // ── Fetch likes, newest first ─────────────────────────────────────────────
+    // orderBy("reactedAt", "desc") requires a single-field index on reactedAt
+    // (auto-created by Firestore on first query).
     const likesSnap = await db
       .collection("roarPosts")
       .doc(postId)
       .collection("likes")
+      .orderBy("reactedAt", "desc")
       .limit(limit)
       .get();
 
-    if (likesSnap.empty) {
-      return NextResponse.json({ success: true, reactors: [], total: 0 });
-    }
+    if (likesSnap.empty) return NextResponse.json({ success: true, reactors: [], total: 0 });
 
-    // ── Batch-fetch user profiles ─────────────────────────────────────────────
-    // Each like doc ID is a userId / email. We try to get profile data so we
-    // can return username, avatarUrl, badge.
+    // ── Batch-fetch user profiles in parallel ─────────────────────────────────
     const userIds = likesSnap.docs.map((d) => d.id);
-
     const profileSnaps = await Promise.all(
       userIds.map((uid) => db.collection("users").doc(uid).get())
     );
 
     const reactors = likesSnap.docs.map((likeDoc, idx) => {
-      const likeData = likeDoc.data() as { reaction?: string; [k: string]: any };
+      const likeData = likeDoc.data() as { reaction?: string; reactedAt?: number };
       const profile  = profileSnaps[idx].data() as { username?: string; avatarUrl?: string; badge?: string } | undefined;
 
       return {
-        userId:    likeDoc.id,
-        username:  profile?.username  ?? likeDoc.id,
-        avatarUrl: profile?.avatarUrl ?? undefined,
-        badge:     profile?.badge     ?? "RISING_FAN",
-        reaction:  likeData.reaction  ?? "heart",  // default for legacy docs
+        userId:     likeDoc.id,
+        username:   profile?.username  ?? likeDoc.id,
+        avatarUrl:  profile?.avatarUrl ?? undefined,
+        badge:      profile?.badge     ?? "RISING_FAN",
+        reaction:   likeData.reaction  ?? "heart",  // legacy docs default to heart
+        reactedAt:  likeData.reactedAt ?? 0,
       };
     });
 
-    // Sort: most recent first — if you store `reactedAt` you can sort by that.
-    // For now return as-is (Firestore ordering by insert time is approximate).
-
-    return NextResponse.json({
-      success: true,
-      reactors,
-      total: reactors.length,
-    });
+    return NextResponse.json({ success: true, reactors, total: reactors.length });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
     console.error(`GET /api/roar/posts/${params.postId}/reactions error:`, error);
