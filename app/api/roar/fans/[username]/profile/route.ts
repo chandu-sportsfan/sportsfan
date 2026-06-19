@@ -6,26 +6,6 @@ import { db } from "@/lib/firebaseAdmin";
 import { getUser } from "@/lib/getUser";
 import type { Post } from "@/app/models/Post";
 
-// Badge calculation logic (same as /api/roar/profile)
-function calculateBadgesFromActivities(activities: any[]) {
-  const counts = {
-    posts: activities.filter((a) => ["ROAR_POST", "ROAR_HOT_TAKE", "ROAR_MEMORY"].includes(a.type)).length,
-    predictions: activities.filter((a) => a.type === "ROAR_PREDICTION").length,
-    debates: activities.filter((a) => a.type === "ROAR_DEBATE").length,
-  };
-
-  const totalActivity = activities.length;
-
-  return [
-    { id: "first_post", name: "First Post", unlocked: counts.posts >= 1 },
-    { id: "10_posts", name: "10 Posts", unlocked: counts.posts >= 10 },
-    { id: "prediction_expert", name: "Prediction Expert", unlocked: counts.predictions >= 5 },
-    { id: "debate_starter", name: "Debate Starter", unlocked: counts.debates >= 3 },
-    { id: "active_contributor", name: "Active Contributor", unlocked: totalActivity >= 20 },
-    { id: "top_fan", name: "Top Fan", unlocked: totalActivity >= 50 },
-  ];
-}
-
 export async function GET(
   req: NextRequest,
   { params }: { params: { username: string } }
@@ -61,33 +41,19 @@ export async function GET(
       return NextResponse.json({ error: "Fan not onboarded" }, { status: 404 });
     }
 
-    // Fetch room-aware activities from activityLog subcollection
-    const [activitiesSnap, rivalSnap] = await Promise.all([
-      db.collection("users").doc(resolvedUserId).collection("activityLog").orderBy("createdAt", "desc").get(),
+    const [badgesSnap, postsSnap, rivalSnap] = await Promise.all([
+      db.collection("roarBadges").doc(resolvedUserId).collection("roarProgress").get(),
+      db.collection("roarPosts").where("authorUid", "==", resolvedUserId).get(),
       db.collection("rivals").doc(resolvedUserId).get(),
     ]);
 
-    const allActivities = activitiesSnap.docs.map((d) => ({ ...d.data(), id: d.id }));
-    
-    // Calculate badges from room-aware activities
-    const calculatedBadges = calculateBadgesFromActivities(allActivities);
-
-    // Extract predictions and hot takes from activities
-    const predictions = allActivities
-      .filter((a) => a.type === "ROAR_PREDICTION" && userData.showPredHistory !== false)
-      .slice(0, 20);
-
-    const hotTakes = allActivities
-      .filter((a) => a.type === "ROAR_DEBATE")
-      .slice(0, 10);
-
-    // Calculate accuracy from prediction activities
-    const predictions_all = allActivities.filter((a) => a.type === "ROAR_PREDICTION");
-    const correctPredictions = predictions_all.filter((a) => a.metadata?.correct === true).length;
     const accuracy =
-      predictions_all.length > 0
-        ? Math.round((correctPredictions / predictions_all.length) * 100)
+      userData.predictionCount > 0
+        ? Math.round((userData.correctPredictions / userData.predictionCount) * 100)
         : 0;
+
+    const allPosts = postsSnap.docs.map((d) => ({ ...(d.data() as Post), postId: d.id }));
+    const sortedPosts = allPosts.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
 
     // Only expose public fields — no email, no FCM token etc.
     return NextResponse.json({
@@ -102,16 +68,18 @@ export async function GET(
         fanSince: userData.fanSince ?? null,
         yearsFandom: userData.yearsFandom ?? null,
         reputationScore: userData.reputationScore ?? 0,
-        totalActivity: allActivities.length,
-        predictionCount: predictions_all.length,
-        hotTakeCount: allActivities.filter((a) => a.type === "ROAR_DEBATE").length,
-        correctPredictions,
+        predictionCount: userData.predictionCount ?? 0,
+        hotTakeCount: userData.hotTakeCount ?? 0,
+        correctPredictions: userData.correctPredictions ?? 0,
         accuracy,
         showPredHistory: userData.showPredHistory !== false,
       },
-      badges: calculatedBadges,
-      predictions: userData.showPredHistory !== false ? predictions : [],
-      hotTakes,
+      badges: badgesSnap.docs.map((d) => ({ ...d.data(), badgeId: d.id })),
+      predictions:
+        userData.showPredHistory !== false
+          ? sortedPosts.filter((p: any) => p.type === "prediction").slice(0, 20)
+          : [],
+      hotTakes: sortedPosts.filter((p: any) => p.type === "hot_take").slice(0, 10),
       rival: rivalSnap.exists ? rivalSnap.data() : null,
     });
   } catch (error: unknown) {
