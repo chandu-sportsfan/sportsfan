@@ -50,6 +50,7 @@ export async function GET(req: NextRequest) {
       user: {
         ...userData,
         accuracy,
+        actualUserId: resolvedUserId,
         // canonical names — Profile.tsx reads these
         favPlayer: userData.favPlayer ?? null,
         about: userData.about ?? null,

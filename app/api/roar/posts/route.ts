@@ -329,39 +329,14 @@ import type { Post, PostType, SportType } from "@/app/models/Post";
 // ── Post types that support agree/disagree voting ─────────────────────────────
 const VOTABLE_TYPES = new Set<PostType>(["hot_take", "prediction", "debate"]);
 
-// ── Likeable post types (all types can now be liked/reacted to) ───────────────
-// Previously only "post" type had likes read. Expanding to all types means
-// users can react to hot_takes, debates, etc. If you want to keep likes
-// restricted to "post" only, revert this to: type === "post"
+
 const isLikeable = (_type: PostType) => true;
 
-// ── Display-name cleanup ──────────────────────────────────────────────────────
-// getUserInfo's derived userName falls back through firstName/lastName → name
-// → email local-part. The email-local-part branch returns whatever sits
-// before "@", and for sanitized-doc-ID lookups that can come back as the
-// *sanitized* local part — underscores instead of dots/spaces, e.g.
-// "chandu_srikakulam" (from chandu.srikakulam@sportsfan360.com) or even
-// "chandu_srikakulam_sportsfan360_com" if a fully-sanitized email slipped
-// through. Without this cleanup, authorUsername renders underscores raw in
-// the feed instead of a normal-looking name.
-//
-// This is intentionally conservative: it only reformats things that look
-// like underscore/dot-separated email-local-part artifacts. A genuine
-// username with underscores chosen by the user themselves (set explicitly
-// via userData.username) never reaches this function — only the *derived*
-// fallback path does.
 function cleanDisplayName(raw: string | undefined | null): string {
   if (!raw) return "RoarUser";
 
   let name = raw.trim();
   if (!name) return "RoarUser";
-
-  // Strip a trailing sanitized-domain suffix if present, e.g.
-  // "chandu_srikakulam_sportsfan360_com" -> "chandu_srikakulam"
-  // (sanitized emails replace "." and "@" with "_", so the domain's dot
-  // also became an underscore — we only strip well-known free-mail /
-  // company domain patterns we expect from this app's sanitization, never
-  // an arbitrary mid-string underscore run, to avoid mangling real names).
   name = name.replace(/_[a-z0-9-]+_(com|net|org|io|co)$/i, "");
 
   // Replace underscores/dots (typical email-local-part separators) with
@@ -370,13 +345,7 @@ function cleanDisplayName(raw: string | undefined | null): string {
 
   if (!name) return "RoarUser";
 
-  // Title-case each word ("chandu srikakulam" -> "Chandu Srikakulam").
-  // Leaves already-mixed-case input (e.g. a real `name` field like
-  // "McKenzie") alone if it has no separators to replace, since this only
-  // runs after a separator replacement found something to clean — but to
-  // be safe/idempotent we still title-case conservatively: only lowercase
-  // words get capitalized, words that already contain an uppercase letter
-  // are left as-is.
+
   name = name
     .split(" ")
     .map((word) =>
@@ -387,29 +356,7 @@ function cleanDisplayName(raw: string | undefined | null): string {
   return name;
 }
 
-// ── Shared user resolution ────────────────────────────────────────────────────
-// NOTE: previously this route had its own local `resolveUser()` helper that
-// checked `users/{email}` before `users/{uid}`. That diverged from
-// `getUserInfo` (used by /api/createpost via awardUserPoints), which checks
-// `users/{uid}` first. The mismatch meant points/activityLog/vote/like docs
-// could be written under a different canonical user doc ID than the rest of
-// the app uses for the same person. We now use `getUserInfo` everywhere so
-// there's a single source of truth for "what is this user's doc ID".
-//
-// FIX (2026-06): getUserInfo can resolve a real user doc that nonetheless has
-// no `username` field on it (e.g. a doc that only has firstName/lastName or
-// `name`, or a legacy doc from a different onboarding path). getUserInfo
-// already derives a sensible display name internally (userName), but this
-// route was ignoring that and reading `snap.data().username` directly, which
-// is undefined for those docs. JSON.stringify then drops the key entirely,
-// so the frontend's `p.authorUsername || "RoarUser"` fallback kicked in for
-// every post by that user. We now thread getUserInfo's derived `userName`
-// through resolveUser() and use it as a fallback when the doc's own
-// `username` field is missing.
-//
-// FIX (2026-06, round 2): the derived userName itself can be a raw,
-// underscore-laden email-local-part (e.g. "chandu_srikakulam"). Run it
-// through cleanDisplayName() before ever exposing it as authorUsername.
+
 async function resolveUser(
   email: string,
   uid: string
@@ -434,30 +381,10 @@ async function resolveUser(
   };
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+
 // GET  /api/roar/posts
-// ────────────────────────────────────────────────────────────────────────────
-//
-// Quota cost per request (page of N posts, V votable, L likeable, Q quiz):
-//   1      — user doc (resolveUser, fired in parallel with posts query)
-//   N      — post docs
-//   V      — vote subcollection docs   (only hot_take / prediction / debate)
-//   L      — like subcollection docs   (all types by default)
-//   Q      — quizAnswer subcollection docs (only quiz)
-//   ───────────────────────────────────
-//   1 + N + V + L + Q  total reads
-//
-// All subcollection batches fire in one parallel Promise.all round-trip.
-// Pass ?includeUserState=false to skip all subcollection reads entirely.
-//
-// NEW vs previous version:
-//   • likeMap now also populates reactionMap (one read, two values — free)
-//   • userReaction is returned alongside userLiked in every post object
-//   • isLikeable() covers all post types so reactions work everywhere
-//   • user resolution now goes through getUserInfo (see resolveUser above)
-//     so vote/like/quiz subcollection lookups use the same canonical user ID
-//     as point awards and activity logs.
-//
+ 
+
 export async function GET(req: NextRequest) {
   try {
     const user = await getUser(req);

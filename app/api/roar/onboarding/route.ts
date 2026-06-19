@@ -554,7 +554,7 @@ export async function POST(req: NextRequest) {
       batch.set(postRef, {
         postId: postRef.id,
         authorUid: resolvedUserId,
-        authorUsername: userData.username,
+        authorUsername:  userData.username,
         authorBadge: badge,
         type: "hot_take",
         sport: sports[0],
