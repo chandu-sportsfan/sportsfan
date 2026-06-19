@@ -314,3 +314,96 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
+// ─── GET: Fetch the current user's onboarding-set preferences ──────────
+// Used by the Preferences/settings screen to pre-populate the form with
+// whatever sports the user picked during onboarding (or last edited via PATCH).
+
+export async function GET(req: NextRequest) {
+  try {
+    const user = await getUser(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    let userDocRef = db.collection("users").doc(user.email);
+    let userDoc = await userDocRef.get();
+    if (!userDoc.exists) {
+      userDocRef = db.collection("users").doc(user.userId);
+      userDoc = await userDocRef.get();
+    }
+
+    if (!userDoc.exists) {
+      return NextResponse.json(
+        { error: "User has not completed onboarding yet" },
+        { status: 404 },
+      );
+    }
+
+    const data = userDoc.data();
+
+    return NextResponse.json({
+      success: true,
+      sports: data?.sports ?? [],
+      badge: data?.badge ?? null,
+    });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Unexpected error";
+    console.error("GET /api/roar/onboarding error:", error);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
+// ─── PATCH: Update sports after onboarding (Preferences screen) ────────
+// Onboarding requires sports + badge up front, so by the time a user can
+// reach the Preferences screen their users/{uid} doc is guaranteed to
+// exist — this does not upsert. A missing doc means the client routed
+// someone here who hasn't actually finished onboarding, which is a 404,
+// not something to silently paper over.
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const user = await getUser(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const { sports } = body;
+
+    if (!Array.isArray(sports) || sports.length === 0 || !sports.every((s) => typeof s === "string" && s.trim().length > 0)) {
+      return NextResponse.json(
+        { error: "sports must be a non-empty array of strings" },
+        { status: 400 },
+      );
+    }
+
+    let userDocRef = db.collection("users").doc(user.email);
+    let userDoc = await userDocRef.get();
+    if (!userDoc.exists) {
+      userDocRef = db.collection("users").doc(user.userId);
+      userDoc = await userDocRef.get();
+    }
+
+    if (!userDoc.exists) {
+      return NextResponse.json(
+        { error: "User has not completed onboarding yet" },
+        { status: 404 },
+      );
+    }
+
+    const trimmedSports = sports.map((s: string) => s.trim());
+    const now = Date.now();
+
+    await userDocRef.update({ sports: trimmedSports, updatedAt: now });
+
+    return NextResponse.json({
+      success: true,
+      sports: trimmedSports,
+    });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Unexpected error";
+    console.error("PATCH /api/roar/onboarding error:", error);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
