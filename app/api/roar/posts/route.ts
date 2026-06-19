@@ -317,7 +317,6 @@
 
 
 
-
 // api/roar/posts/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
@@ -345,6 +344,17 @@ const isLikeable = (_type: PostType) => true;
 // could be written under a different canonical user doc ID than the rest of
 // the app uses for the same person. We now use `getUserInfo` everywhere so
 // there's a single source of truth for "what is this user's doc ID".
+//
+// FIX (2026-06): getUserInfo can resolve a real user doc that nonetheless has
+// no `username` field on it (e.g. a doc that only has firstName/lastName or
+// `name`, or a legacy doc from a different onboarding path). getUserInfo
+// already derives a sensible display name internally (userName), but this
+// route was ignoring that and reading `snap.data().username` directly, which
+// is undefined for those docs. JSON.stringify then drops the key entirely,
+// so the frontend's `p.authorUsername || "RoarUser"` fallback kicked in for
+// every post by that user. We now thread getUserInfo's derived `userName`
+// through resolveUser() and use it as a fallback when the doc's own
+// `username` field is missing.
 async function resolveUser(
   email: string,
   uid: string
@@ -352,6 +362,7 @@ async function resolveUser(
   resolvedId: string;
   snap: FirebaseFirestore.DocumentSnapshot;
   ref: FirebaseFirestore.DocumentReference;
+  derivedUserName: string;
 } | null> {
   const info = await getUserInfo(uid, undefined, email);
   if (!info.exists) return null;
@@ -360,7 +371,7 @@ async function resolveUser(
   const snap = await ref.get();
   if (!snap.exists) return null;
 
-  return { resolvedId: info.actualUserId, snap, ref };
+  return { resolvedId: info.actualUserId, snap, ref, derivedUserName: info.userName };
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -530,6 +541,13 @@ export async function GET(req: NextRequest) {
 // awardUserPoints, and the totalPoints/pointsBreakdown increments all land
 // on the same canonical users/{actualUserId} doc that /api/createpost uses.
 //
+// FIX (2026-06): authorUsername now falls back to getUserInfo's derived
+// userName (firstName/lastName, or `name`, or email local-part) whenever the
+// resolved user doc has no `username` field of its own. Previously a missing
+// `username` field meant `authorUsername` was `undefined`, which Firestore/
+// JSON silently drops — every post by that user then rendered as the
+// frontend's generic "RoarUser" fallback.
+//
 export async function POST(req: NextRequest) {
   try {
     const user = await getUser(req);
@@ -579,8 +597,12 @@ export async function POST(req: NextRequest) {
     const resolved = await resolveUser(user.email, user.userId);
     if (!resolved) return NextResponse.json({ error: "User profile not found" }, { status: 404 });
 
-    const { resolvedId: resolvedUserId, snap: userSnap, ref: userDocRef } = resolved;
-    const userData = userSnap.data() as { username: string; badge: string; [key: string]: any };
+    const { resolvedId: resolvedUserId, snap: userSnap, ref: userDocRef, derivedUserName } = resolved;
+    const userData = userSnap.data() as { username?: string; badge: string; [key: string]: any };
+
+    // Prefer the doc's own `username` field; fall back to getUserInfo's
+    // derived name if the doc doesn't have one set (legacy/partial profiles).
+    const resolvedUsername = userData.username || derivedUserName;
 
     const now     = Date.now();
     const postRef = db.collection("roarPosts").doc();
@@ -588,7 +610,7 @@ export async function POST(req: NextRequest) {
     const newPost: Post = {
       postId:         postRef.id,
       authorUid:      resolvedUserId,
-      authorUsername: userData.username,
+      authorUsername: resolvedUsername,
       authorBadge:    userData.badge,
       type,
       sport,
@@ -619,8 +641,23 @@ export async function POST(req: NextRequest) {
     const batch = db.batch();
     batch.set(postRef, newPost);
 
+    // Single update() call on userDocRef — Firestore counts this as one
+    // write regardless of how many fields are in the object, and a batch
+    // must not call update() twice on the same ref (the second call would
+    // silently overwrite the first's field map in some SDKs). Merging the
+    // counter increment and the username backfill into one object keeps
+    // this at exactly 1 write to this doc, same as before the fix.
     const counterField = type === "prediction" ? "predictionCount" : "hotTakeCount";
-    batch.update(userDocRef, { [counterField]: FieldValue.increment(1), updatedAt: now });
+    const userDocUpdate: Record<string, unknown> = {
+      [counterField]: FieldValue.increment(1),
+      updatedAt: now,
+    };
+    // Backfill the user doc's own `username` field if it was missing, so
+    // future reads (here and elsewhere) don't need the fallback at all.
+    if (!userData.username && derivedUserName) {
+      userDocUpdate.username = derivedUserName;
+    }
+    batch.update(userDocRef, userDocUpdate);
 
     await batch.commit();
 
@@ -628,7 +665,7 @@ export async function POST(req: NextRequest) {
     awardRoarPoints({
       actualUserId:  resolvedUserId,
       authUserId:    user.userId,
-      userName:      userData.username ?? resolvedUserId,
+      userName:      resolvedUsername,
       userEmail:     user.email,
       userExists:    true,
       postType:      type,
