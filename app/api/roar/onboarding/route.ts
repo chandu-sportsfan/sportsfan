@@ -307,7 +307,7 @@ export async function POST(req: NextRequest) {
 
     await batch.commit();
 
-    return NextResponse.json({ success: true, badge, uid: resolvedUserId });
+    return NextResponse.json({ success: true, badge, uid: resolvedUserId, username: userData.username, });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
     console.error("POST /api/roar/onboarding error:", error);
