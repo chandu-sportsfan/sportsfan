@@ -17,6 +17,73 @@ async function resolveUserDoc(userId: string, email: string) {
   return { docRef, snap };
 }
 
+// ─── Badge calculation from room activities ──────────────────────────────────
+interface ActivityItem {
+  type: string;
+  createdAt: number;
+  metadata?: Record<string, unknown>;
+}
+
+interface BadgeData {
+  id: string;
+  name: string;
+  unlocked: boolean;
+  unlockedAt?: number;
+  progress?: number;
+}
+
+function calculateBadgesFromActivities(activities: ActivityItem[]): BadgeData[] {
+  const postCount = activities.filter((a) =>
+    ["ROAR_POST", "ROAR_HOT_TAKE", "ROAR_MEMORY"].includes(a.type)
+  ).length;
+
+  const predictionCount = activities.filter((a) => a.type === "ROAR_PREDICTION").length;
+  const debateCount = activities.filter((a) => a.type === "ROAR_DEBATE").length;
+  const totalActivities = activities.length;
+
+  const firstActivityTime = activities.length > 0 ? activities[activities.length - 1].createdAt : undefined;
+
+  return [
+    {
+      id: "FIRST_POST",
+      name: "First Post",
+      unlocked: postCount >= 1,
+      unlockedAt: postCount >= 1 ? firstActivityTime : undefined,
+      progress: postCount,
+    },
+    {
+      id: "POST_10",
+      name: "10 Posts",
+      unlocked: postCount >= 10,
+      progress: Math.min(postCount, 10),
+    },
+    {
+      id: "PREDICTION_EXPERT",
+      name: "Prediction Expert",
+      unlocked: predictionCount >= 5,
+      progress: Math.min(predictionCount, 5),
+    },
+    {
+      id: "DEBATE_STARTER",
+      name: "Debate Starter",
+      unlocked: debateCount >= 3,
+      progress: Math.min(debateCount, 3),
+    },
+    {
+      id: "ACTIVE_CONTRIBUTOR",
+      name: "Active Contributor",
+      unlocked: totalActivities >= 20,
+      progress: Math.min(totalActivities, 20),
+    },
+    {
+      id: "TOP_FAN",
+      name: "Top Fan",
+      unlocked: totalActivities >= 50,
+      progress: Math.min(totalActivities, 50),
+    },
+  ];
+}
+
 export async function GET(req: NextRequest) {
   try {
     const user = await getUser(req);
@@ -33,31 +100,80 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "ROAR profile not onboarded", onboarded: false }, { status: 404 });
     }
 
-    const [badgesSnap, postsSnap, rivalSnap] = await Promise.all([
-      db.collection("roarBadges").doc(resolvedUserId).collection("roarProgress").get(),
-      db.collection("roarPosts").where("authorUid", "==", resolvedUserId).get(),
+    // ── Fetch activities from activityLog (room-aware) ─────────────────────────
+    const [activitiesSnap, rivalSnap] = await Promise.all([
+      db
+        .collection("users")
+        .doc(resolvedUserId)
+        .collection("activityLog")
+        .orderBy("createdAt", "desc")
+        .limit(100)
+        .get(),
       db.collection("rivals").doc(resolvedUserId).get(),
     ]);
 
-    const accuracy = userData.predictionCount > 0
-      ? Math.round((userData.correctPredictions / userData.predictionCount) * 100) : 0;
+    const activities = activitiesSnap.docs
+      .map((d) => ({
+        id: d.id,
+        type: d.data().type || d.data().reason,
+        createdAt: d.data().createdAt,
+        metadata: d.data().metadata,
+        points: d.data().points,
+        label: d.data().label,
+      }))
+      .sort((a, b) => b.createdAt - a.createdAt);
 
-    const allPosts = postsSnap.docs.map((d) => ({ ...(d.data() as Post), postId: d.id }));
-    const sortedPosts = allPosts.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
+    // ── Calculate badges from room activities ──────────────────────────────────
+    const badges = calculateBadgesFromActivities(activities);
+
+    // ── Extract predictions and debates from activities ────────────────────────
+    const predictions = activities
+      .filter((a) => a.type === "ROAR_PREDICTION")
+      .map((a) => ({
+        id: a.id,
+        postId: a.metadata?.postId,
+        label: a.label,
+        text: a.metadata?.statement || a.label,
+        sport: a.metadata?.sport,
+        createdAt: a.createdAt,
+        status: "PENDING", // Activities don't have status; use as-is or fetch separately if needed
+      }))
+      .slice(0, 20);
+
+    const hotTakes = activities
+      .filter((a) => a.type === "ROAR_DEBATE")
+      .map((a) => ({
+        id: a.id,
+        postId: a.metadata?.postId,
+        label: a.label,
+        text: a.metadata?.statement || a.label,
+        sideA: a.metadata?.sideA,
+        sideB: a.metadata?.sideB,
+        createdAt: a.createdAt,
+      }))
+      .slice(0, 10);
+
+    // ── Calculate accuracy from activities (if tracking is available) ──────────
+    // For now, use the stored accuracy from userData, or calculate from corrections
+    const accuracy = userData.predictionCount > 0
+      ? Math.round((userData.correctPredictions / userData.predictionCount) * 100)
+      : 0;
 
     return NextResponse.json({
       success: true,
       user: {
         ...userData,
         accuracy,
+        predictionCount: predictions.length,
+        hotTakeCount: hotTakes.length,
         // canonical names — Profile.tsx reads these
         favPlayer: userData.favPlayer ?? null,
         about: userData.about ?? null,
         avatarUrl: userData.avatarUrl ?? null,
       },
-      badges: badgesSnap.docs.map((d) => ({ ...d.data(), badgeId: d.id })),
-      predictions: sortedPosts.filter((p: any) => p.type === "prediction").slice(0, 20),
-      hotTakes: sortedPosts.filter((p: any) => p.type === "hot_take").slice(0, 10),
+      badges,
+      predictions,
+      hotTakes,
       rival: rivalSnap.exists ? rivalSnap.data() : null,
     });
   } catch (error: unknown) {
