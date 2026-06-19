@@ -316,7 +316,6 @@
 
 
 
-
 // api/roar/posts/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
@@ -335,6 +334,58 @@ const VOTABLE_TYPES = new Set<PostType>(["hot_take", "prediction", "debate"]);
 // users can react to hot_takes, debates, etc. If you want to keep likes
 // restricted to "post" only, revert this to: type === "post"
 const isLikeable = (_type: PostType) => true;
+
+// ── Display-name cleanup ──────────────────────────────────────────────────────
+// getUserInfo's derived userName falls back through firstName/lastName → name
+// → email local-part. The email-local-part branch returns whatever sits
+// before "@", and for sanitized-doc-ID lookups that can come back as the
+// *sanitized* local part — underscores instead of dots/spaces, e.g.
+// "chandu_srikakulam" (from chandu.srikakulam@sportsfan360.com) or even
+// "chandu_srikakulam_sportsfan360_com" if a fully-sanitized email slipped
+// through. Without this cleanup, authorUsername renders underscores raw in
+// the feed instead of a normal-looking name.
+//
+// This is intentionally conservative: it only reformats things that look
+// like underscore/dot-separated email-local-part artifacts. A genuine
+// username with underscores chosen by the user themselves (set explicitly
+// via userData.username) never reaches this function — only the *derived*
+// fallback path does.
+function cleanDisplayName(raw: string | undefined | null): string {
+  if (!raw) return "RoarUser";
+
+  let name = raw.trim();
+  if (!name) return "RoarUser";
+
+  // Strip a trailing sanitized-domain suffix if present, e.g.
+  // "chandu_srikakulam_sportsfan360_com" -> "chandu_srikakulam"
+  // (sanitized emails replace "." and "@" with "_", so the domain's dot
+  // also became an underscore — we only strip well-known free-mail /
+  // company domain patterns we expect from this app's sanitization, never
+  // an arbitrary mid-string underscore run, to avoid mangling real names).
+  name = name.replace(/_[a-z0-9-]+_(com|net|org|io|co)$/i, "");
+
+  // Replace underscores/dots (typical email-local-part separators) with
+  // spaces, collapse repeats, trim.
+  name = name.replace(/[_.]+/g, " ").replace(/\s+/g, " ").trim();
+
+  if (!name) return "RoarUser";
+
+  // Title-case each word ("chandu srikakulam" -> "Chandu Srikakulam").
+  // Leaves already-mixed-case input (e.g. a real `name` field like
+  // "McKenzie") alone if it has no separators to replace, since this only
+  // runs after a separator replacement found something to clean — but to
+  // be safe/idempotent we still title-case conservatively: only lowercase
+  // words get capitalized, words that already contain an uppercase letter
+  // are left as-is.
+  name = name
+    .split(" ")
+    .map((word) =>
+      /[A-Z]/.test(word) ? word : word.charAt(0).toUpperCase() + word.slice(1)
+    )
+    .join(" ");
+
+  return name;
+}
 
 // ── Shared user resolution ────────────────────────────────────────────────────
 // NOTE: previously this route had its own local `resolveUser()` helper that
@@ -355,6 +406,10 @@ const isLikeable = (_type: PostType) => true;
 // every post by that user. We now thread getUserInfo's derived `userName`
 // through resolveUser() and use it as a fallback when the doc's own
 // `username` field is missing.
+//
+// FIX (2026-06, round 2): the derived userName itself can be a raw,
+// underscore-laden email-local-part (e.g. "chandu_srikakulam"). Run it
+// through cleanDisplayName() before ever exposing it as authorUsername.
 async function resolveUser(
   email: string,
   uid: string
@@ -371,7 +426,12 @@ async function resolveUser(
   const snap = await ref.get();
   if (!snap.exists) return null;
 
-  return { resolvedId: info.actualUserId, snap, ref, derivedUserName: info.userName };
+  return {
+    resolvedId: info.actualUserId,
+    snap,
+    ref,
+    derivedUserName: cleanDisplayName(info.userName),
+  };
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -548,6 +608,11 @@ export async function GET(req: NextRequest) {
 // JSON silently drops — every post by that user then rendered as the
 // frontend's generic "RoarUser" fallback.
 //
+// FIX (2026-06, round 2): that derived fallback is now run through
+// cleanDisplayName() *inside resolveUser()*, so both the post's
+// authorUsername and the user-doc backfill below get the cleaned version —
+// not the raw "chandu_srikakulam" underscore form.
+//
 export async function POST(req: NextRequest) {
   try {
     const user = await getUser(req);
@@ -601,7 +666,8 @@ export async function POST(req: NextRequest) {
     const userData = userSnap.data() as { username?: string; badge: string; [key: string]: any };
 
     // Prefer the doc's own `username` field; fall back to getUserInfo's
-    // derived name if the doc doesn't have one set (legacy/partial profiles).
+    // *cleaned* derived name if the doc doesn't have one set (legacy/partial
+    // profiles). derivedUserName is already cleaned inside resolveUser().
     const resolvedUsername = userData.username || derivedUserName;
 
     const now     = Date.now();
@@ -654,6 +720,8 @@ export async function POST(req: NextRequest) {
     };
     // Backfill the user doc's own `username` field if it was missing, so
     // future reads (here and elsewhere) don't need the fallback at all.
+    // Uses the already-cleaned derivedUserName — never the raw email-local
+    // part — so the stored field doesn't perpetuate the underscore bug.
     if (!userData.username && derivedUserName) {
       userDocUpdate.username = derivedUserName;
     }
