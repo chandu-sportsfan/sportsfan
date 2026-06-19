@@ -219,8 +219,8 @@ const ACTIVITY_LABELS: Record<string, (meta?: Record<string, unknown>) => string
   ROAR_HOT_TAKE:    ()  => "Posted a ROAR Hot Take",
   ROAR_PREDICTION:  (m) => `Made a ROAR Prediction${m?.sport ? ` — ${m.sport}` : ""}`,
   ROAR_DEBATE:      (m) => `Started a ROAR Debate${m?.sideA ? ` (${m.sideA} vs ${m.sideB})` : ""}`,
-  ROAR_MEMORY:      ()  => "Shared a ROAR Memory",
-  ROAR_POST:        ()  => "Shared a ROAR Post",
+  ROAR_MEMORY:      ()  => "Created a ROAR Memory",
+  ROAR_POST:        ()  => "Created a ROAR Post",
   ROAR_QUIZ:        ()  => "Answered a ROAR Quiz",
   ROAR_RAW_REACTIONS: () => "Posted ROAR Raw Reactions",
 };
