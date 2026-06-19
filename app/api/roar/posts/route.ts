@@ -1,7 +1,8 @@
 
 
-// // api/roar/posts/route.ts
 
+// // api/roar/posts/route.ts
+// //with real mail id
 // import { NextRequest, NextResponse } from "next/server";
 // import { db } from "@/lib/firebaseAdmin";
 // import { getUser } from "@/lib/getUser";
@@ -10,13 +11,15 @@
 // import type { Post, PostType, SportType } from "@/app/models/Post";
 
 // // ── Post types that support agree/disagree voting ─────────────────────────────
-// // Only these types get a vote subcollection read. Everything else skips it.
 // const VOTABLE_TYPES = new Set<PostType>(["hot_take", "prediction", "debate"]);
 
+// // ── Likeable post types (all types can now be liked/reacted to) ───────────────
+// // Previously only "post" type had likes read. Expanding to all types means
+// // users can react to hot_takes, debates, etc. If you want to keep likes
+// // restricted to "post" only, revert this to: type === "post"
+// const isLikeable = (_type: PostType) => true;
+
 // // ── Shared helper ─────────────────────────────────────────────────────────────
-// // Returns the user doc in one read on the happy path (email key exists).
-// // Returns both the snap AND the ref so the POST handler can update it without
-// // a second db.collection().doc() call.
 // async function resolveUser(
 //   email: string,
 //   uid: string
@@ -27,19 +30,11 @@
 // } | null> {
 //   const emailSnap = await db.collection("users").doc(email).get();
 //   if (emailSnap.exists) {
-//     return {
-//       resolvedId: email,
-//       snap: emailSnap,
-//       ref: db.collection("users").doc(email),
-//     };
+//     return { resolvedId: email, snap: emailSnap, ref: db.collection("users").doc(email) };
 //   }
 //   const uidSnap = await db.collection("users").doc(uid).get();
 //   if (uidSnap.exists) {
-//     return {
-//       resolvedId: uid,
-//       snap: uidSnap,
-//       ref: db.collection("users").doc(uid),
-//     };
+//     return { resolvedId: uid, snap: uidSnap, ref: db.collection("users").doc(uid) };
 //   }
 //   return null;
 // }
@@ -48,67 +43,52 @@
 // // GET  /api/roar/posts
 // // ────────────────────────────────────────────────────────────────────────────
 // //
-// // Quota cost per request (page of N posts, V votable, Q quiz, L liked):
-// //   1  — user doc (resolveUser, happy path)     fired in parallel with posts
-// //   N  — post docs (field read, no subcoll.)
-// //   V  — vote docs (only for hottake/prediction/debate)
-// //   L  — like docs (only for type === "post")
-// //   Q  — quizAnswer docs (only for type === "quiz")
-// //   ─────────────────────────────────────────────
-// //   1 + N + V + L + Q   total reads
+// // Quota cost per request (page of N posts, V votable, L likeable, Q quiz):
+// //   1      — user doc (resolveUser, fired in parallel with posts query)
+// //   N      — post docs
+// //   V      — vote subcollection docs   (only hot_take / prediction / debate)
+// //   L      — like subcollection docs   (all types by default)
+// //   Q      — quizAnswer subcollection docs (only quiz)
+// //   ───────────────────────────────────
+// //   1 + N + V + L + Q  total reads
 // //
-// // All three subcollection batches fire in one parallel Promise.all round-trip.
+// // All subcollection batches fire in one parallel Promise.all round-trip.
+// // Pass ?includeUserState=false to skip all subcollection reads entirely.
 // //
-// // Pass ?includeUserState=false to skip all subcollection reads entirely
-// // (useful for admin views, server-side rendering, etc.).
-// //
-// // Indexes required:
-// //   • Single-field: createdAt DESC       (auto-created)
-// //   • Composite:    sport ASC + createdAt DESC   (needed when ?sport= is used)
+// // NEW vs previous version:
+// //   • likeMap now also populates reactionMap (one read, two values — free)
+// //   • userReaction is returned alongside userLiked in every post object
+// //   • isLikeable() covers all post types so reactions work everywhere
 // //
 // export async function GET(req: NextRequest) {
 //   try {
 //     const user = await getUser(req);
-//     if (!user) {
-//       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-//     }
+//     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
 //     const { searchParams } = new URL(req.url);
-//     const limit           = Math.min(parseInt(searchParams.get("limit") || "30"), 100);
-//     const sport           = searchParams.get("sport");
-//     const lastCreatedAt   = searchParams.get("lastCreatedAt")
+//     const limit            = Math.min(parseInt(searchParams.get("limit") || "30"), 100);
+//     const sport            = searchParams.get("sport");
+//     const lastCreatedAt    = searchParams.get("lastCreatedAt")
 //       ? parseInt(searchParams.get("lastCreatedAt")!, 10)
 //       : null;
 //     const includeUserState = searchParams.get("includeUserState") !== "false";
 
 //     // ── Build posts query ─────────────────────────────────────────────────────
-//     // where() must come before orderBy() for compound queries (Firestore rule).
 //     let postsQuery = sport
-//       ? db
-//           .collection("roarPosts")
-//           .where("sport", "==", sport)
-//           .orderBy("createdAt", "desc")
-//           .limit(limit)
-//       : db
-//           .collection("roarPosts")
-//           .orderBy("createdAt", "desc")
-//           .limit(limit);
+//       ? db.collection("roarPosts").where("sport", "==", sport).orderBy("createdAt", "desc").limit(limit)
+//       : db.collection("roarPosts").orderBy("createdAt", "desc").limit(limit);
 
 //     if (lastCreatedAt !== null) {
 //       postsQuery = postsQuery.startAfter(lastCreatedAt);
 //     }
 
-//     // ── Fire user resolution + posts query in true parallel ───────────────────
-//     // resolveUser() starts immediately alongside postsQuery.get().
-//     // Previously resolveUser() awaited internally before postsQuery ran.
+//     // ── Fire user resolution + posts query in parallel ────────────────────────
 //     const [resolved, snapshot] = await Promise.all([
 //       resolveUser(user.email, user.userId),
 //       postsQuery.get(),
 //     ]);
 
-//     if (!resolved) {
-//       return NextResponse.json({ error: "User profile not found" }, { status: 404 });
-//     }
+//     if (!resolved) return NextResponse.json({ error: "User profile not found" }, { status: 404 });
 //     const { resolvedId: resolvedUserId } = resolved;
 
 //     if (snapshot.empty) {
@@ -120,22 +100,14 @@
 //     }
 
 //     // ── Batch subcollection reads ─────────────────────────────────────────────
-//     //
-//     // FIX vs original: voteRefs was built for every doc. Now votes are only
-//     // read for VOTABLE_TYPES — the same pattern used in rooms/messages route.
-//     // On a typical feed (mix of post/quiz/hottake) this saves ~50% of the
-//     // subcollection reads that were being wasted on non-votable types.
-//     //
-//     // All three batches still fire in one Promise.all round-trip.
-
-//     const voteMap = new Map<string, string | null>();
-//     const likeMap = new Map<string, boolean>();
-//     const quizMap = new Map<string, string | null>();
+//     const voteMap     = new Map<string, string | null>();
+//     const likeMap     = new Map<string, boolean>();
+//     const reactionMap = new Map<string, string | null>(); // ← NEW: reaction type per post
+//     const quizMap     = new Map<string, string | null>();
 
 //     if (includeUserState) {
 //       const docs = snapshot.docs;
 
-//       // Partition docs by which subcollections they need
 //       const voteIndices: number[] = [];
 //       const likeIndices: number[] = [];
 //       const quizIndices: number[] = [];
@@ -143,21 +115,14 @@
 //       docs.forEach((d, i) => {
 //         const type = (d.data() as Post).type;
 //         if (VOTABLE_TYPES.has(type)) voteIndices.push(i);
-//         if (type === "post")         likeIndices.push(i);
+//         if (isLikeable(type))        likeIndices.push(i);
 //         if (type === "quiz")         quizIndices.push(i);
 //       });
 
-//       const voteRefs = voteIndices.map((i) =>
-//         docs[i].ref.collection("votes").doc(resolvedUserId)
-//       );
-//       const likeRefs = likeIndices.map((i) =>
-//         docs[i].ref.collection("likes").doc(resolvedUserId)
-//       );
-//       const quizRefs = quizIndices.map((i) =>
-//         docs[i].ref.collection("quizAnswers").doc(resolvedUserId)
-//       );
+//       const voteRefs = voteIndices.map((i) => docs[i].ref.collection("votes").doc(resolvedUserId));
+//       const likeRefs = likeIndices.map((i) => docs[i].ref.collection("likes").doc(resolvedUserId));
+//       const quizRefs = quizIndices.map((i) => docs[i].ref.collection("quizAnswers").doc(resolvedUserId));
 
-//       // One parallel round-trip for all three subcollection types
 //       const [voteSnaps, likeSnaps, quizSnaps] = await Promise.all([
 //         Promise.all(voteRefs.map((r) => r.get())),
 //         Promise.all(likeRefs.map((r) => r.get())),
@@ -168,15 +133,19 @@
 //         const s = voteSnaps[resultIdx];
 //         voteMap.set(docs[docIdx].id, s.exists ? ((s.data() as any).vote ?? null) : null);
 //       });
+
+//       // ── Likes: capture both existence AND reaction type in one pass ──────────
 //       likeIndices.forEach((docIdx, resultIdx) => {
-//         likeMap.set(docs[docIdx].id, likeSnaps[resultIdx].exists);
+//         const s   = likeSnaps[resultIdx];
+//         const id  = docs[docIdx].id;
+//         likeMap.set(id, s.exists);
+//         // Legacy docs created before reaction support default to "heart"
+//         reactionMap.set(id, s.exists ? ((s.data() as any).reaction ?? "heart") : null);
 //       });
+
 //       quizIndices.forEach((docIdx, resultIdx) => {
 //         const s = quizSnaps[resultIdx];
-//         quizMap.set(
-//           docs[docIdx].id,
-//           s.exists ? ((s.data() as any).selectedOption ?? null) : null
-//         );
+//         quizMap.set(docs[docIdx].id, s.exists ? ((s.data() as any).selectedOption ?? null) : null);
 //       });
 //     }
 
@@ -185,18 +154,17 @@
 //       const data           = doc.data() as Post;
 //       const userVote       = voteMap.get(doc.id) ?? null;
 //       const userLiked      = likeMap.get(doc.id) ?? false;
+//       const userReaction   = reactionMap.get(doc.id) ?? null; // ← NEW
 //       const quizUserAnswer = quizMap.get(doc.id) ?? null;
 
 //       return {
 //         ...data,
 //         postId:    doc.id,
 //         likeCount: data.likeCount ?? 0,
-//         ...(includeUserState && { userVote, userLiked, quizUserAnswer }),
+//         ...(includeUserState && { userVote, userLiked, userReaction, quizUserAnswer }),
 //         // Hide correct answer until the user has answered
 //         quizCorrectOption:
-//           data.type === "quiz" && !quizUserAnswer
-//             ? undefined
-//             : data.quizCorrectOption,
+//           data.type === "quiz" && !quizUserAnswer ? undefined : data.quizCorrectOption,
 //       };
 //     });
 
@@ -208,10 +176,7 @@
 //       pagination: {
 //         limit,
 //         hasMore: posts.length === limit,
-//         nextCursor:
-//           posts.length === limit
-//             ? { lastCreatedAt: lastPost?.createdAt ?? null }
-//             : null,
+//         nextCursor: posts.length === limit ? { lastCreatedAt: lastPost?.createdAt ?? null } : null,
 //       },
 //     });
 //   } catch (error: unknown) {
@@ -227,23 +192,16 @@
 // //
 // // Quota cost per request:
 // //   1  — user doc read (resolveUser)
-// //   1  — batch commit (postRef.set + userDocRef.update = 2 writes, 1 commit)
+// //   1  — batch commit (postRef.set + userDocRef.update)
 // //   1  — transaction idempotency read inside awardRoarPoints
 // //   1  — leaderboard batch commit inside awardRoarPoints
 // //   ─────────────────────────────────────────────
-// //   2 reads + 2 writes total  (unchanged from previous version)
-// //
-// // No changes needed to POST — it was already correct.
-// // counterField only increments for prediction/hottake; all other types
-// // fall through to "hotTakeCount" which is fine for now but consider
-// // adding explicit cases if you track debate/quiz counts separately.
+// //   2 reads + 2 writes total  (unchanged)
 // //
 // export async function POST(req: NextRequest) {
 //   try {
 //     const user = await getUser(req);
-//     if (!user) {
-//       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-//     }
+//     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
 //     const body = await req.json();
 //     const {
@@ -282,32 +240,15 @@
 //       memTag?: string;
 //     } = body;
 
-//     if (
-//       !type ||
-//       (!text?.trim() &&
-//         !quizQuestion?.trim() &&
-//         (!mediaUrls || mediaUrls.length === 0))
-//     ) {
-//       return NextResponse.json(
-//         { error: "type and text (or quiz question) are required" },
-//         { status: 400 }
-//       );
+//     if (!type || (!text?.trim() && !quizQuestion?.trim() && (!mediaUrls || mediaUrls.length === 0))) {
+//       return NextResponse.json({ error: "type and text (or quiz question) are required" }, { status: 400 });
 //     }
 
 //     const resolved = await resolveUser(user.email, user.userId);
-//     if (!resolved) {
-//       return NextResponse.json(
-//         { error: "User profile not found" },
-//         { status: 404 }
-//       );
-//     }
+//     if (!resolved) return NextResponse.json({ error: "User profile not found" }, { status: 404 });
 
 //     const { resolvedId: resolvedUserId, snap: userSnap, ref: userDocRef } = resolved;
-//     const userData = userSnap.data() as {
-//       username: string;
-//       badge: string;
-//       [key: string]: any;
-//     };
+//     const userData = userSnap.data() as { username: string; badge: string; [key: string]: any };
 
 //     const now     = Date.now();
 //     const postRef = db.collection("roarPosts").doc();
@@ -320,17 +261,17 @@
 //       type,
 //       sport,
 //       text: text?.trim() || quizQuestion?.trim() || "",
-//       ...(sideA              && { sideA }),
-//       ...(sideB              && { sideB }),
-//       ...(matchId            && { matchId }),
+//       ...(sideA             && { sideA }),
+//       ...(sideB             && { sideB }),
+//       ...(matchId           && { matchId }),
 //       ...(confidence !== undefined && { confidence }),
-//       ...(quizQuestion       && { quizQuestion }),
-//       ...(quizOptions        && { quizOptions }),
-//       ...(quizCorrectOption  && { quizCorrectOption }),
-//       ...(quizTimer          && { quizTimer }),
-//       ...(quizPoints         && { quizPoints }),
-//       ...(memGifUrl          && { memGifUrl }),
-//       ...(memTag             && { memTag }),
+//       ...(quizQuestion      && { quizQuestion }),
+//       ...(quizOptions       && { quizOptions }),
+//       ...(quizCorrectOption && { quizCorrectOption }),
+//       ...(quizTimer         && { quizTimer }),
+//       ...(quizPoints        && { quizPoints }),
+//       ...(memGifUrl         && { memGifUrl }),
+//       ...(memTag            && { memTag }),
 //       quizParticipants: 0,
 //       audience,
 //       agreeCount:    0,
@@ -346,16 +287,12 @@
 //     const batch = db.batch();
 //     batch.set(postRef, newPost);
 
-//     // Atomic counter increment — no stale read race condition
 //     const counterField = type === "prediction" ? "predictionCount" : "hotTakeCount";
-//     batch.update(userDocRef, {
-//       [counterField]: FieldValue.increment(1),
-//       updatedAt: now,
-//     });
+//     batch.update(userDocRef, { [counterField]: FieldValue.increment(1), updatedAt: now });
 
 //     await batch.commit();
 
-//     // Award points — non-fatal, does not block the response
+//     // Award points — non-fatal, fire-and-forget
 //     awardRoarPoints({
 //       actualUserId:  resolvedUserId,
 //       authUserId:    user.userId,
@@ -365,21 +302,17 @@
 //       postType:      type,
 //       transactionId: `roar_post_${postRef.id}`,
 //       metadata:      { postId: postRef.id, sport },
-//     }).catch((pointsErr) => {
-//       console.error("Failed to award points for post:", pointsErr);
-//     });
+//     }).catch((err) => console.error("Failed to award points for post:", err));
 
-//     return NextResponse.json({
-//       success: true,
-//       postId: postRef.id,
-//       post:   newPost,
-//     });
+//     return NextResponse.json({ success: true, postId: postRef.id, post: newPost });
 //   } catch (error: unknown) {
 //     const msg = error instanceof Error ? error.message : "Unexpected error";
 //     console.error("POST /api/roar/posts error:", error);
 //     return NextResponse.json({ error: msg }, { status: 500 });
 //   }
 // }
+
+
 
 
 
@@ -392,6 +325,7 @@ import { db } from "@/lib/firebaseAdmin";
 import { getUser } from "@/lib/getUser";
 import { FieldValue } from "firebase-admin/firestore";
 import { awardRoarPoints } from "@/lib/roarPoints";
+import { getUserInfo } from "@/lib/userPoints";
 import type { Post, PostType, SportType } from "@/app/models/Post";
 
 // ── Post types that support agree/disagree voting ─────────────────────────────
@@ -403,7 +337,14 @@ const VOTABLE_TYPES = new Set<PostType>(["hot_take", "prediction", "debate"]);
 // restricted to "post" only, revert this to: type === "post"
 const isLikeable = (_type: PostType) => true;
 
-// ── Shared helper ─────────────────────────────────────────────────────────────
+// ── Shared user resolution ────────────────────────────────────────────────────
+// NOTE: previously this route had its own local `resolveUser()` helper that
+// checked `users/{email}` before `users/{uid}`. That diverged from
+// `getUserInfo` (used by /api/createpost via awardUserPoints), which checks
+// `users/{uid}` first. The mismatch meant points/activityLog/vote/like docs
+// could be written under a different canonical user doc ID than the rest of
+// the app uses for the same person. We now use `getUserInfo` everywhere so
+// there's a single source of truth for "what is this user's doc ID".
 async function resolveUser(
   email: string,
   uid: string
@@ -412,15 +353,14 @@ async function resolveUser(
   snap: FirebaseFirestore.DocumentSnapshot;
   ref: FirebaseFirestore.DocumentReference;
 } | null> {
-  const emailSnap = await db.collection("users").doc(email).get();
-  if (emailSnap.exists) {
-    return { resolvedId: email, snap: emailSnap, ref: db.collection("users").doc(email) };
-  }
-  const uidSnap = await db.collection("users").doc(uid).get();
-  if (uidSnap.exists) {
-    return { resolvedId: uid, snap: uidSnap, ref: db.collection("users").doc(uid) };
-  }
-  return null;
+  const info = await getUserInfo(uid, undefined, email);
+  if (!info.exists) return null;
+
+  const ref = db.collection("users").doc(info.actualUserId);
+  const snap = await ref.get();
+  if (!snap.exists) return null;
+
+  return { resolvedId: info.actualUserId, snap, ref };
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -443,6 +383,9 @@ async function resolveUser(
 //   • likeMap now also populates reactionMap (one read, two values — free)
 //   • userReaction is returned alongside userLiked in every post object
 //   • isLikeable() covers all post types so reactions work everywhere
+//   • user resolution now goes through getUserInfo (see resolveUser above)
+//     so vote/like/quiz subcollection lookups use the same canonical user ID
+//     as point awards and activity logs.
 //
 export async function GET(req: NextRequest) {
   try {
@@ -581,6 +524,11 @@ export async function GET(req: NextRequest) {
 //   1  — leaderboard batch commit inside awardRoarPoints
 //   ─────────────────────────────────────────────
 //   2 reads + 2 writes total  (unchanged)
+//
+// User resolution now goes through getUserInfo (see resolveUser above), so
+// the user doc updated here, the activityLog entry written inside
+// awardUserPoints, and the totalPoints/pointsBreakdown increments all land
+// on the same canonical users/{actualUserId} doc that /api/createpost uses.
 //
 export async function POST(req: NextRequest) {
   try {
