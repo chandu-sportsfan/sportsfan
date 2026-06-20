@@ -1,132 +1,34 @@
-// import { NextRequest, NextResponse } from "next/server";
-// import { db } from "@/lib/firebaseAdmin";
-// import { getUser } from "@/lib/getUser";
-// import type { Post } from "@/app/models/Post";
-
-// // GET  /api/roar/feed?filter=For+You&limit=20&lastDocId=xxx
-// export async function GET(req: NextRequest) {
-//   try {
-//     const user = await getUser(req);
-//     if (!user) {
-//       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-//     }
-
-//     const { searchParams } = new URL(req.url);
-//     const filter = searchParams.get("filter") ?? "For You";
-//     const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 50);
-//     const lastDocId = searchParams.get("lastDocId");
-
-//     // Fetch the recent active posts to filter in-memory.
-//     // This avoids needing complex Firestore composite indexes that would crash the query at runtime.
-//     const query = db
-//       .collection("roarPosts")
-//       .where("status", "==", "active")
-//       .orderBy("createdAt", "desc")
-//       .limit(500);
-
-//     const snapshot = await query.get();
-//     let posts: Post[] = snapshot.docs.map((doc) => ({
-//       ...(doc.data() as Post),
-//       postId: doc.id,
-//     }));
-
-//     // Apply filters in-memory
-//     if (filter === "Cricket") {
-//       posts = posts.filter((p) => p.sport === "cricket");
-//     } else if (filter === "Football") {
-//       posts = posts.filter((p) => p.sport === "football");
-//     } else if (filter === "Live") {
-//       posts = posts.filter((p) => p.isLive === true);
-//     } else if (filter === "Predictions") {
-//       posts = posts.filter((p) => p.type === "prediction");
-//     }
-
-//     // Paginate the filtered array in-memory
-//     let startIndex = 0;
-//     if (lastDocId) {
-//       const idx = posts.findIndex((p) => p.postId === lastDocId);
-//       if (idx !== -1) {
-//         startIndex = idx + 1;
-//       }
-//     }
-
-//     const paginatedPosts = posts.slice(startIndex, startIndex + limit);
-//     const hasMore = startIndex + limit < posts.length;
-//     const lastDoc = paginatedPosts[paginatedPosts.length - 1];
-
-//     let userSnap = await db.collection("users").doc(user.email).get();
-//     let resolvedUserId = user.email;
-//     if (!userSnap.exists) {
-//       userSnap = await db.collection("users").doc(user.userId).get();
-//       if (userSnap.exists) {
-//         resolvedUserId = user.userId;
-//       }
-//     }
-
-//     const postsWithVote = await Promise.all(
-//       paginatedPosts.map(async (p) => {
-//         const docRef = db.collection("roarPosts").doc(p.postId);
-//         const voteSnap = await docRef.collection("votes").doc(resolvedUserId).get();
-//         const userVote = voteSnap.exists ? (voteSnap.data() as any).vote : null;
-//         return {
-//           ...p,
-//           userVote,
-//         };
-//       })
-//     );
-
-//     return NextResponse.json({
-//       success: true,
-//       posts: postsWithVote,
-//       pagination: {
-//         limit,
-//         hasMore,
-//         nextCursor: hasMore && lastDoc ? { lastDocId: lastDoc.postId } : null,
-//       },
-//     });
-//   } catch (error: unknown) {
-//     const msg = error instanceof Error ? error.message : "Unexpected error";
-//     console.error("GET /api/roar/feed error:", error);
-//     return NextResponse.json({ error: msg }, { status: 500 });
-//   }
-// }
-
-
-
-
 // api/roar/feed/route.ts
 //
 // GET /api/roar/feed?filter=For+You&limit=20&lastDocId=xxx
 //
-// FIXES vs previous version:
-//   1. userReaction missing  → likes vanished on refresh (root cause)
-//   2. N+1 vote reads        → one await per post inside Promise.all, serial in practice
-//   3. userLiked missing     → reaction picker had no initial state
-//   4. Fetching 500 docs to filter 20 → replaced with targeted Firestore queries
+// FIX: user resolution now uses getUserInfo (same resolver as posts/route.ts
+// and likesection/route.ts) instead of a simplified users/{email}->users/{uid}
+// check. The simplified check has no sanitized-email-id fallback, so for users
+// whose Firestore doc id is in sanitized form (dots/@ replaced with _) it could
+// resolve to a DIFFERENT id than the one likesection/route.ts wrote the like
+// under -> reaction always read back as null/missing after refresh, even
+// though the like document exists in Firestore. getUserInfo handles:
+//   1. exact id match
+//   2. fallback: query by email field
+//   3. fallback: sanitized email id (foo.bar@x.com -> foo_bar_x_com)
+//   4. fallback: de-sanitized id (foo_bar_x_com -> foo.bar@x.com)
 //
 // Quota cost per request (page of N posts, V votable):
-//   1      — user doc (parallel with posts query)
+//   1      — user doc lookup (parallel with posts query; may be 2-3 reads
+//            internally if getUserInfo needs a fallback strategy)
 //   1      — cursor doc read (only when paginating, skipped on first load)
 //   N      — post docs
 //   V      — vote subcollection docs   (hot_take / prediction / debate only)
 //   N      — like subcollection docs   (all types)
-//   ─────────────────────────────────────────────
-//   1+N+V+N  reads  (was: 1 + 500 + N serial reads)
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { getUser } from "@/lib/getUser";
+import { getUserInfo } from "@/lib/userPoints";
 import type { Post, PostType } from "@/app/models/Post";
 
 const VOTABLE_TYPES = new Set<PostType>(["hot_take", "prediction", "debate"]);
-
-async function resolveUserId(email: string, uid: string): Promise<string | null> {
-  const emailSnap = await db.collection("users").doc(email).get();
-  if (emailSnap.exists) return email;
-  const uidSnap = await db.collection("users").doc(uid).get();
-  if (uidSnap.exists) return uid;
-  return null;
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -171,12 +73,13 @@ export async function GET(req: NextRequest) {
     }
 
     // ── Parallel: resolve user + run query ────────────────────────────────────
-    const [resolvedUserId, snapshot] = await Promise.all([
-      resolveUserId(user.email, user.userId),
+    const [info, snapshot] = await Promise.all([
+      getUserInfo(user.userId, undefined, user.email),
       q.get(),
     ]);
 
-    if (!resolvedUserId) return NextResponse.json({ error: "User profile not found" }, { status: 404 });
+    if (!info.exists) return NextResponse.json({ error: "User profile not found" }, { status: 404 });
+    const resolvedUserId = info.actualUserId;
 
     if (snapshot.empty) {
       return NextResponse.json({
@@ -222,9 +125,9 @@ export async function GET(req: NextRequest) {
       const s  = likeSnaps[ri];
       const id = docs[docIdx].id;
       likeMap.set(id, s.exists);
-      // THE FIX: read the reaction field, not just existence.
-      // Old code only set userLiked (bool). HomeFeed reads userReaction to
-      // restore the emoji — without it, reaction is always null on refresh.
+      // Reads the reaction field, not just existence. HomeFeed reads
+      // userReaction to restore the emoji on refresh — without it, the
+      // reaction always renders as unset even though the doc is in Firestore.
       reactionMap.set(id, s.exists ? ((s.data() as any).reaction ?? "heart") : null);
     });
 
@@ -237,7 +140,7 @@ export async function GET(req: NextRequest) {
         likeCount:   data.likeCount ?? 0,
         userVote:    voteMap.get(doc.id) ?? null,
         userLiked:   likeMap.get(doc.id) ?? false,
-        userReaction: reactionMap.get(doc.id) ?? null, // ← restores emoji on refresh
+        userReaction: reactionMap.get(doc.id) ?? null,
       };
     });
 

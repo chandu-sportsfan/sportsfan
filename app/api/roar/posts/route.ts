@@ -511,34 +511,9 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 // POST  /api/roar/posts
-// ────────────────────────────────────────────────────────────────────────────
-//
-// Quota cost per request:
-//   1  — user doc read (resolveUser)
-//   1  — batch commit (postRef.set + userDocRef.update)
-//   1  — transaction idempotency read inside awardRoarPoints
-//   1  — leaderboard batch commit inside awardRoarPoints
-//   ─────────────────────────────────────────────
-//   2 reads + 2 writes total  (unchanged)
-//
-// User resolution now goes through getUserInfo (see resolveUser above), so
-// the user doc updated here, the activityLog entry written inside
-// awardUserPoints, and the totalPoints/pointsBreakdown increments all land
-// on the same canonical users/{actualUserId} doc that /api/createpost uses.
-//
-// FIX (2026-06): authorUsername now falls back to getUserInfo's derived
-// userName (firstName/lastName, or `name`, or email local-part) whenever the
-// resolved user doc has no `username` field of its own. Previously a missing
-// `username` field meant `authorUsername` was `undefined`, which Firestore/
-// JSON silently drops — every post by that user then rendered as the
-// frontend's generic "RoarUser" fallback.
-//
-// FIX (2026-06, round 2): that derived fallback is now run through
-// cleanDisplayName() *inside resolveUser()*, so both the post's
-// authorUsername and the user-doc backfill below get the cleaned version —
-// not the raw "chandu_srikakulam" underscore form.
+// 
+
 //
 export async function POST(req: NextRequest) {
   try {

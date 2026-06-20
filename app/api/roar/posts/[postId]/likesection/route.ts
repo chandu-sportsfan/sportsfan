@@ -1,37 +1,20 @@
 // api/roar/posts/[postId]/likesection/route.ts
 //
-// POST   /api/roar/posts/:postId/likesection   body: { reaction }
-//   - New reaction     → add like doc, increment likeCount
-//   - Same reaction    → remove like doc, decrement likeCount  (toggle off)
-//   - Different react  → update like doc reaction, count unchanged
-//   Returns: { success, action, reaction, likeCount }
-//
-// DELETE /api/roar/posts/:postId/likesection
-//   Removes the user's reaction regardless of type.
-//   Returns: { success, action: "removed", reaction: null, likeCount }
-//
-// Quota cost per call:
-//   1  — user auth
-//   1  — transaction read (like doc)  +  1 write (like doc + post counter)
-//   1  — post doc read after tx to get fresh likeCount
-//   ─────────────────────────────────────────────
-//   3 reads + 1–2 writes per call
+// FIX: user resolution now uses getUserInfo (same resolver as posts/route.ts
+// and feed/route.ts) instead of a simplified users/{email}->users/{uid}
+// check. See feed/route.ts header comment for the full explanation — in short,
+// the simplified check has no sanitized-email-id fallback, so it could
+// resolve a DIFFERENT doc id than the read path, making likes appear to
+// "disappear" on refresh even though they're correctly stored in Firestore.
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { getUser } from "@/lib/getUser";
+import { getUserInfo } from "@/lib/userPoints";
 import { FieldValue } from "firebase-admin/firestore";
 
 type ReactionType = "heart" | "fire" | "laugh" | "sad" | "thumb";
 const VALID_REACTIONS = new Set<ReactionType>(["heart", "fire", "laugh", "sad", "thumb"]);
-
-async function resolveUserId(email: string, uid: string): Promise<string | null> {
-  const emailSnap = await db.collection("users").doc(email).get();
-  if (emailSnap.exists) return email;
-  const uidSnap = await db.collection("users").doc(uid).get();
-  if (uidSnap.exists) return uid;
-  return null;
-}
 
 // ── POST: add or change reaction ─────────────────────────────────────────────
 export async function POST(
@@ -48,8 +31,9 @@ export async function POST(
     const body = await req.json().catch(() => ({}));
     const reaction: ReactionType = VALID_REACTIONS.has(body.reaction) ? body.reaction : "heart";
 
-    const resolvedUserId = await resolveUserId(user.email, user.userId);
-    if (!resolvedUserId) return NextResponse.json({ error: "User profile not found" }, { status: 404 });
+    const info = await getUserInfo(user.userId, undefined, user.email);
+    if (!info.exists) return NextResponse.json({ error: "User profile not found" }, { status: 404 });
+    const resolvedUserId = info.actualUserId;
 
     const postRef = db.collection("roarPosts").doc(postId);
     const likeRef = postRef.collection("likes").doc(resolvedUserId);
@@ -113,8 +97,9 @@ export async function DELETE(
     const { postId } = params;
     if (!postId) return NextResponse.json({ error: "postId is required" }, { status: 400 });
 
-    const resolvedUserId = await resolveUserId(user.email, user.userId);
-    if (!resolvedUserId) return NextResponse.json({ error: "User profile not found" }, { status: 404 });
+    const info = await getUserInfo(user.userId, undefined, user.email);
+    if (!info.exists) return NextResponse.json({ error: "User profile not found" }, { status: 404 });
+    const resolvedUserId = info.actualUserId;
 
     const postRef = db.collection("roarPosts").doc(postId);
     const likeRef = postRef.collection("likes").doc(resolvedUserId);
