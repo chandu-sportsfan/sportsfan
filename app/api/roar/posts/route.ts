@@ -659,29 +659,6 @@
 // GET  /api/roar/posts?sport=cricket&limit=30&lastCreatedAt=xxx   (legacy form, still works)
 // POST /api/roar/posts
 //
-// MERGE NOTE: this file now absorbs what used to live in feed/route.ts.
-// feed/route.ts has been deleted — roarApi.getFeed() should point at
-// /api/roar/posts instead of /api/roar/feed. Pagination cursor stays
-// lastCreatedAt (the contract this file already used) rather than feed's
-// lastDocId, so no frontend cursor-handling changes are needed beyond the
-// URL itself.
-//
-// What was merged in from feed/route.ts:
-//   - `filter` query param (For You / Cricket / Football / Live /
-//     Predictions / Debates / Hot Takes / Quizzes) as an alternative to the
-//     plain `sport` param.
-//   - `status == "active"` filtering. This is a real behavior change vs the
-//     old posts/route.ts, which had no status filter — any roarPosts docs
-//     without status == "active" (legacy rows, soft-deleted, scheduled, etc.)
-//     will now be excluded. Confirm that's desired before deploying.
-//
-// What was intentionally NOT carried over from feed/route.ts:
-//   - The simplified resolveUserId() — this file already used the correct
-//     getUserInfo()-based resolveUser(), which is why posts/route.ts never
-//     had the reaction-not-persisting bug feed/route.ts had.
-//   - lastDocId-based cursor — kept lastCreatedAt instead (existing contract).
-//   - The N+1 doc fetch for the cursor anchor — not needed since
-//     lastCreatedAt is a plain value, not a doc reference.
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
