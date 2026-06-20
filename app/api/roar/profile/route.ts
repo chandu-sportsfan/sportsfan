@@ -171,15 +171,80 @@ async function resolveUserDoc(userId: string, email: string) {
   return { docRef, snap };
 }
 
+// export async function GET(req: NextRequest) {
+//   try {
+//     const user = await getUser(req);
+//     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+//     const resolved = await resolveUserDoc(user.userId, user.email);
+//     if (!resolved) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+
+//     const { docRef, snap } = resolved;
+//     const resolvedUserId = docRef.id;
+//     const userData = snap.data() as any;
+
+//     if (!userData || !userData.username || !userData.badge) {
+//       return NextResponse.json({ error: "ROAR profile not onboarded", onboarded: false }, { status: 404 });
+//     }
+
+//     const [badgesSnap, postsSnap, rivalSnap] = await Promise.all([
+//       db.collection("roarBadges").doc(resolvedUserId).collection("roarProgress").get(),
+//       db.collection("roarPosts").where("authorUid", "==", resolvedUserId).get(),
+//       db.collection("rivals").doc(resolvedUserId).get(),
+//     ]);
+
+//     const accuracy = userData.predictionCount > 0
+//       ? Math.round((userData.correctPredictions / userData.predictionCount) * 100) : 0;
+
+//     const allPosts = postsSnap.docs.map((d) => ({ ...(d.data() as Post), postId: d.id }));
+//     const sortedPosts = allPosts.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
+
+//     return NextResponse.json({
+//       success: true,
+//       user: {
+//         ...userData,
+//         accuracy,
+//         actualUserId: resolvedUserId,
+//         // canonical names — Profile.tsx reads these
+//         favPlayer: userData.favPlayer ?? null,
+//         about: userData.about ?? null,
+//         avatarUrl: userData.avatarUrl ?? null,
+//       },
+//       badges: badgesSnap.docs.map((d) => ({ ...d.data(), badgeId: d.id })),
+//       predictions: sortedPosts.filter((p: any) => p.type === "prediction").slice(0, 20),
+//       hotTakes: sortedPosts.filter((p: any) => p.type === "hot_take").slice(0, 10),
+//       rival: rivalSnap.exists ? rivalSnap.data() : null,
+//     });
+//   } catch (error: unknown) {
+//     const msg = error instanceof Error ? error.message : "Unexpected error";
+//     console.error("GET /api/roar/profile error:", error);
+//     return NextResponse.json({ error: msg }, { status: 500 });
+//   }
+// }
+
+
 export async function GET(req: NextRequest) {
   try {
     const user = await getUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const resolved = await resolveUserDoc(user.userId, user.email);
-    if (!resolved) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    const { searchParams } = new URL(req.url);
+    const targetUserId = searchParams.get("userId");
 
-    const { docRef, snap } = resolved;
+    let docRef, snap;
+
+    if (targetUserId) {
+      // ── Other user's profile — direct doc-ID lookup, no email fallback ──
+      docRef = db.collection("users").doc(targetUserId);
+      snap = await docRef.get();
+      if (!snap.exists) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    } else {
+      // ── Self — existing flow, unchanged ──
+      const resolved = await resolveUserDoc(user.userId, user.email);
+      if (!resolved) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+      ({ docRef, snap } = resolved);
+    }
+
     const resolvedUserId = docRef.id;
     const userData = snap.data() as any;
 
@@ -205,7 +270,6 @@ export async function GET(req: NextRequest) {
         ...userData,
         accuracy,
         actualUserId: resolvedUserId,
-        // canonical names — Profile.tsx reads these
         favPlayer: userData.favPlayer ?? null,
         about: userData.about ?? null,
         avatarUrl: userData.avatarUrl ?? null,
