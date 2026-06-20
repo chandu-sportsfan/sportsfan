@@ -1,7 +1,5 @@
 
 
-
-
 // // api/roar/rooms/[roomId]/messages/route.ts
 
 // import { NextRequest, NextResponse } from "next/server";
@@ -9,23 +7,31 @@
 // import { getUser } from "@/lib/getUser";
 // import { FieldValue } from "firebase-admin/firestore";
 // import { awardRoarPoints } from "@/lib/roarPoints";
+// import { getUserInfo } from "@/lib/userPoints";
 // import type { RoomMessage, MessageType } from "@/app/models/RoomMessage";
 // import type { PostType } from "@/app/models/Post";
 
 // // ── Shared helper ─────────────────────────────────────────────────────────────
-// // Always exactly 1 read on the happy path (email key exists).
-// // Falls back to uid key only when the email doc is missing.
+// // NOTE: previously this checked `users/{email}` before `users/{uid}` locally.
+// // That diverged from getUserInfo (used by /api/createpost via awardUserPoints,
+// // and now by /api/roar/posts), which checks `users/{uid}` first and has extra
+// // sanitized-email fallbacks. The mismatch meant the same person's room
+// // messages could resolve to a *different* users/{id} doc than their ROAR
+// // posts or social posts — splitting activityLog, totalPoints, and the
+// // votes/reactions subcollections (causing userVote/userLiked to read back
+// // wrong after a refresh). We now use getUserInfo everywhere so there's a
+// // single source of truth for "what is this user's doc ID".
 // async function resolveUser(
 //   email: string,
 //   userId: string
 // ): Promise<{ id: string; snap: FirebaseFirestore.DocumentSnapshot } | null> {
-//   const emailSnap = await db.collection("users").doc(email).get();
-//   if (emailSnap.exists) return { id: email, snap: emailSnap };
+//   const info = await getUserInfo(userId, undefined, email);
+//   if (!info.exists) return null;
 
-//   const uidSnap = await db.collection("users").doc(userId).get();
-//   if (uidSnap.exists) return { id: userId, snap: uidSnap };
+//   const snap = await db.collection("users").doc(info.actualUserId).get();
+//   if (!snap.exists) return null;
 
-//   return null;
+//   return { id: info.actualUserId, snap };
 // }
 
 // // ── Message types that support agree/disagree voting ─────────────────────────
@@ -49,7 +55,11 @@
 // //
 // // Quota optimisations vs original:
 // //
-// //  1. resolveUser() → always 1 Firestore read to locate the user doc.
+// //  1. resolveUser() → goes through getUserInfo, which is at minimum 1 read
+// //     (users/{uid} hit) and may take extra reads on fallback paths (email
+// //     query / sanitized-id lookups) — only on the rare miss, not the happy
+// //     path. This trades a small amount of worst-case quota for guaranteed
+// //     consistency with createpost and roar/posts.
 // //
 // //  2. Subcollection reads (votes + heart reactions) are batched in a single
 // //     Promise.all round-trip instead of serial per-doc loops.
@@ -78,7 +88,7 @@
 //     // Legacy cursor support — falls back to doc read only when no timestamp is provided.
 //     const lastDocId = searchParams.get("lastDocId");
 
-//     // 1 read: resolve user
+//     // Resolve user via getUserInfo (same canonical ID as createpost / roar/posts)
 //     const resolved = await resolveUser(user.email, user.userId);
 //     if (!resolved) {
 //       return NextResponse.json({ error: "User profile not found" }, { status: 404 });
@@ -195,15 +205,17 @@
 // //
 // // Quota optimisations vs original:
 // //
-// //  1. emailSnap + roomSnap fire in parallel → 2 reads on happy path (was up
-// //     to 3 sequential: emailSnap → miss? → uidSnap → roomSnap).
+// //  1. roomSnap fires in parallel with user resolution.
 // //
 // //  2. Points are awarded via direct awardRoarPoints() call instead of a
 // //     fire-and-forget fetch() to /api/award-points, which had no auth headers
 // //     and was silently failing on every room message post.
 // //
-// //  3. No extra reads: user data is taken from the snap already fetched in
-// //     step 1 — no second user doc read inside awardRoarPoints.
+// //  3. User resolution goes through getUserInfo (same as GET above and as
+// //     roar/posts/route.ts), so the user doc updated here, the activityLog
+// //     entry written inside awardUserPoints, and the totalPoints /
+// //     pointsBreakdown increments all land on the same canonical
+// //     users/{actualUserId} doc that /api/createpost and /api/roar/posts use.
 // //
 // export async function POST(
 //   req: NextRequest,
@@ -239,30 +251,21 @@
 //       return NextResponse.json({ error: "text is required" }, { status: 400 });
 //     }
 
-//     // ── Resolve user + room in parallel — 2 reads on happy path ──────────────
-//     // emailSnap and roomSnap fire simultaneously; uidSnap only fires on miss.
-//     const [emailSnap, roomSnap] = await Promise.all([
-//       db.collection("users").doc(user.email).get(),
+//     // ── Resolve user + room in parallel ───────────────────────────────────────
+//     // resolveUser (via getUserInfo) and the room lookup fire simultaneously.
+//     const [resolved, roomSnap] = await Promise.all([
+//       resolveUser(user.email, user.userId),
 //       db.collection("roarRooms").doc(roomId).get(),
 //     ]);
 
 //     if (!roomSnap.exists) {
 //       return NextResponse.json({ error: "Room not found" }, { status: 404 });
 //     }
-
-//     let resolvedUserId = user.email;
-//     let userSnap = emailSnap;
-
-//     if (!emailSnap.exists) {
-//       // Rare path: email key miss → fall back to uid key (1 extra read)
-//       const uidSnap = await db.collection("users").doc(user.userId).get();
-//       if (!uidSnap.exists) {
-//         return NextResponse.json({ error: "User profile not found" }, { status: 404 });
-//       }
-//       resolvedUserId = user.userId;
-//       userSnap = uidSnap;
+//     if (!resolved) {
+//       return NextResponse.json({ error: "User profile not found" }, { status: 404 });
 //     }
 
+//     const { id: resolvedUserId, snap: userSnap } = resolved;
 //     const userData = userSnap.data() as { username: string; badge: string };
 //     const roomRef = db.collection("roarRooms").doc(roomId);
 //     const now = Date.now();
@@ -307,8 +310,9 @@
 //     //   • globalLeaderboard/{id}
 //     //   • roarLeaderboard/{id}
 //     //
-//     // Reads consumed: 1 (transaction idempotency check) — already paid
-//     // for by the user resolution above, nothing duplicated.
+//     // actualUserId here is the same canonical ID used by GET's subcollection
+//     // lookups and by roar/posts, so activityLog/points/votes/likes all stay
+//     // consistent for the same person across every ROAR surface.
 
 //     const roarPostType = ROOM_TYPE_TO_POST_TYPE[type] ?? "post";
 //     const transactionId = `roar_room_${msgRef.id}`;
@@ -405,15 +409,22 @@ const ROOM_TYPE_TO_POST_TYPE: Partial<Record<string, PostType | "post">> = {
 //     path. This trades a small amount of worst-case quota for guaranteed
 //     consistency with createpost and roar/posts.
 //
-//  2. Subcollection reads (votes + heart reactions) are batched in a single
+//  2. Subcollection reads (votes + reactions) are batched in a single
 //     Promise.all round-trip instead of serial per-doc loops.
-//     Cost per page: 1 (user) + N (messages) + N (heart reactions)
+//     Cost per page: 1 (user) + N (messages) + N (reaction docs)
 //               + V (vote docs, only for votable messages)
-//     Previously the heart read was missing entirely, so userLiked was always
-//     false after a page refresh even when the like existed in Firestore.
 //
 //  3. Pagination uses a timestamp cursor (lastCreatedAt) which avoids the
 //     extra doc read that lastDocId required on every page turn.
+//
+//  4. CHANGED: reactions now read from the same `likes/{userId}` subcollection
+//     shape that roar/posts uses (see likesection/route.ts's room-aware
+//     branch), not the old `reactions/{userId}_heart` doc-per-reaction-type
+//     scheme. Each message now returns `userReaction` (one of
+//     heart|fire|laugh|sad|thumb, or null) instead of a boolean `userLiked`,
+//     so DiscussionRoom.tsx can drive the same ReactionPicker component
+//     HomeFeed.tsx uses and show the correct emoji on load/refresh — not
+//     just a yes/no heart state.
 //
 export async function GET(
   req: NextRequest,
@@ -465,18 +476,20 @@ export async function GET(
       });
     }
 
-    // ── Batch subcollection reads — votes + heart reactions in parallel ────────
+    // ── Batch subcollection reads — votes + reactions in parallel ──────────────
     //
     // Two parallel Promise.all calls, one round-trip each:
-    //   • votePromises — only for VOTABLE_TYPES (saves reads on chat/post msgs)
-    //   • heartPromises — every message (needed for userLiked state)
+    //   • votePromises     — only for VOTABLE_TYPES (saves reads on chat/post msgs)
+    //   • reactionPromises — every message, reading likes/{resolvedUserId}
+    //     (the same shape roar/posts uses, NOT the old reactions/{uid}_heart
+    //     doc-per-type scheme)
     //
     // Total subcollection reads per GET page of N messages with V votable:
-    //   V vote reads + N heart reads  (fired in parallel → 1 logical round-trip)
+    //   V vote reads + N reaction reads  (fired in parallel → 1 logical round-trip)
 
     const votableIndices: number[] = [];
     const votePromises: Promise<FirebaseFirestore.DocumentSnapshot>[] = [];
-    const heartPromises: Promise<FirebaseFirestore.DocumentSnapshot>[] = [];
+    const reactionPromises: Promise<FirebaseFirestore.DocumentSnapshot>[] = [];
 
     snapshot.docs.forEach((doc, i) => {
       const type = (doc.data() as RoomMessage).type;
@@ -484,14 +497,12 @@ export async function GET(
         votableIndices.push(i);
         votePromises.push(doc.ref.collection("votes").doc(resolvedUserId).get());
       }
-      heartPromises.push(
-        doc.ref.collection("reactions").doc(`${resolvedUserId}_heart`).get()
-      );
+      reactionPromises.push(doc.ref.collection("likes").doc(resolvedUserId).get());
     });
 
-    const [voteResults, heartResults] = await Promise.all([
+    const [voteResults, reactionResults] = await Promise.all([
       Promise.all(votePromises),
-      Promise.all(heartPromises),
+      Promise.all(reactionPromises),
     ]);
 
     // Build lookup maps
@@ -501,9 +512,12 @@ export async function GET(
       userVoteByIndex.set(docIdx, snap.exists ? ((snap.data() as any).vote ?? null) : null);
     });
 
-    const userLikedByIndex = new Map<number, boolean>();
+    // userReaction: the actual reaction type (heart|fire|laugh|sad|thumb) the
+    // current user picked on this message, or null if they haven't reacted.
+    const userReactionByIndex = new Map<number, string | null>();
     snapshot.docs.forEach((_, i) => {
-      userLikedByIndex.set(i, heartResults[i].exists);
+      const snap = reactionResults[i];
+      userReactionByIndex.set(i, snap.exists ? ((snap.data() as any).reaction ?? "heart") : null);
     });
 
     // ── Assemble response ─────────────────────────────────────────────────────
@@ -514,10 +528,13 @@ export async function GET(
         msgId:         doc.id,
         agreeCount:    data.agreeCount    ?? 0,
         disagreeCount: data.disagreeCount ?? 0,
-        heartCount:    data.heartCount    ?? 0,
+        // heartCount is the single aggregate reaction counter (incremented
+        // for ANY of the 5 reaction types by likesection/route.ts's
+        // room-aware branch — not heart-specific despite the field name).
+        heartCount:    (data as any).heartCount ?? 0,
         replyCount:    data.replyCount    ?? 0,
         userVote:      userVoteByIndex.has(i) ? userVoteByIndex.get(i) : null,
-        userLiked:     userLikedByIndex.get(i) ?? false,
+        userReaction:  userReactionByIndex.get(i) ?? null,
       };
     });
 
@@ -560,6 +577,11 @@ export async function GET(
 //     entry written inside awardUserPoints, and the totalPoints /
 //     pointsBreakdown increments all land on the same canonical
 //     users/{actualUserId} doc that /api/createpost and /api/roar/posts use.
+//
+// NOTE: this handler is UNCHANGED by the reaction-system migration. New
+// messages still start with heartCount: 0 — the room-aware branch in
+// likesection/route.ts is what increments/decrements it now, instead of the
+// old /rooms/[roomId]/messages/[msgId]/react endpoint.
 //
 export async function POST(
   req: NextRequest,
