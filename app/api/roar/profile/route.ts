@@ -286,6 +286,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
+
 export async function PATCH(req: NextRequest) {
   try {
     const user = await getUser(req);
@@ -296,8 +297,8 @@ export async function PATCH(req: NextRequest) {
 
     // username (display name in Profile.tsx)
     if (body.username !== undefined) {
-      const v = String(body.username).trim();
-      if (v.length >= 2 && v.length <= 30 && /^[A-Za-z0-9_]+$/.test(v)) {
+      const v = String(body.username).trim().replace(/\s+/g, " ");
+      if (v.length >= 2 && v.length <= 30 && /^[A-Za-z0-9_ -]+$/.test(v)) {
         updates.username = v;
       } else {
         return NextResponse.json({ error: "Invalid username." }, { status: 422 });
