@@ -426,6 +426,31 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { getUser } from "@/lib/getUser";
 import { FieldValue } from "firebase-admin/firestore";
+import { getUserInfo } from "@/lib/userPoints";
+
+// ── Shared user resolver ──────────────────────────────────────────────────────
+// Same resolveUser() pattern as roar/posts/route.ts: goes through
+// getUserInfo() instead of the old local email-then-uid fallback lookup.
+// This guarantees authorUid stamped on a comment is the same canonical
+// users/{uid} doc ID that roar/posts/route.ts's POST stamps on a post —
+// which is what makes the live avatar/badge join in GET below actually
+// reliable, instead of depending on which branch of an old fallback
+// happened to resolve for any given commenter.
+async function resolveUser(
+  email: string,
+  uid: string
+): Promise<{
+  resolvedId: string;
+  snap: FirebaseFirestore.DocumentSnapshot;
+} | null> {
+  const info = await getUserInfo(uid, undefined, email);
+  if (!info.exists) return null;
+
+  const snap = await db.collection("users").doc(info.actualUserId).get();
+  if (!snap.exists) return null;
+
+  return { resolvedId: info.actualUserId, snap };
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET  /api/roar/posts/[postId]/comments
@@ -433,23 +458,16 @@ import { FieldValue } from "firebase-admin/firestore";
 //
 // CHANGED: same live-avatar-join fix as roar/posts/route.ts GET and
 // rooms/[roomId]/messages/route.ts GET. Comments never store
-// authorAvatarUrl at creation time (see POST handler below), and
-// authorBadge is only ever a creation-time snapshot stamped from the
-// commenter's user doc at the moment they commented — neither field
-// updates if the commenter's profile changes later. Both are now resolved
-// live here, using the same dedupe-then-Promise.all batching pattern as
-// the other two GETs.
+// authorAvatarUrl at creation time, and authorBadge is only ever a
+// creation-time snapshot — neither field updates if the commenter's
+// profile changes later. Both are now resolved live here, using the same
+// dedupe-then-Promise.all batching pattern as the other two GETs.
 //
-// NOTE on authorUid reliability: unlike roar/posts and rooms/messages
-// (whose POST handlers resolve the author via getUserInfo(), giving a
-// clean users/{uid} doc ID every time), this file's POST handler still
-// uses an older email-then-uid fallback lookup to set authorUid on each
-// comment. That means some existing comments' authorUid may be an email
-// string rather than a uid, which won't match `users/{uid}` here — those
-// comments will simply fall back to their stamped-at-creation badge and a
-// null avatar (graceful miss, not an error). This is a pre-existing
-// inconsistency in this file's user resolution, separate from the avatar
-// fix, and is not addressed here.
+// This join is now reliable for both new AND pre-existing comments whose
+// authorUid happened to resolve to a uid under the old fallback; any
+// comment whose authorUid is a legacy email-string (written before the
+// POST fix below) will still gracefully miss the join and fall back to
+// its stamped-at-creation badge with a null avatar.
 //
 export async function GET(
   req: NextRequest,
@@ -507,8 +525,8 @@ export async function GET(
         ...data,
         // Live-resolved, not stored-on-comment. Null (not a stale fallback)
         // when the author's user doc has none set, or when authorUid on
-        // this comment doesn't resolve to a users/{uid} doc at all (see
-        // note above re: legacy email-style authorUid values).
+        // this comment doesn't resolve to a users/{uid} doc at all (legacy
+        // email-string authorUid from before the POST fix below).
         authorAvatarUrl: author?.avatarUrl ?? null,
         // Falls back to the stamped-at-creation badge only if the live
         // lookup came back empty/missing, so an old or unresolvable
@@ -684,6 +702,25 @@ export async function GET(
 
 
 
+// ─────────────────────────────────────────────────────────────────────────────
+// POST  /api/roar/posts/[postId]/comments
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// CHANGED: user resolution now goes through resolveUser() (getUserInfo())
+// instead of the old local email-then-uid fallback lookup — same helper
+// roar/posts/route.ts's POST uses. This means a comment's authorUid is now
+// the same canonical users/{uid} doc ID that posts and room messages use,
+// which is what makes GET's live avatar/badge join above actually
+// reliable for comments written from this point forward (pre-existing
+// comments written under the old lookup may still have an email-string
+// authorUid and will gracefully fall back in GET, as noted above).
+//
+// This also fixes a secondary bug: the "skip notification if commenter is
+// the author" check (authorUid !== resolvedUserId) could previously
+// misfire if one side resolved to an email and the other to a uid for the
+// same person. Both sides now resolve the same way, so that comparison is
+// reliable too.
+//
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ postId: string }> },
@@ -708,15 +745,11 @@ export async function POST(
     }
 
     // ── Resolve commenter's user doc ──────────────────────────────────────────
-    let userSnap = await db.collection("users").doc(user.email).get();
-    let resolvedUserId = user.email;
-    if (!userSnap.exists) {
-      userSnap = await db.collection("users").doc(user.userId).get();
-      if (userSnap.exists) resolvedUserId = user.userId;
-    }
-    if (!userSnap.exists) {
+    const resolved = await resolveUser(user.email, user.userId);
+    if (!resolved) {
       return NextResponse.json({ error: "User profile not found" }, { status: 404 });
     }
+    const { resolvedId: resolvedUserId, snap: userSnap } = resolved;
     const userData = userSnap.data() as { username: string; badge: string };
 
     // ── Fetch the post ────────────────────────────────────────────────────────
@@ -859,7 +892,8 @@ export async function POST(
     console.log(`[DEBUG] Batch committed successfully!`);
 
     // ── Send comment notification to post author (fire-and-forget) ────────────
-    // Fixed: Check if authorUid exists and is different from commenter
+    // authorUid !== resolvedUserId is now a reliable comparison since both
+    // are resolved via the same getUserInfo()-based path.
     const authorUid = postData.authorUid;
     if (authorUid && authorUid !== resolvedUserId) {
       (async () => {
