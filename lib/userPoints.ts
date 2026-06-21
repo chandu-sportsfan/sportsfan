@@ -452,6 +452,8 @@ export async function awardUserPoints({
     batch.update(userRef, {
       totalPoints: FieldValue.increment(points),
       [`pointsBreakdown.${reason}`]: FieldValue.increment(points),
+       [`activityCounts.${reason}`]: FieldValue.increment(1),
+      [`activityCounts.total`]: FieldValue.increment(1),
       lastUpdated: now,
     });
   }
