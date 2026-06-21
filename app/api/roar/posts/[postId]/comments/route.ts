@@ -1,4 +1,6 @@
-// //api/roar/posts/[postId]/comments/route.ts
+
+
+// // api/roar/posts/[postId]/comments/route.ts
 
 // import { NextRequest, NextResponse } from "next/server";
 // import { db } from "@/lib/firebaseAdmin";
@@ -35,6 +37,166 @@
 //   }
 // }
 
+// // export async function POST(
+// //   req: NextRequest,
+// //   { params }: { params: Promise<{ postId: string }> },
+// // ) {
+// //   try {
+// //     const { postId } = await params;
+// //     const user = await getUser(req);
+// //     if (!user) {
+// //       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+// //     }
+
+// //     const body = await req.json();
+// //     const { text, roomId } = body;
+
+// //     if (!text?.trim()) {
+// //       return NextResponse.json({ error: "text is required" }, { status: 400 });
+// //     }
+
+// //     // ── Resolve commenter's user doc ──────────────────────────────────────────
+// //     let userSnap = await db.collection("users").doc(user.email).get();
+// //     let resolvedUserId = user.email;
+// //     if (!userSnap.exists) {
+// //       userSnap = await db.collection("users").doc(user.userId).get();
+// //       if (userSnap.exists) resolvedUserId = user.userId;
+// //     }
+// //     if (!userSnap.exists) {
+// //       return NextResponse.json({ error: "User profile not found" }, { status: 404 });
+// //     }
+// //     const userData = userSnap.data() as { username: string; badge: string };
+
+// //     // ── Fetch the post ────────────────────────────────────────────────────────
+// //     const postRef = db.collection("roarPosts").doc(postId);
+// //     let postSnap = await postRef.get();
+// //     if (!postSnap.exists) {
+// //       if (roomId) {
+// //         const msgSnap = await db.collection("roarRooms").doc(roomId).collection("messages").doc(postId).get();
+// //         if (msgSnap.exists) {
+// //           const msgData = msgSnap.data() || {};
+// //           await postRef.set({
+// //             id: postId,
+// //             authorUsername: msgData.authorUsername,
+// //             authorBadge: msgData.authorBadge || "RISING_FAN",
+// //             text: msgData.text,
+// //             type: "room_message",
+// //             createdAt: msgData.createdAt || Date.now(),
+// //             replyCount: 0,
+// //             likeCount: 0,
+// //           });
+// //           postSnap = await postRef.get();
+// //         } else {
+// //           await postRef.set({
+// //             postId,
+// //             type: "hot_take",
+// //             text: "Mockup post",
+// //             createdAt: Date.now(),
+// //             updatedAt: Date.now(),
+// //             replyCount: 0,
+// //           });
+// //           postSnap = await postRef.get();
+// //         }
+// //       } else {
+// //         // Direct collectionGroup fallback (for compatibility)
+// //         const msgQuery = await db.collectionGroup("messages").where("msgId", "==", postId).limit(1).get();
+// //         if (!msgQuery.empty) {
+// //           const msgDoc = msgQuery.docs[0];
+// //           const msgData = msgDoc.data();
+// //           await postRef.set({
+// //             id: postId,
+// //             authorUsername: msgData.authorUsername,
+// //             authorBadge: msgData.authorBadge || "RISING_FAN",
+// //             text: msgData.text,
+// //             type: "room_message",
+// //             createdAt: msgData.createdAt || Date.now(),
+// //             replyCount: 0,
+// //             likeCount: 0,
+// //           });
+// //           postSnap = await postRef.get();
+// //         } else {
+// //           await postRef.set({
+// //             postId,
+// //             type: "hot_take",
+// //             text: "Mockup post",
+// //             createdAt: Date.now(),
+// //             updatedAt: Date.now(),
+// //             replyCount: 0,
+// //           });
+// //           postSnap = await postRef.get();
+// //         }
+// //       }
+// //     }
+// //     const postData = postSnap.data() as {
+// //       authorUid: string;
+// //       text?: string;
+// //     };
+
+// //     // ── Save the comment ──────────────────────────────────────────────────────
+// //     const commentRef = postRef.collection("comments").doc();
+// //     const newComment = {
+// //       commentId: commentRef.id,
+// //       authorUid: resolvedUserId,
+// //       authorUsername: userData.username,
+// //       authorBadge: userData.badge,
+// //       text: text.trim(),
+// //       heartCount: 0,
+// //       createdAt: Date.now(),
+// //     };
+
+// //     const batch = db.batch();
+// //     batch.set(commentRef, newComment);
+// //     batch.update(postRef, {
+// //       replyCount: FieldValue.increment(1),
+// //       updatedAt: Date.now(),
+// //     });
+// //     await batch.commit();
+
+// //     // ── Send comment notification to post author (fire-and-forget) ────────────
+// //     // Skip if the commenter IS the author
+// //     if (postData.authorUid && postData.authorUid !== resolvedUserId) {
+// //       (async () => {
+// //         try {
+// //           // Look up author's email so the notification page can query by email
+// //           const authorSnap = await db
+// //             .collection("users")
+// //             .doc(postData.authorUid)
+// //             .get();
+// //           const authorEmail = (authorSnap.data() as { email?: string } | undefined)
+// //             ?.email;
+
+// //           if (authorEmail) {
+// //             await db.collection("notifications").add({
+// //               recipientEmail: authorEmail,
+// //               recipientUid: postData.authorUid,
+// //               type: "roar_post_comment",
+// //               postId,                          // ← used for the redirect
+// //               commenterUsername: userData.username,
+// //               commenterUid: resolvedUserId,
+// //               // Short snippet of the post so the card can preview it
+// //               postPreview: (postData.text ?? "").slice(0, 80),
+// //               message: `${userData.username} commented on your ROAR post`,
+// //               isRead: false,
+// //               createdAt: Date.now(),
+// //               updatedAt: Date.now(),
+// //             });
+// //           }
+// //         } catch (notifErr) {
+// //           // Notification failure must never break the comment response
+// //           console.error("[roar/comments] Failed to send notification:", notifErr);
+// //         }
+// //       })();
+// //     }
+
+// //     return NextResponse.json({ success: true, comment: newComment });
+// //   } catch (error: unknown) {
+// //     const msg = error instanceof Error ? error.message : "Unexpected error";
+// //     return NextResponse.json({ error: msg }, { status: 500 });
+// //   }
+// // }
+
+
+
 // export async function POST(
 //   req: NextRequest,
 //   { params }: { params: Promise<{ postId: string }> },
@@ -47,35 +209,101 @@
 //     }
 
 //     const body = await req.json();
-//     const { text } = body;
+//     const { text, roomId } = body;
+
+//     console.log(`[DEBUG] === POST /comments ===`);
+//     console.log(`[DEBUG] postId: ${postId}`);
+//     console.log(`[DEBUG] roomId: ${roomId}`);
+//     console.log(`[DEBUG] text: ${text?.substring(0, 50)}`);
 
 //     if (!text?.trim()) {
 //       return NextResponse.json({ error: "text is required" }, { status: 400 });
 //     }
 
+//     // ── Resolve commenter's user doc ──────────────────────────────────────────
 //     let userSnap = await db.collection("users").doc(user.email).get();
 //     let resolvedUserId = user.email;
 //     if (!userSnap.exists) {
 //       userSnap = await db.collection("users").doc(user.userId).get();
-//       if (userSnap.exists) {
-//         resolvedUserId = user.userId;
-//       }
+//       if (userSnap.exists) resolvedUserId = user.userId;
 //     }
 //     if (!userSnap.exists) {
 //       return NextResponse.json({ error: "User profile not found" }, { status: 404 });
 //     }
 //     const userData = userSnap.data() as { username: string; badge: string };
 
+//     // ── Fetch the post ────────────────────────────────────────────────────────
 //     const postRef = db.collection("roarPosts").doc(postId);
-//     const postSnap = await postRef.get();
+//     let postSnap = await postRef.get();
 //     if (!postSnap.exists) {
-//       return NextResponse.json({ error: "Post not found" }, { status: 404 });
+//       console.log(`[DEBUG] Post ${postId} doesn't exist, creating...`);
+//       if (roomId) {
+//         const msgSnap = await db.collection("roarRooms").doc(roomId).collection("messages").doc(postId).get();
+//         if (msgSnap.exists) {
+//           const msgData = msgSnap.data() || {};
+//           await postRef.set({
+//             id: postId,
+//             authorUsername: msgData.authorUsername,
+//             authorBadge: msgData.authorBadge || "RISING_FAN",
+//             text: msgData.text,
+//             type: "room_message",
+//             createdAt: msgData.createdAt || Date.now(),
+//             replyCount: 0,
+//             likeCount: 0,
+//           });
+//           console.log(`[DEBUG] Created post from room message`);
+//         } else {
+//           await postRef.set({
+//             postId,
+//             type: "hot_take",
+//             text: "Mockup post",
+//             createdAt: Date.now(),
+//             updatedAt: Date.now(),
+//             replyCount: 0,
+//           });
+//           console.log(`[DEBUG] Created mock post`);
+//         }
+//         postSnap = await postRef.get();
+//       } else {
+//         const msgQuery = await db.collectionGroup("messages").where("msgId", "==", postId).limit(1).get();
+//         if (!msgQuery.empty) {
+//           const msgDoc = msgQuery.docs[0];
+//           const msgData = msgDoc.data();
+//           await postRef.set({
+//             id: postId,
+//             authorUsername: msgData.authorUsername,
+//             authorBadge: msgData.authorBadge || "RISING_FAN",
+//             text: msgData.text,
+//             type: "room_message",
+//             createdAt: msgData.createdAt || Date.now(),
+//             replyCount: 0,
+//             likeCount: 0,
+//           });
+//           console.log(`[DEBUG] Created post from collectionGroup`);
+//         } else {
+//           await postRef.set({
+//             postId,
+//             type: "hot_take",
+//             text: "Mockup post",
+//             createdAt: Date.now(),
+//             updatedAt: Date.now(),
+//             replyCount: 0,
+//           });
+//           console.log(`[DEBUG] Created mock post (fallback)`);
+//         }
+//         postSnap = await postRef.get();
+//       }
 //     }
+//     const postData = postSnap.data() as {
+//       authorUid?: string;
+//       text?: string;
+//       replyCount?: number;
+//     };
 
-//     const commentRef = postRef
-//       .collection("comments")
-//       .doc();
+//     console.log(`[DEBUG] Current post replyCount: ${postData?.replyCount || 0}`);
 
+//     // ── Save the comment ──────────────────────────────────────────────────────
+//     const commentRef = postRef.collection("comments").doc();
 //     const newComment = {
 //       commentId: commentRef.id,
 //       authorUid: resolvedUserId,
@@ -92,16 +320,101 @@
 //       replyCount: FieldValue.increment(1),
 //       updatedAt: Date.now(),
 //     });
+//     console.log(`[DEBUG] Added post update to batch (replyCount +1)`);
 
+//     // ✅ Update the room message's replyCount if roomId exists
+//     if (roomId) {
+//       console.log(`[DEBUG] Updating room message...`);
+//       const messageRef = db
+//         .collection("roarRooms")
+//         .doc(roomId)
+//         .collection("messages")
+//         .doc(postId);
+      
+//       const messageSnap = await messageRef.get();
+//       console.log(`[DEBUG] Message exists: ${messageSnap.exists}`);
+      
+//       if (messageSnap.exists) {
+//         const currentData = messageSnap.data();
+//         console.log(`[DEBUG] Current room message replyCount: ${currentData?.replyCount || 0}`);
+//         batch.update(messageRef, {
+//           replyCount: FieldValue.increment(1),
+//         });
+//         console.log(`[DEBUG] Added room message update to batch (replyCount +1)`);
+//       } else {
+//         console.log(`[DEBUG] Room message NOT found - creating from post data`);
+//         // Create the message document if it doesn't exist
+//         const postDataForMessage = postSnap.data();
+//         batch.set(messageRef, {
+//           msgId: postId,
+//           roomId: roomId,
+//           authorUid: postDataForMessage?.authorUid || resolvedUserId,
+//           authorUsername: postDataForMessage?.authorUsername || userData.username,
+//           authorBadge: postDataForMessage?.authorBadge || userData.badge,
+//           text: postDataForMessage?.text || text,
+//           type: postDataForMessage?.type || "post",
+//           fireCount: 0,
+//           noChanceCount: 0,
+//           heartCount: 0,
+//           agreeCount: 0,
+//           disagreeCount: 0,
+//           replyCount: 1,
+//           createdAt: postDataForMessage?.createdAt || Date.now(),
+//         });
+//         console.log(`[DEBUG] Created new room message with replyCount: 1`);
+//       }
+//     } else {
+//       console.log(`[DEBUG] No roomId provided - skipping room message update`);
+//     }
+
+//     console.log(`[DEBUG] Committing batch...`);
 //     await batch.commit();
+//     console.log(`[DEBUG] Batch committed successfully!`);
+
+//     // ── Send comment notification to post author (fire-and-forget) ────────────
+//     // Fixed: Check if authorUid exists and is different from commenter
+//     const authorUid = postData.authorUid;
+//     if (authorUid && authorUid !== resolvedUserId) {
+//       (async () => {
+//         try {
+//           const authorSnap = await db
+//             .collection("users")
+//             .doc(authorUid)
+//             .get();
+//           const authorEmail = (authorSnap.data() as { email?: string } | undefined)
+//             ?.email;
+
+//           if (authorEmail) {
+//             await db.collection("notifications").add({
+//               recipientEmail: authorEmail,
+//               recipientUid: authorUid,
+//               type: "roar_post_comment",
+//               postId,
+//               commenterUsername: userData.username,
+//               commenterUid: resolvedUserId,
+//               postPreview: (postData.text ?? "").slice(0, 80),
+//               message: `${userData.username} commented on your ROAR post`,
+//               isRead: false,
+//               createdAt: Date.now(),
+//               updatedAt: Date.now(),
+//             });
+//             console.log(`[DEBUG] Notification sent to ${authorEmail}`);
+//           }
+//         } catch (notifErr) {
+//           console.error("[roar/comments] Failed to send notification:", notifErr);
+//         }
+//       })();
+//     } else {
+//       console.log(`[DEBUG] No notification sent (authorUid: ${authorUid || 'missing'}, same user: ${authorUid === resolvedUserId})`);
+//     }
 
 //     return NextResponse.json({ success: true, comment: newComment });
 //   } catch (error: unknown) {
+//     console.error(`[ERROR] in POST /comments:`, error);
 //     const msg = error instanceof Error ? error.message : "Unexpected error";
 //     return NextResponse.json({ error: msg }, { status: 500 });
 //   }
 // }
-
 
 
 
@@ -114,6 +427,30 @@ import { db } from "@/lib/firebaseAdmin";
 import { getUser } from "@/lib/getUser";
 import { FieldValue } from "firebase-admin/firestore";
 
+// ─────────────────────────────────────────────────────────────────────────────
+// GET  /api/roar/posts/[postId]/comments
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// CHANGED: same live-avatar-join fix as roar/posts/route.ts GET and
+// rooms/[roomId]/messages/route.ts GET. Comments never store
+// authorAvatarUrl at creation time (see POST handler below), and
+// authorBadge is only ever a creation-time snapshot stamped from the
+// commenter's user doc at the moment they commented — neither field
+// updates if the commenter's profile changes later. Both are now resolved
+// live here, using the same dedupe-then-Promise.all batching pattern as
+// the other two GETs.
+//
+// NOTE on authorUid reliability: unlike roar/posts and rooms/messages
+// (whose POST handlers resolve the author via getUserInfo(), giving a
+// clean users/{uid} doc ID every time), this file's POST handler still
+// uses an older email-then-uid fallback lookup to set authorUid on each
+// comment. That means some existing comments' authorUid may be an email
+// string rather than a uid, which won't match `users/{uid}` here — those
+// comments will simply fall back to their stamped-at-creation badge and a
+// null avatar (graceful miss, not an error). This is a pre-existing
+// inconsistency in this file's user resolution, separate from the avatar
+// fix, and is not addressed here.
+//
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ postId: string }> },
@@ -132,10 +469,53 @@ export async function GET(
       .orderBy("createdAt", "asc")
       .get();
 
-    const comments = snapshot.docs.map((doc) => ({
-      commentId: doc.id,
-      ...doc.data(),
-    }));
+    if (snapshot.empty) {
+      return NextResponse.json({ success: true, comments: [] });
+    }
+
+    // ── Batch-fetch live avatarUrl/badge per unique commenter ────────────────
+    // Same dedupe-then-Promise.all pattern as roar/posts/route.ts GET.
+    const authorMap = new Map<string, { avatarUrl: string | null; badge: string | null }>();
+    const uniqueAuthorUids = Array.from(
+      new Set(
+        snapshot.docs
+          .map((d) => (d.data() as any).authorUid as string | undefined)
+          .filter((uid): uid is string => !!uid)
+      )
+    );
+
+    const authorSnaps = await Promise.all(
+      uniqueAuthorUids.map((uid) => db.collection("users").doc(uid).get())
+    );
+
+    uniqueAuthorUids.forEach((uid, i) => {
+      const s = authorSnaps[i];
+      const data = s.exists ? (s.data() as any) : null;
+      authorMap.set(uid, {
+        avatarUrl: data?.avatarUrl ?? null,
+        badge: data?.badge ?? null,
+      });
+    });
+
+    // ── Assemble response ─────────────────────────────────────────────────────
+    const comments = snapshot.docs.map((doc) => {
+      const data = doc.data() as any;
+      const author = data.authorUid ? authorMap.get(data.authorUid) : undefined;
+
+      return {
+        commentId: doc.id,
+        ...data,
+        // Live-resolved, not stored-on-comment. Null (not a stale fallback)
+        // when the author's user doc has none set, or when authorUid on
+        // this comment doesn't resolve to a users/{uid} doc at all (see
+        // note above re: legacy email-style authorUid values).
+        authorAvatarUrl: author?.avatarUrl ?? null,
+        // Falls back to the stamped-at-creation badge only if the live
+        // lookup came back empty/missing, so an old or unresolvable
+        // comment doesn't lose its badge entirely.
+        authorBadge: author?.badge ?? data.authorBadge,
+      };
+    });
 
     return NextResponse.json({ success: true, comments });
   } catch (error: unknown) {
