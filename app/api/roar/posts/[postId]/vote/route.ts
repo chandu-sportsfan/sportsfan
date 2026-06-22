@@ -435,6 +435,27 @@ export async function POST(
       })();
     }
 
+    // ── Award prediction-participation points (fire-and-forget) ──────────────────
+    if (postType === "prediction" && previousVote === null && vote !== null) {
+      (async () => {
+        try {
+          await awardRoarPointsByReason({
+            actualUserId,
+            authUserId,
+            userName: resolvedName,
+            userEmail,
+            userExists,
+            reason: "ROAR_PREDICTION_PARTICIPATE",
+            points: ROAR_EVENT_POINTS.ROAR_PREDICTION_PARTICIPATE,
+            transactionId: `roar_prediction_vote_${postId}_${actualUserId}`,
+            metadata: { postId, vote },
+          });
+        } catch (pointsErr) {
+          console.error("[roar/vote] Failed to award prediction participation points:", pointsErr);
+        }
+      })();
+    }
+
     // ── Grouped like notification (fire-and-forget, only on "agree") ──────────
     if (vote === "agree" && previousVote !== "agree") {
       (async () => {

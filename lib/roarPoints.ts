@@ -124,6 +124,7 @@ export const ROAR_POINTS: Record<PostType | "post", number> = {
 // keyed directly by reason instead of by PostType.
 export const ROAR_EVENT_POINTS: Record<string, number> = {
   ROAR_DEBATE_PARTICIPATE: 2,
+  ROAR_PREDICTION_PARTICIPATE: 2,
 };
 
 // ─── Reason key from post type ────────────────────────────────────────────────

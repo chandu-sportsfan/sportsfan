@@ -25,6 +25,14 @@ export default function SignupsPage() {
       const res = await fetch("/api/users");
       const data = await res.json();
       setUsers(data.users ?? []);
+
+      // ✅ Deduplicate by email just in case
+    const unique = Array.from(
+      new Map((data.users ?? []).map((u: User) => [u.email, u])).values()
+    ) as User[];
+    
+    console.log("Raw count:", data.users?.length, "Deduped count:", unique.length);
+    setUsers(unique);
     } catch {
       setUsers([]);
     } finally {
@@ -86,6 +94,7 @@ export default function SignupsPage() {
       setDeleting(null);
     }
   }
+  
 
   const filtered = users.filter(u =>
     `${u.firstName} ${u.lastName} ${u.email}`
