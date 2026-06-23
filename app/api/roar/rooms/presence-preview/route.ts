@@ -46,6 +46,12 @@ export async function POST(req: NextRequest) {
           .count()
           .get();
 
+          const roomSnap = await db.collection("roarRooms").doc(roomId).get();
+const totalJoinCount = roomSnap.data()?.totalJoinCount ?? 0;
+
+
+
+
         const fans = snap.docs.map((d) => {
           const data = d.data();
           return {
@@ -56,7 +62,8 @@ export async function POST(req: NextRequest) {
           };
         });
 
-        return [roomId, { fanCount: countSnap.data().count, fans }] as const;
+        // return [roomId, { fanCount: countSnap.data().count, fans }] as const;
+        return [roomId, { fanCount: countSnap.data().count, fans, totalJoinCount }] as const;
       }),
     );
 
