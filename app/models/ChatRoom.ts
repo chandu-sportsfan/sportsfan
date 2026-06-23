@@ -10,4 +10,5 @@ export interface ChatRoom {
   scheduledStartTime?: number;
   score?: string;
   scoreSubtitle?: string;
+  watchAlongRoomId?: string;
 }

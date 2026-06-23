@@ -69,7 +69,8 @@ export async function GET(req: NextRequest) {
         "fanCount",
         "scheduledStartTime",
         "score",
-        "scoreSubtitle"
+        "scoreSubtitle",
+        "watchAlongRoomId"
       )
       .get();
 
@@ -135,6 +136,55 @@ export async function POST(req: NextRequest) {
     }
 
     const roomRef = db.collection("roarRooms").doc();
+    
+    let watchAlongRoomId = "";
+
+    // Unidirectional sync: Create a corresponding Watchalong Commentary Room (excluding the permanent Infinity Room)
+    if (name.trim() !== "SF360 Infinity Room") {
+      try {
+        // 1. Create a matching Match record
+        const matchRef = await db.collection("watchAlongMatches").add({
+          title: name.trim(),
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+
+        // 2. Derive initials
+        const initials = name.trim()
+          .split(" ")
+          .map((w) => w[0])
+          .join("")
+          .toUpperCase()
+          .slice(0, 2);
+
+        // 3. Create the watchAlongRoom document linked to the ROAR room
+        const watchAlongRoomData = {
+          name: name.trim(),
+          role: "Host",
+          badge: "Live",
+          badgeColor: "bg-pink-600",
+          borderColor: "border-pink-500",
+          initials,
+          displayPicture: "",
+          isLive: true,
+          watching: "0",
+          engagement: "0%",
+          active: "0",
+          liveMatchId: matchRef.id,
+          hostUserId: user.email || user.userId || null,
+          coHostUserId: null,
+          roarRoomId: roomRef.id,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+
+        const watchAlongRef = await db.collection("watchAlongRooms").add(watchAlongRoomData);
+        watchAlongRoomId = watchAlongRef.id;
+      } catch (err) {
+        console.error("Failed to auto-create corresponding Watchalong Room during ROAR room creation:", err);
+      }
+    }
+
     const newRoom: ChatRoom = {
       roomId: roomRef.id,
       name: name.trim(),
@@ -149,6 +199,7 @@ export async function POST(req: NextRequest) {
       }),
       ...(score && { score }),
       ...(scoreSubtitle && { scoreSubtitle }),
+      ...(watchAlongRoomId && { watchAlongRoomId }),
     };
 
     await roomRef.set(newRoom);
