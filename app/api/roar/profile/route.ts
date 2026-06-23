@@ -160,46 +160,46 @@ import type { Post } from "@/app/models/Post";
 // only or not-yet-affected users), this still works correctly: doc(userId)
 // won't exist, so it falls back to doc(email) and finds their single doc
 // as before. Nothing changes for that group.
-// async function resolveUserDoc(userId: string, email: string) {
-//   let docRef = db.collection("users").doc(userId);
-//   let snap = await docRef.get();
-//   if (!snap.exists) {
-//     docRef = db.collection("users").doc(email);
-//     snap = await docRef.get();
-//     if (!snap.exists) return null;
-//   }
-//   return { docRef, snap };
-// }
-
-
 async function resolveUserDoc(userId: string, email: string) {
-  // ── 1. Try userId as doc ID (happy path for most users) ───────────────────
   let docRef = db.collection("users").doc(userId);
   let snap = await docRef.get();
-  if (snap.exists) return { docRef, snap };
- 
-  // ── 2. Try raw email as doc ID (legacy users created before sanitization) ──
-  docRef = db.collection("users").doc(email);
-  snap = await docRef.get();
-  if (snap.exists) return { docRef, snap };
- 
-  // ── 3. Query by email field (catches any non-standard doc ID) ─────────────
-  // This is the same fallback getUserInfo() uses and is what finds users
-  // whose doc ID doesn't match the derived userId or raw email — e.g.
-  // "prince_princechandu357_gmail_com" when we derive "princechandu357_gmail_com".
-  const emailQuery = await db
-    .collection("users")
-    .where("email", "==", email)
-    .limit(1)
-    .get();
- 
-  if (!emailQuery.empty) {
-    const queryDoc = emailQuery.docs[0];
-    return { docRef: queryDoc.ref, snap: queryDoc };
+  if (!snap.exists) {
+    docRef = db.collection("users").doc(email);
+    snap = await docRef.get();
+    if (!snap.exists) return null;
   }
- 
-  return null;
+  return { docRef, snap };
 }
+
+
+// async function resolveUserDoc(userId: string, email: string) {
+//   // ── 1. Try userId as doc ID (happy path for most users) ───────────────────
+//   let docRef = db.collection("users").doc(userId);
+//   let snap = await docRef.get();
+//   if (snap.exists) return { docRef, snap };
+ 
+//   // ── 2. Try raw email as doc ID (legacy users created before sanitization) ──
+//   docRef = db.collection("users").doc(email);
+//   snap = await docRef.get();
+//   if (snap.exists) return { docRef, snap };
+ 
+//   // ── 3. Query by email field (catches any non-standard doc ID) ─────────────
+//   // This is the same fallback getUserInfo() uses and is what finds users
+//   // whose doc ID doesn't match the derived userId or raw email — e.g.
+//   // "prince_princechandu357_gmail_com" when we derive "princechandu357_gmail_com".
+//   const emailQuery = await db
+//     .collection("users")
+//     .where("email", "==", email)
+//     .limit(1)
+//     .get();
+ 
+//   if (!emailQuery.empty) {
+//     const queryDoc = emailQuery.docs[0];
+//     return { docRef: queryDoc.ref, snap: queryDoc };
+//   }
+ 
+//   return null;
+// }
 
 // export async function GET(req: NextRequest) {
 //   try {
@@ -255,7 +255,7 @@ async function resolveUserDoc(userId: string, email: string) {
 
 export async function GET(req: NextRequest) {
   try {
-    console.log("[profile] cookies:", req.cookies.getAll()); // ← add this
+    // console.log("[profile] cookies:", req.cookies.getAll()); // ← add this
     const user = await getUser(req);
     
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -281,9 +281,9 @@ export async function GET(req: NextRequest) {
     const resolvedUserId = docRef.id;
     const userData = snap.data() as any;
 
-    if (!userData || !userData.username || !userData.badge) {
-      return NextResponse.json({ error: "ROAR profile not onboarded", onboarded: false }, { status: 404 });
-    }
+    // if (!userData || !userData.username || !userData.badge) {
+    //   return NextResponse.json({ error: "ROAR profile not onboarded", onboarded: false }, { status: 404 });
+    // }
 
     const [badgesSnap, postsSnap, rivalSnap] = await Promise.all([
       db.collection("roarBadges").doc(resolvedUserId).collection("roarProgress").get(),
@@ -303,6 +303,7 @@ export async function GET(req: NextRequest) {
         ...userData,
         accuracy,
         actualUserId: resolvedUserId,
+        badge: userData.badge ?? null,
         favPlayer: userData.favPlayer ?? null,
         about: userData.about ?? null,
         avatarUrl: userData.avatarUrl ?? null,
