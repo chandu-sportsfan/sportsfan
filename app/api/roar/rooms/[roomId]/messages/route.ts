@@ -751,14 +751,14 @@ const VOTABLE_TYPES = new Set(["hottake", "prediction", "hot_take"]);
 
 // ── PostType map for awardRoarPoints ──────────────────────────────────────────
 const ROOM_TYPE_TO_POST_TYPE: Partial<Record<string, PostType | "post">> = {
-  debate:        "debate",
-  prediction:    "prediction",
-  post:          "post",
-  hottake:       "hot_take",
-  hot_take:      "hot_take",
+  debate: "debate",
+  prediction: "prediction",
+  post: "post",
+  hottake: "hot_take",
+  hot_take: "hot_take",
   raw_reactions: "post",
-  memory:        "post",
-  quiz:          "quiz",
+  memory: "post",
+  quiz: "quiz",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -832,11 +832,28 @@ export async function GET(
 
     let query = messagesRef.orderBy("createdAt", "desc").limit(limit);
 
-    if (lastCreatedAt) {
-      // Zero-cost cursor: startAfter a raw timestamp value
+    // if (lastCreatedAt) {
+    //   // Zero-cost cursor: startAfter a raw timestamp value
+    //   query = query.startAfter(parseInt(lastCreatedAt, 10));
+    // } else if (lastDocId) {
+    //   // Legacy path: 1 extra read to fetch the cursor doc
+    //   const cursorDoc = await messagesRef.doc(lastDocId).get();
+    //   if (cursorDoc.exists) query = query.startAfter(cursorDoc);
+    // }
+    const since = searchParams.get("since");
+
+    if (since) {
+      // Poll path: only fetch messages newer than this timestamp
+      // If nothing new, returns 0 docs = 0 subcollection reads
+      query = messagesRef
+        .where("createdAt", ">", parseInt(since, 10))
+        .orderBy("createdAt", "desc")
+        .limit(limit);
+    } else if (lastCreatedAt) {
+      // Scroll pagination cursor (going backwards into history)
       query = query.startAfter(parseInt(lastCreatedAt, 10));
     } else if (lastDocId) {
-      // Legacy path: 1 extra read to fetch the cursor doc
+      // Legacy cursor fallback
       const cursorDoc = await messagesRef.doc(lastDocId).get();
       if (cursorDoc.exists) query = query.startAfter(cursorDoc);
     }
@@ -927,16 +944,16 @@ export async function GET(
       const author = authorMap.get(data.authorUid);
       return {
         ...data,
-        msgId:         doc.id,
-        agreeCount:    data.agreeCount    ?? 0,
+        msgId: doc.id,
+        agreeCount: data.agreeCount ?? 0,
         disagreeCount: data.disagreeCount ?? 0,
         // heartCount is the single aggregate reaction counter (incremented
         // for ANY of the 5 reaction types by likesection/route.ts's
         // room-aware branch — not heart-specific despite the field name).
-        heartCount:    (data as any).heartCount ?? 0,
-        replyCount:    data.replyCount    ?? 0,
-        userVote:      userVoteByIndex.has(i) ? userVoteByIndex.get(i) : null,
-        userReaction:  userReactionByIndex.get(i) ?? null,
+        heartCount: (data as any).heartCount ?? 0,
+        replyCount: data.replyCount ?? 0,
+        userVote: userVoteByIndex.has(i) ? userVoteByIndex.get(i) : null,
+        userReaction: userReactionByIndex.get(i) ?? null,
         // Live-resolved, not stored-on-message — authorAvatarUrl is
         // intentionally null (not a stale fallback) when the author's user
         // doc has none set, same convention as roar/posts/route.ts GET.
@@ -944,7 +961,7 @@ export async function GET(
         // authorBadge falls back to the stamped-at-creation value only if
         // the live user doc lookup came back empty (e.g. deleted user doc),
         // so an old message doesn't lose its badge entirely.
-        authorBadge:      author?.badge ?? data.authorBadge,
+        authorBadge: author?.badge ?? data.authorBadge,
       };
     });
 
@@ -1051,25 +1068,25 @@ export async function POST(
     const msgRef = roomRef.collection("messages").doc();
 
     const message: RoomMessage = {
-      msgId:    msgRef.id,
+      msgId: msgRef.id,
       roomId,
-      authorUid:      resolvedUserId,
+      authorUid: resolvedUserId,
       authorUsername: userData.username,
-      authorBadge:    userData.badge,
-      text:           text.trim(),
+      authorBadge: userData.badge,
+      text: text.trim(),
       type,
-      fireCount:     0,
+      fireCount: 0,
       noChanceCount: 0,
-      heartCount:    0,
-      agreeCount:    0,
+      heartCount: 0,
+      agreeCount: 0,
       disagreeCount: 0,
-      replyCount:    0,
-      createdAt:     now,
+      replyCount: 0,
+      createdAt: now,
       ...(mediaUrls?.length && { mediaUrls }),
-      ...(sideA     && { sideA }),
-      ...(sideB     && { sideB }),
+      ...(sideA && { sideA }),
+      ...(sideB && { sideB }),
       ...(memGifUrl && { memGifUrl }),
-      ...(memTag    && { memTag }),
+      ...(memTag && { memTag }),
     };
 
     // Atomic batch: write message + increment room fan count
@@ -1098,11 +1115,11 @@ export async function POST(
 
     awardRoarPoints({
       actualUserId: resolvedUserId,
-      authUserId:   user.userId,
-      userName:     userData.username,
-      userEmail:    user.email,
-      userExists:   true,
-      postType:     roarPostType,
+      authUserId: user.userId,
+      userName: userData.username,
+      userEmail: user.email,
+      userExists: true,
+      postType: roarPostType,
       transactionId,
       metadata: {
         postId: msgRef.id,
