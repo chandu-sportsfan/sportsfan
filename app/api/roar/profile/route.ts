@@ -160,15 +160,45 @@ import type { Post } from "@/app/models/Post";
 // only or not-yet-affected users), this still works correctly: doc(userId)
 // won't exist, so it falls back to doc(email) and finds their single doc
 // as before. Nothing changes for that group.
+// async function resolveUserDoc(userId: string, email: string) {
+//   let docRef = db.collection("users").doc(userId);
+//   let snap = await docRef.get();
+//   if (!snap.exists) {
+//     docRef = db.collection("users").doc(email);
+//     snap = await docRef.get();
+//     if (!snap.exists) return null;
+//   }
+//   return { docRef, snap };
+// }
+
+
 async function resolveUserDoc(userId: string, email: string) {
+  // ── 1. Try userId as doc ID (happy path for most users) ───────────────────
   let docRef = db.collection("users").doc(userId);
   let snap = await docRef.get();
-  if (!snap.exists) {
-    docRef = db.collection("users").doc(email);
-    snap = await docRef.get();
-    if (!snap.exists) return null;
+  if (snap.exists) return { docRef, snap };
+ 
+  // ── 2. Try raw email as doc ID (legacy users created before sanitization) ──
+  docRef = db.collection("users").doc(email);
+  snap = await docRef.get();
+  if (snap.exists) return { docRef, snap };
+ 
+  // ── 3. Query by email field (catches any non-standard doc ID) ─────────────
+  // This is the same fallback getUserInfo() uses and is what finds users
+  // whose doc ID doesn't match the derived userId or raw email — e.g.
+  // "prince_princechandu357_gmail_com" when we derive "princechandu357_gmail_com".
+  const emailQuery = await db
+    .collection("users")
+    .where("email", "==", email)
+    .limit(1)
+    .get();
+ 
+  if (!emailQuery.empty) {
+    const queryDoc = emailQuery.docs[0];
+    return { docRef: queryDoc.ref, snap: queryDoc };
   }
-  return { docRef, snap };
+ 
+  return null;
 }
 
 // export async function GET(req: NextRequest) {
