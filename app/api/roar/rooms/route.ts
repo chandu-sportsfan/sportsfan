@@ -69,7 +69,8 @@ export async function GET(req: NextRequest) {
         "fanCount",
         "scheduledStartTime",
         "score",
-        "scoreSubtitle"
+        "scoreSubtitle",
+        "watchAlongRoomId"
       )
       .get();
 
