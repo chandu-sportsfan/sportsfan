@@ -1,3 +1,5 @@
+//lib/getUser.ts
+
 import { NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
 import { auth } from "@/lib/auth.config";
@@ -76,7 +78,9 @@ export async function getUser(req: NextRequest): Promise<AuthUser | null> {
         lastName?: string;
       };
       const email = dbUser.email;
-      const userId = dbUser.userId || email;
+      // const userId = dbUser.userId || email;
+      const userId = dbUser.userId || email.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_");
+
       if (email) {
         return {
           userId,
