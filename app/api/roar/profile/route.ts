@@ -225,9 +225,12 @@ async function resolveUserDoc(userId: string, email: string) {
 
 export async function GET(req: NextRequest) {
   try {
+    console.log("[profile] cookies:", req.cookies.getAll()); // ← add this
     const user = await getUser(req);
+    
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    
     const { searchParams } = new URL(req.url);
     const targetUserId = searchParams.get("userId");
 

@@ -68,6 +68,7 @@ export async function getUser(req: NextRequest): Promise<AuthUser | null> {
   // Fallback to NextAuth session
   try {
     const session = await auth();
+    console.log("[getUser] session:", JSON.stringify(session)); 
     if (session?.user) {
       const dbUser = session.user as {
         email: string;
