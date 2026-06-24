@@ -23,12 +23,14 @@ export async function getUserSessionAndRole(req: NextRequest): Promise<UserSessi
   const headerRole = req.headers.get("x-user-role") || req.nextUrl?.searchParams?.get("x-user-role");
   const headerUserId = req.headers.get("x-user-id") || req.nextUrl?.searchParams?.get("x-user-id");
   const headerEmail = req.headers.get("x-user-email") || req.nextUrl?.searchParams?.get("x-user-email");
+  const headerName = req.headers.get("x-user-name") || req.nextUrl?.searchParams?.get("x-user-name");
 
   if (headerRole) {
     return {
       role: headerRole.toLowerCase(), // e.g. "super_admin", "admin", "host", "user"
       userId: headerUserId || headerEmail || "test_user",
       email: headerEmail || "test@sportsfan360.com",
+      name: headerName || undefined,
       source: "headers"
     };
   }
@@ -136,12 +138,18 @@ export async function isAuthorizedForMatch(user: UserSession, matchId: string): 
     if (!roomsSnap.empty) {
       const roomData = roomsSnap.docs[0].data();
       // Allow both host and co-host (by user ID, email, or name)
+      const coHosts = roomData.coHostUserId
+        ? roomData.coHostUserId.split(",").map((id: string) => id.trim().toLowerCase())
+        : [];
       if (
         roomData.hostUserId === user.userId ||
         roomData.hostUserId === user.name ||
-        roomData.coHostUserId === user.userId ||
-        roomData.coHostUserId === user.name ||
-        roomData.coHostUserId === user.email
+        coHosts.some(
+          (id: string) =>
+            id === user.userId?.toLowerCase() ||
+            id === user.name?.toLowerCase() ||
+            id === user.email?.toLowerCase()
+        )
       ) {
         return true;
       }

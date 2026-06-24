@@ -1,3 +1,5 @@
+//api/roar/posts/[postId]/comments/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { getUser } from "@/lib/getUser";
@@ -28,8 +30,9 @@ export async function DELETE(
     const commentData = snap.data() as { authorUid: string };
     
     const RESTRICTED_USERS = [
-      "venkyiimb@gmail.com",
-      "sethi.anshul39@gmail.com"
+      // "venkyiimb@gmail.com",
+      // "sethi.anshul39@gmail.com"
+      ""
     ];
     // Check if author or admin
     if (commentData.authorUid !== user.userId && user.role !== "admin") {

@@ -1,3 +1,6 @@
+// app/models/RoomMessage.ts
+
+
 export type MessageType = "chat" | "prediction" | "hottake";
 
 export interface RoomMessage {
@@ -10,5 +13,15 @@ export interface RoomMessage {
   type: MessageType;
   fireCount: number;
   noChanceCount: number;
+  agreeCount: number;
+  disagreeCount: number;
+  replyCount: number;
   createdAt: number;
+  mediaUrls?: string[];
+  heartCount?: number;   // ← add
+  sideA?: string;        // ← add
+  sideB?: string;    
+  memGifUrl?: string;
+memTag?: string;
+
 }

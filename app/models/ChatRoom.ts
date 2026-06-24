@@ -7,4 +7,8 @@ export interface ChatRoom {
   createdAt: number;
   isActive: boolean;
   fanCount: number;
+  scheduledStartTime?: number;
+  score?: string;
+  scoreSubtitle?: string;
+  watchAlongRoomId?: string;
 }
