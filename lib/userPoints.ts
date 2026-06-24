@@ -134,7 +134,7 @@
 
 //   const now = Date.now();
 //   const batch = db.batch();
-
+//
 //   // 1. Transaction record (idempotency guard)
 //   batch.set(transactionRef, {
 //     userId: leaderboardUserId,
