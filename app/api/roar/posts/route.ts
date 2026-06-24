@@ -1339,6 +1339,7 @@ export async function POST(req: NextRequest) {
       authorUid: resolvedUserId,
       authorUsername: resolvedUsername,
       authorBadge: userData.badge,
+      authorEmail: user.email,
       type,
       sport,
       text: text?.trim() || quizQuestion?.trim() || "",

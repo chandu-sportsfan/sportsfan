@@ -13,6 +13,7 @@ export interface Post {
   authorBadge: string;
   type: PostType;
   sport: SportType;
+  authorEmail?: string;
   text: string;
   sideA?: string;
   sideB?: string;
