@@ -200,7 +200,8 @@ export async function notifyRoomMessageReaction(
     // Rollup — one notification doc per actor+post, update if exists
     const notifId = `reaction_${msgId}_${actorUserId}`;
     await db.collection("notifications").doc(notifId).set({
-      type: "reaction",
+    //   type: "reaction",
+    type: "roar_post_like",
       reaction,
       postId: msgId,
       roomId,
@@ -241,7 +242,8 @@ export async function notifyRoomMessageComment(
     const recipientEmail = recipientSnap.data()?.email ?? null;
 
     await db.collection("notifications").doc().set({  // one doc per comment, no rollup
-      type: "comment",
+    //   type: "comment",
+    type: "roar_post_comment",
       postId: msgId,
       roomId,
       actorUserId,
