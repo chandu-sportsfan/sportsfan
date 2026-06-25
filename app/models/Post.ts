@@ -32,8 +32,15 @@ export interface Post {
   quizTimer?: number;
   quizPoints?: number;
   quizParticipants?: number;
-   memGifUrl?: string,
+  closesAt?: number;
+  closedAt?: number;
+  resolvedAt?: number;
+  correctVote?: "agree" | "disagree";
+  accuracyAwarded?: boolean;
+  memGifUrl?: string,
   memTag?: string,
   createdAt: number;
   updatedAt: number;
 }
+
+
