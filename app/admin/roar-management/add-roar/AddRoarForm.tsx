@@ -15,6 +15,7 @@ export default function AddRoarForm() {
   const [scheduledStartTime, setScheduledStartTime] = useState('');
   const [score, setScore] = useState('');
   const [scoreSubtitle, setScoreSubtitle] = useState('');
+  const [createWatchAlong, setCreateWatchAlong] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,6 +34,7 @@ export default function AddRoarForm() {
         scheduledStartTime: scheduledTimeMs,
         score: score.trim(),
         scoreSubtitle: scoreSubtitle.trim(),
+        createWatchAlong,
       });
       router.push('/admin/roar-management/roar-list');
     } catch (error: any) {
@@ -137,6 +139,20 @@ export default function AddRoarForm() {
             onChange={(e) => setScheduledStartTime(e.target.value)}
             className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500"
           />
+        </div>
+
+        {/* Sync Watchalong commentary room toggle */}
+        <div className="flex items-center gap-3 bg-[#0d1117] border border-[#30363d] rounded-lg p-4">
+          <input
+            type="checkbox"
+            id="createWatchAlong"
+            checked={createWatchAlong}
+            onChange={(e) => setCreateWatchAlong(e.target.checked)}
+            className="w-4 h-4 rounded text-blue-600 border-[#30363d] focus:ring-blue-500 bg-[#161b22] cursor-pointer"
+          />
+          <label htmlFor="createWatchAlong" className="text-sm font-semibold text-gray-300 cursor-pointer select-none">
+            Create matching Watchalong commentary room
+          </label>
         </div>
 
         {/* Room Status Toggle */}

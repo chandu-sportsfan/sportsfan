@@ -126,6 +126,7 @@ export async function POST(req: NextRequest) {
       scheduledStartTime,
       score,
       scoreSubtitle,
+      createWatchAlong,
     } = body;
 
     if (!name?.trim()) {
@@ -139,8 +140,8 @@ export async function POST(req: NextRequest) {
     
     let watchAlongRoomId = "";
 
-    // Unidirectional sync: Create a corresponding Watchalong Commentary Room (excluding the permanent Infinity Room)
-    if (name.trim() !== "SF360 Infinity Room") {
+    // Unidirectional sync: Create a corresponding Watchalong Commentary Room (excluding the permanent Infinity Room and only if requested)
+    if (name.trim() !== "SF360 Infinity Room" && createWatchAlong === true) {
       try {
         // 1. Create a matching Match record
         const matchRef = await db.collection("watchAlongMatches").add({
