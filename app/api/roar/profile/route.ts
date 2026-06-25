@@ -291,8 +291,11 @@ export async function GET(req: NextRequest) {
       db.collection("rivals").doc(resolvedUserId).get(),
     ]);
 
-    const accuracy = userData.predictionCount > 0
-      ? Math.round((userData.correctPredictions / userData.predictionCount) * 100) : 0;
+    const predictionStats = userData.predictionStats ?? {};
+    const resolvedPredictionCount = predictionStats.participated ?? 0;
+    const correctPredictionCount = predictionStats.correct ?? 0;
+    const accuracy = resolvedPredictionCount > 0
+      ? Math.round((correctPredictionCount / resolvedPredictionCount) * 100) : 0;
 
     const allPosts = postsSnap.docs.map((d) => ({ ...(d.data() as Post), postId: d.id }));
     const sortedPosts = allPosts.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
@@ -302,6 +305,9 @@ export async function GET(req: NextRequest) {
       user: {
         ...userData,
         accuracy,
+        predictionStats,
+        predictionCount: resolvedPredictionCount,
+        correctPredictions: correctPredictionCount,
         actualUserId: resolvedUserId,
         badge: userData.badge ?? null,
         favPlayer: userData.favPlayer ?? null,
@@ -386,3 +392,4 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+

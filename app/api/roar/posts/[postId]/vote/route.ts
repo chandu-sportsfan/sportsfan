@@ -165,7 +165,7 @@
 //     if (vote === null) {
 //       batch.delete(voteRef);
 //     } else {
-//       batch.set(voteRef, { vote, votedAt: Date.now() }, { merge: true });
+//       batch.set(voteRef, { vote, votedAt: now }, { merge: true });
 //     }
 
 //     batch.update(postRef, {
@@ -364,13 +364,25 @@ export async function POST(
       agreeCount: number;
       disagreeCount: number;
       text?: string;
+      type?: string;
+      closesAt?: number;
+      closedAt?: number;
+      resolvedAt?: number;
     };
 
     const previousVote = voteSnap.exists
       ? (voteSnap.data() as { vote: "agree" | "disagree" }).vote
       : null;
 
-    const postType = (postData as any).type;
+    const postType = postData.type;
+    const now = Date.now();
+    if (postType === "prediction" && (postData.resolvedAt || postData.closedAt || (postData.closesAt && postData.closesAt <= now)) && vote !== null) {
+      if (!postData.closedAt && postData.closesAt && postData.closesAt <= now) {
+        await postRef.update({ closedAt: now, updatedAt: now });
+      }
+      return NextResponse.json({ success: false, error: "Prediction poll is closed" }, { status: 409 });
+    }
+
     if (postType === "debate" && previousVote !== null && vote !== null) {
       return NextResponse.json(
         { success: false, error: "Already voted on this debate", userVote: previousVote },
@@ -390,7 +402,7 @@ export async function POST(
     if (vote === null) {
       batch.delete(voteRef);
     } else {
-      batch.set(voteRef, { vote, votedAt: Date.now() }, { merge: true });
+      batch.set(voteRef, { vote, votedAt: now }, { merge: true });
     }
 
     batch.update(postRef, {
@@ -497,3 +509,6 @@ export async function POST(
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
+
+

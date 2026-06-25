@@ -119,7 +119,7 @@
 //         if (type === "quiz")         quizIndices.push(i);
 //       });
 
-//       const voteRefs = voteIndices.map((i) => docs[i].ref.collection("votes").doc(resolvedUserId));
+//       const voteRefs = voteIndices.map((i) => docs[i].ref.collection("roarVotes").doc(resolvedUserId));
 //       const likeRefs = likeIndices.map((i) => docs[i].ref.collection("likes").doc(resolvedUserId));
 //       const quizRefs = quizIndices.map((i) => docs[i].ref.collection("quizAnswers").doc(resolvedUserId));
 
@@ -332,6 +332,8 @@
 
 // const isLikeable = (_type: PostType) => true;
 
+// type PredictionCloseCandidate = Partial<Post> & { authorUid?: string };
+
 // function cleanDisplayName(raw: string | undefined | null): string {
 //   if (!raw) return "RoarUser";
 
@@ -444,7 +446,7 @@
 //         if (type === "quiz")         quizIndices.push(i);
 //       });
 
-//       const voteRefs = voteIndices.map((i) => docs[i].ref.collection("votes").doc(resolvedUserId));
+//       const voteRefs = voteIndices.map((i) => docs[i].ref.collection("roarVotes").doc(resolvedUserId));
 //       const likeRefs = likeIndices.map((i) => docs[i].ref.collection("likes").doc(resolvedUserId));
 //       const quizRefs = quizIndices.map((i) => docs[i].ref.collection("quizAnswers").doc(resolvedUserId));
 
@@ -682,6 +684,8 @@
 //   Quizzes: "quiz",
 // };
 
+// type PredictionCloseCandidate = Partial<Post> & { authorUid?: string };
+
 // function cleanDisplayName(raw: string | undefined | null): string {
 //   if (!raw) return "RoarUser";
 
@@ -806,7 +810,7 @@
 //         if (type === "quiz") quizIndices.push(i);
 //       });
 
-//       const voteRefs = voteIndices.map((i) => docs[i].ref.collection("votes").doc(resolvedUserId));
+//       const voteRefs = voteIndices.map((i) => docs[i].ref.collection("roarVotes").doc(resolvedUserId));
 //       const likeRefs = likeIndices.map((i) => docs[i].ref.collection("likes").doc(resolvedUserId));
 //       const quizRefs = quizIndices.map((i) => docs[i].ref.collection("quizAnswers").doc(resolvedUserId));
 
@@ -1046,6 +1050,8 @@ const TYPE_FILTERS: Record<string, PostType> = {
   Quizzes: "quiz",
 };
 
+type PredictionCloseCandidate = Partial<Post> & { authorUid?: string };
+
 function cleanDisplayName(raw: string | undefined | null): string {
   if (!raw) return "RoarUser";
 
@@ -1093,6 +1099,45 @@ async function resolveUser(
   };
 }
 
+async function markExpiredPredictionClosed(postId: string, post: PredictionCloseCandidate, now: number) {
+  if (post.type !== "prediction" || !post.authorUid || !post.closesAt || post.closesAt > now || post.closedAt || post.resolvedAt) return;
+
+  const postRef = db.collection("roarPosts").doc(postId);
+  const notifRef = db
+    .collection("notifications")
+    .doc(post.authorUid)
+    .collection("items")
+    .doc(`roar_prediction_closed_${postId}`);
+  const summaryRef = db
+    .collection("notifications")
+    .doc(post.authorUid)
+    .collection("meta")
+    .doc("summary");
+
+  await db.runTransaction(async (tx) => {
+    const [freshPostSnap, notifSnap] = await Promise.all([tx.get(postRef), tx.get(notifRef)]);
+    if (!freshPostSnap.exists) return;
+    const freshPost = freshPostSnap.data() as PredictionCloseCandidate;
+    const latestNow = Date.now();
+    if (freshPost.type !== "prediction" || freshPost.resolvedAt || freshPost.closedAt || !freshPost.closesAt || freshPost.closesAt > latestNow) return;
+
+    tx.update(postRef, { closedAt: latestNow, updatedAt: latestNow });
+    if (!notifSnap.exists) {
+      tx.set(notifRef, {
+        type: "ROAR_PREDICTION_RESOLVE_READY",
+        title: "Prediction closed",
+        subtitle: `Resolve now: ${String(freshPost.text ?? "Your prediction").slice(0, 80)}`,
+        cta: "Resolve now",
+        postId,
+        postPreview: String(freshPost.text ?? "").slice(0, 120),
+        read: false,
+        createdAt: latestNow,
+        updatedAt: latestNow,
+      });
+      tx.set(summaryRef, { unreadCount: FieldValue.increment(1) }, { merge: true });
+    }
+  });
+}
 // GET  /api/roar/posts
 
 export async function GET(req: NextRequest) {
@@ -1150,6 +1195,9 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    const closeNotificationsSettled = Date.now();
+    await Promise.all(snapshot.docs.map((doc) => markExpiredPredictionClosed(doc.id, doc.data() as PredictionCloseCandidate, closeNotificationsSettled)));
+
     // ── Batch subcollection reads ─────────────────────────────────────────────
     const voteMap = new Map<string, string | null>();
     const likeMap = new Map<string, boolean>();
@@ -1170,7 +1218,7 @@ export async function GET(req: NextRequest) {
         if (type === "quiz") quizIndices.push(i);
       });
 
-      const voteRefs = voteIndices.map((i) => docs[i].ref.collection("votes").doc(resolvedUserId));
+      const voteRefs = voteIndices.map((i) => docs[i].ref.collection("roarVotes").doc(resolvedUserId));
       const likeRefs = likeIndices.map((i) => docs[i].ref.collection("likes").doc(resolvedUserId));
       const quizRefs = quizIndices.map((i) => docs[i].ref.collection("quizAnswers").doc(resolvedUserId));
 
@@ -1236,8 +1284,11 @@ export async function GET(req: NextRequest) {
       const quizUserAnswer = quizMap.get(doc.id) ?? null;
       const author = authorMap.get(data.authorUid);
 
+      const effectiveClosedAt = data.type === "prediction" && !data.resolvedAt && data.closesAt && data.closesAt <= Date.now() ? (data.closedAt ?? data.closesAt) : data.closedAt;
+
       return {
         ...data,
+        ...(effectiveClosedAt && { closedAt: effectiveClosedAt }),
         postId: doc.id,
         likeCount: data.likeCount ?? 0,
         // Live-resolved, not stored-on-post. authorAvatarUrl is intentionally
@@ -1297,6 +1348,8 @@ export async function POST(req: NextRequest) {
       quizPoints,
       memGifUrl,
       memTag,
+      closesAt,
+      closeAfterMinutes,
     }: {
       type: PostType;
       text: string;
@@ -1314,6 +1367,8 @@ export async function POST(req: NextRequest) {
       quizPoints?: number;
       memGifUrl?: string;
       memTag?: string;
+      closesAt?: number;
+      closeAfterMinutes?: number;
     } = body;
 
     if (!type || (!text?.trim() && !quizQuestion?.trim() && (!mediaUrls || mediaUrls.length === 0))) {
@@ -1332,8 +1387,14 @@ export async function POST(req: NextRequest) {
     const resolvedUsername = userData.username || derivedUserName;
 
     const now = Date.now();
+    const normalizedCloseAfter = Number(closeAfterMinutes);
+    const requestedClosesAt = Number(closesAt);
+    const predictionClosesAt = type === "prediction"
+      ? (Number.isFinite(requestedClosesAt) && requestedClosesAt > now
+        ? requestedClosesAt
+        : now + Math.max(1, Math.min(10080, Number.isFinite(normalizedCloseAfter) ? normalizedCloseAfter : 60)) * 60 * 1000)
+      : undefined;
     const postRef = db.collection("roarPosts").doc();
-
     const newPost: Post = {
       postId: postRef.id,
       authorUid: resolvedUserId,
@@ -1354,6 +1415,7 @@ export async function POST(req: NextRequest) {
       ...(quizPoints && { quizPoints }),
       ...(memGifUrl && { memGifUrl }),
       ...(memTag && { memTag }),
+      ...(predictionClosesAt && { closesAt: predictionClosesAt }),
       quizParticipants: 0,
       audience,
       agreeCount: 0,
@@ -1410,3 +1472,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
+
+
+
+
