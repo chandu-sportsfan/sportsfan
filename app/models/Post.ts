@@ -37,6 +37,7 @@ export interface Post {
   closedAt?: number;
   resolvedAt?: number;
   correctVote?: "agree" | "disagree";
+  predictionOptions?: string[];
   accuracyAwarded?: boolean;
   memGifUrl?: string,
   memTag?: string,

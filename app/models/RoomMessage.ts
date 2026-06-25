@@ -1,7 +1,7 @@
 // app/models/RoomMessage.ts
 
 
-export type MessageType = "chat" | "prediction" | "hottake";
+export type MessageType = "chat" | "post" | "prediction" | "hottake" | "hot_take" | "debate" | "raw_reactions" | "memory" | "quiz";
 
 export interface RoomMessage {
   msgId: string;
@@ -20,7 +20,14 @@ export interface RoomMessage {
   mediaUrls?: string[];
   heartCount?: number;   // ← add
   sideA?: string;        // ← add
-  sideB?: string;    
+  sideB?: string;
+  predictionOptions?: string[];
+  predictionOptionCounts?: Record<string, number>;
+  closesAt?: number;
+  closedAt?: number;
+  resolvedAt?: number;
+  correctVote?: string;
+  accuracyAwarded?: boolean;
   memGifUrl?: string;
 memTag?: string;
 

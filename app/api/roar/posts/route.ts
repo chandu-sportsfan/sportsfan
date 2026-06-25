@@ -949,6 +949,7 @@
 //       text: text?.trim() || quizQuestion?.trim() || "",
 //       ...(sideA && { sideA }),
 //       ...(sideB && { sideB }),
+//       ...(type === "prediction" && Array.isArray(predictionOptions) && { predictionOptions: predictionOptions.map((option) => String(option).trim()).filter(Boolean).slice(0, 6) }),
 //       ...(matchId && { matchId }),
 //       ...(confidence !== undefined && { confidence }),
 //       ...(quizQuestion && { quizQuestion }),
@@ -1103,39 +1104,35 @@ async function markExpiredPredictionClosed(postId: string, post: PredictionClose
   if (post.type !== "prediction" || !post.authorUid || !post.closesAt || post.closesAt > now || post.closedAt || post.resolvedAt) return;
 
   const postRef = db.collection("roarPosts").doc(postId);
-  const notifRef = db
-    .collection("notifications")
-    .doc(post.authorUid)
-    .collection("items")
-    .doc(`roar_prediction_closed_${postId}`);
-  const summaryRef = db
-    .collection("notifications")
-    .doc(post.authorUid)
-    .collection("meta")
-    .doc("summary");
 
   await db.runTransaction(async (tx) => {
-    const [freshPostSnap, notifSnap] = await Promise.all([tx.get(postRef), tx.get(notifRef)]);
+    const freshPostSnap = await tx.get(postRef);
     if (!freshPostSnap.exists) return;
     const freshPost = freshPostSnap.data() as PredictionCloseCandidate;
     const latestNow = Date.now();
     if (freshPost.type !== "prediction" || freshPost.resolvedAt || freshPost.closedAt || !freshPost.closesAt || freshPost.closesAt > latestNow) return;
 
     tx.update(postRef, { closedAt: latestNow, updatedAt: latestNow });
-    if (!notifSnap.exists) {
-      tx.set(notifRef, {
-        type: "ROAR_PREDICTION_RESOLVE_READY",
-        title: "Prediction closed",
-        subtitle: `Resolve now: ${String(freshPost.text ?? "Your prediction").slice(0, 80)}`,
-        cta: "Resolve now",
-        postId,
-        postPreview: String(freshPost.text ?? "").slice(0, 120),
-        read: false,
-        createdAt: latestNow,
-        updatedAt: latestNow,
-      });
-      tx.set(summaryRef, { unreadCount: FieldValue.increment(1) }, { merge: true });
-    }
+
+    const notificationRef = db
+      .collection("notifications")
+      .doc(freshPost.authorUid)
+      .collection("items")
+      .doc(`roar_prediction_closed_${postId}`);
+    const summaryRef = db.collection("notifications").doc(freshPost.authorUid).collection("meta").doc("summary");
+
+    tx.set(notificationRef, {
+      type: "ROAR_PREDICTION_RESOLVE_READY",
+      title: "Prediction closed",
+      subtitle: `Resolve now: ${String(freshPost.text ?? "Your prediction").slice(0, 90)}`,
+      cta: "Resolve now",
+      postId,
+      postPreview: String(freshPost.text ?? "").slice(0, 120),
+      read: false,
+      createdAt: latestNow,
+      updatedAt: latestNow,
+    }, { merge: true });
+    tx.set(summaryRef, { unreadCount: FieldValue.increment(1) }, { merge: true });
   });
 }
 // GET  /api/roar/posts
@@ -1350,6 +1347,7 @@ export async function POST(req: NextRequest) {
       memTag,
       closesAt,
       closeAfterMinutes,
+      predictionOptions,
     }: {
       type: PostType;
       text: string;
@@ -1369,6 +1367,7 @@ export async function POST(req: NextRequest) {
       memTag?: string;
       closesAt?: number;
       closeAfterMinutes?: number;
+      predictionOptions?: string[];
     } = body;
 
     if (!type || (!text?.trim() && !quizQuestion?.trim() && (!mediaUrls || mediaUrls.length === 0))) {
@@ -1406,6 +1405,7 @@ export async function POST(req: NextRequest) {
       text: text?.trim() || quizQuestion?.trim() || "",
       ...(sideA && { sideA }),
       ...(sideB && { sideB }),
+      ...(type === "prediction" && Array.isArray(predictionOptions) && { predictionOptions: predictionOptions.map((option) => String(option).trim()).filter(Boolean).slice(0, 6) }),
       ...(matchId && { matchId }),
       ...(confidence !== undefined && { confidence }),
       ...(quizQuestion && { quizQuestion }),
@@ -1472,8 +1472,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
-
-
-
-
-

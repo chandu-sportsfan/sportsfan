@@ -142,7 +142,7 @@
 //     };
 
 //     const previousVote = voteSnap.exists
-//       ? (voteSnap.data() as { vote: "agree" | "disagree" }).vote
+//       ? (voteSnap.data() as { vote: string }).vote
 //       : null;
 
 //     const postType = (postData as any).type;
@@ -332,14 +332,11 @@ export async function POST(
     }
 
     const body = await req.json();
-    // vote: "agree" | "disagree" | null  (null = remove vote)
-    const { vote }: { vote: "agree" | "disagree" | null } = body;
+    // vote: "agree" | "disagree" | "option_N" | null  (null = remove vote)
+    const { vote }: { vote: string | null } = body;
 
-    if (vote !== "agree" && vote !== "disagree" && vote !== null) {
-      return NextResponse.json(
-        { error: "vote must be 'agree', 'disagree', or null" },
-        { status: 400 },
-      );
+    if (vote !== null && typeof vote !== "string") {
+      return NextResponse.json({ error: "Invalid vote value" }, { status: 400 });
     }
 
     // ── Resolve the voter ─────────────────────────────────────────────────────
@@ -368,13 +365,23 @@ export async function POST(
       closesAt?: number;
       closedAt?: number;
       resolvedAt?: number;
+      predictionOptions?: string[];
     };
 
     const previousVote = voteSnap.exists
-      ? (voteSnap.data() as { vote: "agree" | "disagree" }).vote
+      ? (voteSnap.data() as { vote: string }).vote
       : null;
-
     const postType = postData.type;
+    const optionVoteMatch = typeof vote === "string" ? /^option_(\d+)$/.exec(vote) : null;
+    if (vote !== null && vote !== "agree" && vote !== "disagree" && !optionVoteMatch) {
+      return NextResponse.json({ error: "Invalid vote value" }, { status: 400 });
+    }
+    if (optionVoteMatch) {
+      const optionIndex = Number(optionVoteMatch[1]);
+      if (postType !== "prediction" || !Array.isArray(postData.predictionOptions) || optionIndex < 2 || optionIndex >= postData.predictionOptions.length) {
+        return NextResponse.json({ error: "Invalid prediction option" }, { status: 400 });
+      }
+    }
     const now = Date.now();
     if (postType === "prediction" && (postData.resolvedAt || postData.closedAt || (postData.closesAt && postData.closesAt <= now)) && vote !== null) {
       if (!postData.closedAt && postData.closesAt && postData.closesAt <= now) {
@@ -395,6 +402,13 @@ export async function POST(
       (vote === "agree" ? 1 : 0) - (previousVote === "agree" ? 1 : 0);
     const disagreeData =
       (vote === "disagree" ? 1 : 0) - (previousVote === "disagree" ? 1 : 0);
+    const predictionOptionCountUpdates: Record<string, unknown> = {};
+    if (typeof previousVote === "string" && previousVote.startsWith("option_")) {
+      predictionOptionCountUpdates[`predictionOptionCounts.${previousVote}`] = FieldValue.increment(-1);
+    }
+    if (typeof vote === "string" && vote.startsWith("option_")) {
+      predictionOptionCountUpdates[`predictionOptionCounts.${vote}`] = FieldValue.increment(1);
+    }
 
     // ── Persist vote + post counters atomically ───────────────────────────────
     const batch = db.batch();
@@ -408,6 +422,7 @@ export async function POST(
     batch.update(postRef, {
       agreeCount: FieldValue.increment(agreeData),
       disagreeCount: FieldValue.increment(disagreeData),
+      ...predictionOptionCountUpdates,
       updatedAt: Date.now(),
     });
 
@@ -509,6 +524,3 @@ export async function POST(
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
-
-
-
