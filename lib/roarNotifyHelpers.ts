@@ -1,3 +1,291 @@
+// // lib/roarNotifyHelpers.ts
+
+// import { db } from "@/lib/firebaseAdmin";
+
+// // ─── Internal helpers ─────────────────────────────────────────────────────────
+
+// async function getPostMeta(postId: string): Promise<{
+//     authorUserId: string;
+//     authorEmail: string | null;
+//     text: string;
+// } | null> {
+//     try {
+//         const snap = await db.collection("roarPosts").doc(postId).get();
+//         if (!snap.exists) return null;
+//         const data = snap.data()!;
+//         return {
+//             authorUserId: data.authorUid ?? data.userId ?? data.authorUserId ?? "",
+//             authorEmail: data.authorEmail ?? data.email ?? null,
+//             text: (data.text ?? data.quizQuestion ?? "").slice(0, 120),
+//         };
+//     } catch {
+//         return null;
+//     }
+// }
+
+// async function resolveRecipientEmail(authorUserId: string): Promise<string | null> {
+//     try {
+//         const snap = await db.collection("roarProfiles").doc(authorUserId).get();
+//         if (snap.exists) {
+//             const d = snap.data()!;
+//             return d.email ?? d.authorEmail ?? null;
+//         }
+//     } catch { /* ignore */ }
+//     return null;
+// }
+
+// async function resolveActorName(userId: string): Promise<string> {
+//     try {
+//         const snap = await db.collection("roarProfiles").doc(userId).get();
+//         if (snap.exists) {
+//             const d = snap.data()!;
+//             if (d.username) return d.username as string;
+//             if (d.name) return d.name as string;
+//         }
+//     } catch { /* ignore */ }
+//     return "A fan";
+// }
+
+// // ─── Public API ───────────────────────────────────────────────────────────────
+
+// /**
+//  * @param postId      The reacted-to post
+//  * @param actorUserId Your app's userId (from getUser().userId)
+//  * @param reaction    Reaction type string
+//  */
+// export async function notifyPostReaction(
+//     postId: string,
+//     actorUserId: string,
+//     reaction: string
+// ): Promise<void> {
+//     try {
+//         const post = await getPostMeta(postId);
+//         if (!post || !post.authorUserId) return;
+
+//         // Self-reaction guard
+//         if (post.authorUserId === actorUserId) return;
+
+//         const recipientEmail =
+//             post.authorEmail ?? (await resolveRecipientEmail(post.authorUserId));
+//         if (!recipientEmail) return;
+
+//         // Resolve actor display name from their ROAR profile
+//         const actorName = await resolveActorName(actorUserId);
+
+//         const notifCollection = db.collection("notifications");
+
+//         // Roll-up: update existing notification for this post if one already exists
+//         const existing = await notifCollection
+//             .where("type", "==", "roar_post_like")
+//             .where("postId", "==", postId)
+//             .where("recipientEmail", "==", recipientEmail)
+//             .limit(1)
+//             .get();
+
+//         const now = Date.now();
+
+//         if (!existing.empty) {
+//             const docRef = existing.docs[0].ref;
+//             const prev = existing.docs[0].data();
+//             const prevNames: string[] = prev.likerNames ?? [];
+
+//             const updatedNames = [
+//                 actorName,
+//                 ...prevNames.filter((n) => n !== actorName),
+//             ].slice(0, 3);
+
+//             const likerCount = (prev.likerCount ?? 1) + 1;
+
+//             await docRef.update({
+//                 likerNames: updatedNames,
+//                 likerCount,
+//                 message: buildLikeMessage(updatedNames, likerCount),
+//                 isRead: false,
+//                 updatedAt: now,
+//             });
+//         } else {
+//             await notifCollection.add({
+//                 type: "roar_post_like",
+//                 recipientEmail,
+//                 recipientUid: post.authorUserId,
+//                 postId,
+//                 postPreview: post.text || "your ROAR post",
+//                 likerNames: [actorName],
+//                 likerCount: 1,
+//                 message: buildLikeMessage([actorName], 1),
+//                 isRead: false,
+//                 createdAt: now,
+//                 updatedAt: now,
+//             });
+//         }
+//     } catch (err) {
+//         console.error("[roarNotify] notifyPostReaction error:", err);
+//     }
+// }
+
+// /**
+//  * @param postId              The commented-on post
+//  * @param actorUserId         Your app's userId (from getUser().userId)
+//  * @param actorEmail          Commenter's email (from getUser().email)
+//  * @param commenterUsername   Display name
+//  * @param commentPreview      First ~80 chars of comment text
+//  */
+// export async function notifyPostComment(
+//     postId: string,
+//     actorUserId: string,
+//     actorEmail: string,
+//     commenterUsername: string,
+//     commentPreview?: string
+// ): Promise<void> {
+//     try {
+//         const post = await getPostMeta(postId);
+//         if (!post || !post.authorUserId) return;
+
+//         // Self-comment guard
+//         if (post.authorUserId === actorUserId) return;
+//         if (post.authorEmail && post.authorEmail === actorEmail) return;
+
+//         const recipientEmail =
+//             post.authorEmail ?? (await resolveRecipientEmail(post.authorUserId));
+//         if (!recipientEmail) return;
+
+//         const now = Date.now();
+//         const message = commentPreview
+//             ? `${commenterUsername} commented on your post: "${commentPreview.slice(0, 60)}"`
+//             : `${commenterUsername} commented on your ROAR post`;
+
+//         await db.collection("notifications").add({
+//             type: "roar_post_comment",
+//             recipientEmail,
+//             recipientUid: post.authorUserId,
+//             postId,
+//             postPreview: post.text || "your ROAR post",
+//             commenterUsername,
+//             message,
+//             isRead: false,
+//             createdAt: now,
+//             updatedAt: now,
+//         });
+//     } catch (err) {
+//         console.error("[roarNotify] notifyPostComment error:", err);
+//     }
+// }
+
+
+// export async function notifyRoomMessageReaction(
+//     roomId: string,
+//     msgId: string,
+//     actorUserId: string,
+//     reaction: string
+// ) {
+//     try {
+//         const [msgSnap, actorSnap] = await Promise.all([
+//             db.collection("roarRooms").doc(roomId).collection("messages").doc(msgId).get(),
+//             db.collection("roarProfiles").doc(actorUserId).get(),
+//         ]);
+
+//         if (!msgSnap.exists) return;
+//         const msg = msgSnap.data()!;
+
+//         // Self-action guard
+//         if (msg.authorUid === actorUserId) return;
+
+//         const actorUsername = actorSnap.data()?.username ?? "Someone";
+//         const recipientUid = msg.authorUid;
+
+//         // Get recipient email from roarProfiles
+//         const recipientSnap = await db.collection("roarProfiles").doc(recipientUid).get();
+//         const recipientEmail = recipientSnap.data()?.email ?? null;
+
+//         // Rollup — one notification doc per actor+post, update if exists
+//         const notifId = `reaction_${msgId}_${actorUserId}`;
+//         await db.collection("notifications").doc(notifId).set({
+//             type: "roar_post_like",
+//             reaction,
+//             postId: msgId,
+//             roomId,
+//             actorUserId,
+//             actorUsername,
+//             recipientUid,
+//             recipientEmail,
+//             postPreview: msg.text?.slice(0, 80) ?? "",
+//             likerNames: [actorUsername],
+//             likerCount: 1,
+//             message: `${actorUsername} reacted to your post`,
+//             updatedAt: Date.now(),
+//             createdAt: Date.now(),
+//             isRead: false,
+//         }, { merge: true });
+
+//     } catch (e) {
+//         console.warn("[notifyRoomMessageReaction] failed:", e);
+//     }
+// }
+
+// export async function notifyRoomMessageComment(
+//     roomId: string,
+//     msgId: string,
+//     actorUserId: string,
+//     actorEmail: string,
+//     commenterUsername: string,
+//     commentPreview?: string
+// ) {
+//     try {
+//         const msgSnap = await db
+//             .collection("roarRooms").doc(roomId)
+//             .collection("messages").doc(msgId).get();
+
+//         if (!msgSnap.exists) return;
+//         const msg = msgSnap.data()!;
+
+//         // Self-action guard
+//         if (msg.authorUid === actorUserId) return;
+
+//         const recipientUid = msg.authorUid;
+//         const recipientSnap = await db.collection("roarProfiles").doc(recipientUid).get();
+//         const recipientEmail = recipientSnap.data()?.email ?? null;
+
+//         // one doc per comment, no rollup
+//             //   type: "comment",
+//             await db.collection("notifications").doc().set({
+//                 type: "roar_post_comment",
+//                 postId: msgId,
+//                 roomId,
+//                 actorUserId,
+//                 actorEmail,
+//                 actorUsername: commenterUsername,
+//                 commenterUsername,
+//                 recipientUid,
+//                 recipientEmail,
+//                 postPreview: msg.text?.slice(0, 80) ?? "",
+//                 message: commentPreview
+//                     ? `${commenterUsername} commented: "${commentPreview.slice(0, 60)}"`
+//                     : `${commenterUsername} commented on your post`,
+//                 commentPreview: commentPreview?.slice(0, 100) ?? null,
+//                 createdAt: Date.now(),
+//                 updatedAt: Date.now(),
+//                 isRead: false,
+//             });
+
+//         } catch (e) {
+//             console.warn("[notifyRoomMessageComment] failed:", e);
+//         }
+//     }
+
+// // ─── Formatters ───────────────────────────────────────────────────────────────
+
+// function buildLikeMessage(names: string[], total: number): string {
+//         if (total === 1) return `${names[0]} reacted to your ROAR post`;
+//         if (total === 2) return `${names[0]} and ${names[1] ?? "1 other"} reacted to your ROAR post`;
+//         const others = total - 1;
+//         return `${names[0]} and ${others} other${others === 1 ? "" : "s"} reacted to your ROAR post`;
+//     }
+
+
+
+
+
+
 // lib/roarNotifyHelpers.ts
 
 import { db } from "@/lib/firebaseAdmin";
@@ -23,18 +311,45 @@ async function getPostMeta(postId: string): Promise<{
     }
 }
 
-async function resolveRecipientEmail(authorUserId: string): Promise<string | null> {
+/**
+ * Resolves email for a user UID by checking multiple collections in order:
+ * users/{uid} → roarProfiles/{uid} → roarProfiles (query by email field)
+ */
+async function resolveEmailForUid(uid: string): Promise<string | null> {
+    // 1. Try users collection first (canonical, same as resolveUser in routes)
     try {
-        const snap = await db.collection("roarProfiles").doc(authorUserId).get();
+        const snap = await db.collection("users").doc(uid).get();
         if (snap.exists) {
             const d = snap.data()!;
-            return d.email ?? d.authorEmail ?? null;
+            const email = d.email ?? d.authorEmail ?? null;
+            if (email) return email;
         }
     } catch { /* ignore */ }
+
+    // 2. Fallback to roarProfiles
+    try {
+        const snap = await db.collection("roarProfiles").doc(uid).get();
+        if (snap.exists) {
+            const d = snap.data()!;
+            const email = d.email ?? d.authorEmail ?? null;
+            if (email) return email;
+        }
+    } catch { /* ignore */ }
+
     return null;
 }
 
 async function resolveActorName(userId: string): Promise<string> {
+    // Check users collection first, then roarProfiles
+    try {
+        const snap = await db.collection("users").doc(userId).get();
+        if (snap.exists) {
+            const d = snap.data()!;
+            if (d.username) return d.username as string;
+            if (d.name) return d.name as string;
+        }
+    } catch { /* ignore */ }
+
     try {
         const snap = await db.collection("roarProfiles").doc(userId).get();
         if (snap.exists) {
@@ -43,16 +358,12 @@ async function resolveActorName(userId: string): Promise<string> {
             if (d.name) return d.name as string;
         }
     } catch { /* ignore */ }
+
     return "A fan";
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-/**
- * @param postId      The reacted-to post
- * @param actorUserId Your app's userId (from getUser().userId)
- * @param reaction    Reaction type string
- */
 export async function notifyPostReaction(
     postId: string,
     actorUserId: string,
@@ -62,19 +373,16 @@ export async function notifyPostReaction(
         const post = await getPostMeta(postId);
         if (!post || !post.authorUserId) return;
 
-        // Self-reaction guard
         if (post.authorUserId === actorUserId) return;
 
         const recipientEmail =
-            post.authorEmail ?? (await resolveRecipientEmail(post.authorUserId));
+            post.authorEmail ?? (await resolveEmailForUid(post.authorUserId));
         if (!recipientEmail) return;
 
-        // Resolve actor display name from their ROAR profile
         const actorName = await resolveActorName(actorUserId);
-
         const notifCollection = db.collection("notifications");
+        const now = Date.now();
 
-        // Roll-up: update existing notification for this post if one already exists
         const existing = await notifCollection
             .where("type", "==", "roar_post_like")
             .where("postId", "==", postId)
@@ -82,20 +390,15 @@ export async function notifyPostReaction(
             .limit(1)
             .get();
 
-        const now = Date.now();
-
         if (!existing.empty) {
             const docRef = existing.docs[0].ref;
             const prev = existing.docs[0].data();
             const prevNames: string[] = prev.likerNames ?? [];
-
             const updatedNames = [
                 actorName,
                 ...prevNames.filter((n) => n !== actorName),
             ].slice(0, 3);
-
             const likerCount = (prev.likerCount ?? 1) + 1;
-
             await docRef.update({
                 likerNames: updatedNames,
                 likerCount,
@@ -123,13 +426,6 @@ export async function notifyPostReaction(
     }
 }
 
-/**
- * @param postId              The commented-on post
- * @param actorUserId         Your app's userId (from getUser().userId)
- * @param actorEmail          Commenter's email (from getUser().email)
- * @param commenterUsername   Display name
- * @param commentPreview      First ~80 chars of comment text
- */
 export async function notifyPostComment(
     postId: string,
     actorUserId: string,
@@ -141,12 +437,11 @@ export async function notifyPostComment(
         const post = await getPostMeta(postId);
         if (!post || !post.authorUserId) return;
 
-        // Self-comment guard
         if (post.authorUserId === actorUserId) return;
         if (post.authorEmail && post.authorEmail === actorEmail) return;
 
         const recipientEmail =
-            post.authorEmail ?? (await resolveRecipientEmail(post.authorUserId));
+            post.authorEmail ?? (await resolveEmailForUid(post.authorUserId));
         if (!recipientEmail) return;
 
         const now = Date.now();
@@ -171,52 +466,72 @@ export async function notifyPostComment(
     }
 }
 
-
 export async function notifyRoomMessageReaction(
     roomId: string,
     msgId: string,
     actorUserId: string,
     reaction: string
-) {
+): Promise<void> {
     try {
-        const [msgSnap, actorSnap] = await Promise.all([
+        const [msgSnap, actorName] = await Promise.all([
             db.collection("roarRooms").doc(roomId).collection("messages").doc(msgId).get(),
-            db.collection("roarProfiles").doc(actorUserId).get(),
+            resolveActorName(actorUserId),
         ]);
 
         if (!msgSnap.exists) return;
         const msg = msgSnap.data()!;
 
-        // Self-action guard
-        if (msg.authorUid === actorUserId) return;
+        const recipientUid: string = msg.authorUid;
 
-        const actorUsername = actorSnap.data()?.username ?? "Someone";
-        const recipientUid = msg.authorUid;
+        // Self-action guard — compare canonical UIDs
+        if (recipientUid === actorUserId) return;
 
-        // Get recipient email from roarProfiles
-        const recipientSnap = await db.collection("roarProfiles").doc(recipientUid).get();
-        const recipientEmail = recipientSnap.data()?.email ?? null;
+        // Resolve recipient email from users collection (canonical) then fallback
+        const recipientEmail = await resolveEmailForUid(recipientUid);
 
-        // Rollup — one notification doc per actor+post, update if exists
-        const notifId = `reaction_${msgId}_${actorUserId}`;
-        await db.collection("notifications").doc(notifId).set({
-            type: "roar_post_like",
-            reaction,
-            postId: msgId,
-            roomId,
-            actorUserId,
-            actorUsername,
-            recipientUid,
-            recipientEmail,
-            postPreview: msg.text?.slice(0, 80) ?? "",
-            likerNames: [actorUsername],
-            likerCount: 1,
-            message: `${actorUsername} reacted to your post`,
-            updatedAt: Date.now(),
-            createdAt: Date.now(),
-            isRead: false,
-        }, { merge: true });
+        const now = Date.now();
 
+        // Rollup: one notification per message, merge if it already exists
+        const notifId = `reaction_${msgId}`;
+        const notifRef = db.collection("notifications").doc(notifId);
+        const existing = await notifRef.get();
+
+        if (existing.exists) {
+            const prev = existing.data()!;
+            const prevNames: string[] = prev.likerNames ?? [];
+            const updatedNames = [
+                actorName,
+                ...prevNames.filter((n) => n !== actorName),
+            ].slice(0, 3);
+            const likerCount = (prev.likerCount ?? 1) + 1;
+            await notifRef.update({
+                likerNames: updatedNames,
+                likerCount,
+                message: buildLikeMessage(updatedNames, likerCount),
+                isRead: false,
+                updatedAt: now,
+                // Always keep email fresh in case it resolved on a later call
+                ...(recipientEmail ? { recipientEmail } : {}),
+            });
+        } else {
+            await notifRef.set({
+                type: "roar_post_like",
+                reaction,
+                postId: msgId,
+                roomId,
+                actorUserId,
+                actorUsername: actorName,
+                recipientUid,
+                recipientEmail: recipientEmail ?? null,
+                postPreview: msg.text?.slice(0, 80) ?? "",
+                likerNames: [actorName],
+                likerCount: 1,
+                message: buildLikeMessage([actorName], 1),
+                isRead: false,
+                createdAt: now,
+                updatedAt: now,
+            });
+        }
     } catch (e) {
         console.warn("[notifyRoomMessageReaction] failed:", e);
     }
@@ -229,7 +544,7 @@ export async function notifyRoomMessageComment(
     actorEmail: string,
     commenterUsername: string,
     commentPreview?: string
-) {
+): Promise<void> {
     try {
         const msgSnap = await db
             .collection("roarRooms").doc(roomId)
@@ -238,45 +553,46 @@ export async function notifyRoomMessageComment(
         if (!msgSnap.exists) return;
         const msg = msgSnap.data()!;
 
+        const recipientUid: string = msg.authorUid;
+
         // Self-action guard
-        if (msg.authorUid === actorUserId) return;
+        if (recipientUid === actorUserId) return;
 
-        const recipientUid = msg.authorUid;
-        const recipientSnap = await db.collection("roarProfiles").doc(recipientUid).get();
-        const recipientEmail = recipientSnap.data()?.email ?? null;
+        // Also guard by email to catch OAuth users whose userId != UID
+        const recipientEmail = await resolveEmailForUid(recipientUid);
+        if (recipientEmail && recipientEmail === actorEmail) return;
 
-        // one doc per comment, no rollup
-            //   type: "comment",
-            await db.collection("notifications").doc().set({
-                type: "roar_post_comment",
-                postId: msgId,
-                roomId,
-                actorUserId,
-                actorEmail,
-                actorUsername: commenterUsername,
-                commenterUsername,
-                recipientUid,
-                recipientEmail,
-                postPreview: msg.text?.slice(0, 80) ?? "",
-                message: commentPreview
-                    ? `${commenterUsername} commented: "${commentPreview.slice(0, 60)}"`
-                    : `${commenterUsername} commented on your post`,
-                commentPreview: commentPreview?.slice(0, 100) ?? null,
-                createdAt: Date.now(),
-                updatedAt: Date.now(),
-                isRead: false,
-            });
+        const now = Date.now();
 
-        } catch (e) {
-            console.warn("[notifyRoomMessageComment] failed:", e);
-        }
+        await db.collection("notifications").add({
+            type: "roar_post_comment",
+            postId: msgId,
+            roomId,
+            actorUserId,
+            actorEmail,
+            actorUsername: commenterUsername,
+            commenterUsername,
+            recipientUid,
+            recipientEmail: recipientEmail ?? null,
+            postPreview: msg.text?.slice(0, 80) ?? "",
+            message: commentPreview
+                ? `${commenterUsername} commented: "${commentPreview.slice(0, 60)}"`
+                : `${commenterUsername} commented on your post`,
+            commentPreview: commentPreview?.slice(0, 100) ?? null,
+            createdAt: now,
+            updatedAt: now,
+            isRead: false,
+        });
+    } catch (e) {
+        console.warn("[notifyRoomMessageComment] failed:", e);
     }
+}
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
 function buildLikeMessage(names: string[], total: number): string {
-        if (total === 1) return `${names[0]} reacted to your ROAR post`;
-        if (total === 2) return `${names[0]} and ${names[1] ?? "1 other"} reacted to your ROAR post`;
-        const others = total - 1;
-        return `${names[0]} and ${others} other${others === 1 ? "" : "s"} reacted to your ROAR post`;
-    }
+    if (total === 1) return `${names[0]} reacted to your ROAR post`;
+    if (total === 2) return `${names[0]} and ${names[1] ?? "1 other"} reacted to your ROAR post`;
+    const others = total - 1;
+    return `${names[0]} and ${others} other${others === 1 ? "" : "s"} reacted to your ROAR post`;
+}
