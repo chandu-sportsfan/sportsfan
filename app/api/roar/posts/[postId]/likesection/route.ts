@@ -156,7 +156,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { getUser } from "@/lib/getUser";
-import { notifyPostReaction } from "@/lib/roarNotifyHelpers";
+import { notifyPostReaction, notifyRoomMessageReaction } from "@/lib/roarNotifyHelpers";
 
 type ReactionType = "heart" | "fire" | "mindblown" | "goat" | "clap" | "nochance" | string;
 
@@ -231,9 +231,14 @@ export async function POST(
     await targetRef.update(update);
 
     // Fire notification non-blocking (posts only, not room messages)
-    if (!roomId) {
-      notifyPostReaction(postId, userId, reaction).catch(() => {});
-    }
+    // if (!roomId) {
+    //   notifyPostReaction(postId, userId, reaction).catch(() => {});
+    // }
+    if (roomId) {
+  notifyRoomMessageReaction(roomId, postId, userId, reaction).catch(() => {});
+} else {
+  notifyPostReaction(postId, userId, reaction).catch(() => {});
+}
 
     return NextResponse.json({
       success: true,

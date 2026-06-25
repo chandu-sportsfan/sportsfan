@@ -171,6 +171,94 @@ export async function notifyPostComment(
   }
 }
 
+
+export async function notifyRoomMessageReaction(
+  roomId: string,
+  msgId: string,
+  actorUserId: string,
+  reaction: string
+) {
+  try {
+    const [msgSnap, actorSnap] = await Promise.all([
+      db.collection("roarRooms").doc(roomId).collection("messages").doc(msgId).get(),
+      db.collection("roarProfiles").doc(actorUserId).get(),
+    ]);
+
+    if (!msgSnap.exists) return;
+    const msg = msgSnap.data()!;
+
+    // Self-action guard
+    if (msg.authorUid === actorUserId) return;
+
+    const actorUsername = actorSnap.data()?.username ?? "Someone";
+    const recipientUid = msg.authorUid;
+
+    // Get recipient email from roarProfiles
+    const recipientSnap = await db.collection("roarProfiles").doc(recipientUid).get();
+    const recipientEmail = recipientSnap.data()?.email ?? null;
+
+    // Rollup — one notification doc per actor+post, update if exists
+    const notifId = `reaction_${msgId}_${actorUserId}`;
+    await db.collection("notifications").doc(notifId).set({
+      type: "reaction",
+      reaction,
+      postId: msgId,
+      roomId,
+      actorUserId,
+      actorUsername,
+      recipientUid,
+      recipientEmail,
+      updatedAt: Date.now(),
+      read: false,
+    }, { merge: true });
+
+  } catch (e) {
+    console.warn("[notifyRoomMessageReaction] failed:", e);
+  }
+}
+
+export async function notifyRoomMessageComment(
+  roomId: string,
+  msgId: string,
+  actorUserId: string,
+  actorEmail: string,
+  commenterUsername: string,
+  commentPreview?: string
+) {
+  try {
+    const msgSnap = await db
+      .collection("roarRooms").doc(roomId)
+      .collection("messages").doc(msgId).get();
+
+    if (!msgSnap.exists) return;
+    const msg = msgSnap.data()!;
+
+    // Self-action guard
+    if (msg.authorUid === actorUserId) return;
+
+    const recipientUid = msg.authorUid;
+    const recipientSnap = await db.collection("roarProfiles").doc(recipientUid).get();
+    const recipientEmail = recipientSnap.data()?.email ?? null;
+
+    await db.collection("notifications").doc().set({  // one doc per comment, no rollup
+      type: "comment",
+      postId: msgId,
+      roomId,
+      actorUserId,
+      actorEmail,
+      actorUsername: commenterUsername,
+      recipientUid,
+      recipientEmail,
+      commentPreview: commentPreview?.slice(0, 100) ?? null,
+      createdAt: Date.now(),
+      read: false,
+    });
+
+  } catch (e) {
+    console.warn("[notifyRoomMessageComment] failed:", e);
+  }
+}
+
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
 function buildLikeMessage(names: string[], total: number): string {

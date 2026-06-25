@@ -430,10 +430,10 @@
 //         .doc(roomId)
 //         .collection("messages")
 //         .doc(postId);
-      
+
 //       const messageSnap = await messageRef.get();
 //       console.log(`[DEBUG] Message exists: ${messageSnap.exists}`);
-      
+
 //       if (messageSnap.exists) {
 //         const currentData = messageSnap.data();
 //         console.log(`[DEBUG] Current room message replyCount: ${currentData?.replyCount || 0}`);
@@ -529,7 +529,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { getUser } from "@/lib/getUser";
-import { notifyPostComment } from "@/lib/roarNotifyHelpers";
+import { notifyPostComment, notifyRoomMessageComment } from "@/lib/roarNotifyHelpers";
 
 // ─── GET ──────────────────────────────────────────────────────────────────────
 
@@ -605,10 +605,15 @@ export async function POST(
     db.collection("roarPosts")
       .doc(postId)
       .update({ replyCount: FieldValue.increment(1) })
-      .catch(() => {});
+      .catch(() => { });
 
     // Notify post author (non-blocking)
-    notifyPostComment(postId, user.userId, user.email, username, text.slice(0, 80)).catch(() => {});
+    // notifyPostComment(postId, user.userId, user.email, username, text.slice(0, 80)).catch(() => {});
+    if (roomId) {
+      notifyRoomMessageComment(roomId, postId, user.userId, user.email, username, text.slice(0, 80)).catch(() => { });
+    } else {
+      notifyPostComment(postId, user.userId, user.email, username, text.slice(0, 80)).catch(() => { });
+    }
 
     return NextResponse.json({
       success: true,
