@@ -8,6 +8,7 @@ export interface RoomMessage {
   roomId: string;
   authorUid: string;
   authorUsername: string;
+  authorEmail?: string;
   authorBadge: string;
   text: string;
   type: MessageType;

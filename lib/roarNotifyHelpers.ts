@@ -321,6 +321,7 @@ async function getPostMeta(postId: string): Promise<{
 
 async function getRoomMessageMeta(roomId: string, msgId: string): Promise<{
   authorUid: string;
+   authorEmail: string | null;
   text: string;
 } | null> {
   try {
@@ -335,6 +336,7 @@ async function getRoomMessageMeta(roomId: string, msgId: string): Promise<{
     const data = snap.data()!;
     const result = {
       authorUid: data.authorUid ?? "",
+      authorEmail: data.authorEmail ?? null,
       text: (data.text ?? "").slice(0, 120),
     };
     console.log(`${TAG} getRoomMessageMeta(${roomId}/${msgId}):`, JSON.stringify(result));
@@ -580,8 +582,18 @@ export async function notifyRoomMessageReaction(
       return;
     }
 
-    const recipientEmail = await resolveEmailForUid(recipientUid);
-    console.log(`${TAG} notifyRoomMessageReaction: recipientEmail=${recipientEmail}`);
+    // const recipientEmail = await resolveEmailForUid(recipientUid);
+    // console.log(`${TAG} notifyRoomMessageReaction: recipientEmail=${recipientEmail}`);
+
+    const recipientEmail =
+      msg.authorEmail ?? (await resolveEmailForUid(recipientUid));
+
+    console.log(`${TAG} notifyRoomMessageReaction: recipientUid=${recipientUid} recipientEmail=${recipientEmail}`);
+
+    if (!recipientEmail) {
+      console.error(`${TAG} notifyRoomMessageReaction: ABORTING — no email for uid=${recipientUid}`);
+      return;
+    }
 
     const now = Date.now();
 
@@ -658,15 +670,31 @@ export async function notifyRoomMessageComment(
       return;
     }
 
-    const recipientEmail = await resolveEmailForUid(recipientUid);
+    // const recipientEmail = await resolveEmailForUid(recipientUid);
+    // console.log(`${TAG} notifyRoomMessageComment: recipientEmail=${recipientEmail}`);
+
+    // // Also guard by email (catches OAuth users whose userId != UID)
+    // if (recipientEmail && recipientEmail === actorEmail) {
+    //   console.log(`${TAG} notifyRoomMessageComment: same email as actor, skipping`);
+    //   return;
+    // }
+
+
+     const recipientEmail =
+      msg.authorEmail ?? (await resolveEmailForUid(recipientUid));
+
     console.log(`${TAG} notifyRoomMessageComment: recipientEmail=${recipientEmail}`);
 
-    // Also guard by email (catches OAuth users whose userId != UID)
     if (recipientEmail && recipientEmail === actorEmail) {
       console.log(`${TAG} notifyRoomMessageComment: same email as actor, skipping`);
       return;
     }
 
+    if (!recipientEmail) {
+      console.error(`${TAG} notifyRoomMessageComment: ABORTING — no email for uid=${recipientUid}`);
+      return;
+    }
+    
     const now = Date.now();
     const ref = db.collection("notifications").doc();
     await ref.set({
