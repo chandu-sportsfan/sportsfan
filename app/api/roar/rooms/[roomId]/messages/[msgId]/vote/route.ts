@@ -50,9 +50,9 @@
 
 //     // ── Write vote + increment counter atomically ────────────────────────────
 //     const batch = db.batch();
-//     batch.set(voteRef, { vote, createdAt: Date.now() });
+//     batch.set(voteRef, { vote, createdAt: now });
 //     batch.update(msgRef, {
-//       [vote === "agree" ? "agreeCount" : "disagreeCount"]: FieldValue.increment(1),
+//       [vote === "agree" ? "agreeCount" : vote === "disagree" ? "disagreeCount" : `predictionOptionCounts.${vote}`]: FieldValue.increment(1),
 //     });
 //     await batch.commit();
 
@@ -87,8 +87,8 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { vote }: { vote: "agree" | "disagree" } = await req.json();
-    if (vote !== "agree" && vote !== "disagree") {
+    const { vote }: { vote: string } = await req.json();
+    if (typeof vote !== "string") {
       return NextResponse.json({ error: "Invalid vote value" }, { status: 400 });
     }
 
@@ -114,14 +114,42 @@ export async function POST(
     }
 
     // ── Read message type to decide which points reason to award ─────────────
-    const msgSnap = await msgRef.get();
-    const msgType = msgSnap.exists ? (msgSnap.data() as any).type : null;
+        const msgSnap = await msgRef.get();
+    if (!msgSnap.exists) {
+      return NextResponse.json({ error: "Message not found" }, { status: 404 });
+    }
+    const msgData = msgSnap.data() as {
+      type?: string;
+      predictionOptions?: string[];
+      closesAt?: number;
+      closedAt?: number;
+      resolvedAt?: number;
+    };
+    const msgType = msgData.type ?? null;
+    const optionVoteMatch = /^option_(\d+)$/.exec(vote);
+    if (vote !== "agree" && vote !== "disagree" && !optionVoteMatch) {
+      return NextResponse.json({ error: "Invalid vote value" }, { status: 400 });
+    }
+        if (optionVoteMatch) {
+      const optionIndex = Number(optionVoteMatch[1]);
+      if (msgType !== "prediction" || !Array.isArray(msgData.predictionOptions) || optionIndex < 2 || optionIndex >= msgData.predictionOptions.length) {
+        return NextResponse.json({ error: "Invalid prediction option" }, { status: 400 });
+      }
+    }
+
+    const now = Date.now();
+    if (msgType === "prediction" && (msgData.resolvedAt || msgData.closedAt || (msgData.closesAt && msgData.closesAt <= now))) {
+      if (!msgData.closedAt && msgData.closesAt && msgData.closesAt <= now) {
+        await msgRef.update({ closedAt: now, updatedAt: now });
+      }
+      return NextResponse.json({ error: "Prediction poll is closed" }, { status: 409 });
+    }
 
     // ── Write vote + increment counter atomically ────────────────────────────
     const batch = db.batch();
-    batch.set(voteRef, { vote, createdAt: Date.now() });
+    batch.set(voteRef, { vote, createdAt: now });
     batch.update(msgRef, {
-      [vote === "agree" ? "agreeCount" : "disagreeCount"]: FieldValue.increment(1),
+      [vote === "agree" ? "agreeCount" : vote === "disagree" ? "disagreeCount" : `predictionOptionCounts.${vote}`]: FieldValue.increment(1),
     });
     await batch.commit();
 

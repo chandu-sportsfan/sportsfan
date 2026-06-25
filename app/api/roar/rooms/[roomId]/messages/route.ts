@@ -270,6 +270,15 @@
 //     const roomRef = db.collection("roarRooms").doc(roomId);
 //     const now = Date.now();
 //     const msgRef = roomRef.collection("messages").doc();
+//     const normalizedCloseAfter = Number(closeAfterMinutes);
+//     const requestedClosesAt = Number(closesAt);
+//     const predictionClosesAt = type === "prediction"
+//       ? Number.isFinite(requestedClosesAt) && requestedClosesAt > now
+//         ? requestedClosesAt
+//         : Number.isFinite(normalizedCloseAfter) && normalizedCloseAfter > 0
+//           ? now + Math.min(Math.max(normalizedCloseAfter, 1), 24 * 60) * 60_000
+//           : now + 2 * 60_000
+//       : undefined;
 
 //     const message: RoomMessage = {
 //       msgId:    msgRef.id,
@@ -331,6 +340,7 @@
 //         type,
 //         ...(sideA && { sideA }),
 //         ...(sideB && { sideB }),
+//       ...(type === "prediction" && Array.isArray(predictionOptions) && { predictionOptions: predictionOptions.map((option) => String(option).trim()).filter(Boolean).slice(0, 6) }),
 //       },
 //     }).catch((err) => {
 //       console.warn(`[POST rooms/messages] Failed to award points for ${roarPostType}:`, err);
@@ -636,6 +646,15 @@
 //     const roomRef = db.collection("roarRooms").doc(roomId);
 //     const now = Date.now();
 //     const msgRef = roomRef.collection("messages").doc();
+//     const normalizedCloseAfter = Number(closeAfterMinutes);
+//     const requestedClosesAt = Number(closesAt);
+//     const predictionClosesAt = type === "prediction"
+//       ? Number.isFinite(requestedClosesAt) && requestedClosesAt > now
+//         ? requestedClosesAt
+//         : Number.isFinite(normalizedCloseAfter) && normalizedCloseAfter > 0
+//           ? now + Math.min(Math.max(normalizedCloseAfter, 1), 24 * 60) * 60_000
+//           : now + 2 * 60_000
+//       : undefined;
 
 //     const message: RoomMessage = {
 //       msgId:    msgRef.id,
@@ -697,6 +716,7 @@
 //         type,
 //         ...(sideA && { sideA }),
 //         ...(sideB && { sideB }),
+//       ...(type === "prediction" && Array.isArray(predictionOptions) && { predictionOptions: predictionOptions.map((option) => String(option).trim()).filter(Boolean).slice(0, 6) }),
 //       },
 //     }).catch((err) => {
 //       console.warn(`[POST rooms/messages] Failed to award points for ${roarPostType}:`, err);
@@ -1031,6 +1051,9 @@ export async function POST(
       mediaUrls,
       sideA,
       sideB,
+      predictionOptions,
+      closesAt,
+      closeAfterMinutes,
       memGifUrl,
       memTag,
     }: {
@@ -1039,6 +1062,9 @@ export async function POST(
       mediaUrls?: string[];
       sideA?: string;
       sideB?: string;
+      predictionOptions?: string[];
+      closesAt?: number;
+      closeAfterMinutes?: number;
       memGifUrl?: string;
       memTag?: string;
     } = body;
@@ -1066,6 +1092,15 @@ export async function POST(
     const roomRef = db.collection("roarRooms").doc(roomId);
     const now = Date.now();
     const msgRef = roomRef.collection("messages").doc();
+    const normalizedCloseAfter = Number(closeAfterMinutes);
+    const requestedClosesAt = Number(closesAt);
+    const predictionClosesAt = type === "prediction"
+      ? Number.isFinite(requestedClosesAt) && requestedClosesAt > now
+        ? requestedClosesAt
+        : Number.isFinite(normalizedCloseAfter) && normalizedCloseAfter > 0
+          ? now + Math.min(Math.max(normalizedCloseAfter, 1), 24 * 60) * 60_000
+          : now + 2 * 60_000
+      : undefined;
 
     const message: RoomMessage = {
       msgId: msgRef.id,
@@ -1086,6 +1121,8 @@ export async function POST(
       ...(mediaUrls?.length && { mediaUrls }),
       ...(sideA && { sideA }),
       ...(sideB && { sideB }),
+      ...(type === "prediction" && Array.isArray(predictionOptions) && { predictionOptions: predictionOptions.map((option) => String(option).trim()).filter(Boolean).slice(0, 6) }),
+      ...(predictionClosesAt && { closesAt: predictionClosesAt }),
       ...(memGifUrl && { memGifUrl }),
       ...(memTag && { memTag }),
     };
@@ -1128,6 +1165,7 @@ export async function POST(
         type,
         ...(sideA && { sideA }),
         ...(sideB && { sideB }),
+      ...(type === "prediction" && Array.isArray(predictionOptions) && { predictionOptions: predictionOptions.map((option) => String(option).trim()).filter(Boolean).slice(0, 6) }),
       },
     }).catch((err) => {
       console.warn(`[POST rooms/messages] Failed to award points for ${roarPostType}:`, err);

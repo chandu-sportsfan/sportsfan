@@ -7,7 +7,7 @@ import { awardRoarPointsByReason } from "@/lib/roarPoints";
 
 const ACCURACY_POINTS = 5;
 
-type ResolvablePredictionPost = {
+type ResolvableRoomPrediction = {
   type?: string;
   authorUid: string;
   text?: string;
@@ -15,7 +15,6 @@ type ResolvablePredictionPost = {
   closedAt?: number;
   resolvedAt?: number;
   predictionOptions?: string[];
-  correctVote?: string;
 };
 
 type PredictionVote = { vote?: string };
@@ -37,10 +36,10 @@ async function createNotification(userId: string, data: Record<string, unknown>)
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ postId: string }> },
+  { params }: { params: Promise<{ roomId: string; msgId: string }> },
 ) {
   try {
-    const { postId } = await params;
+    const { roomId, msgId } = await params;
     const user = await getUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -51,40 +50,39 @@ export async function POST(
     }
 
     const info = await getUserInfo(user.userId, user.name, user.email);
-    const postRef = db.collection("roarPosts").doc(postId);
-    const postSnap = await postRef.get();
-    if (!postSnap.exists) return NextResponse.json({ error: "Post not found" }, { status: 404 });
+    const msgRef = db.collection("roarRooms").doc(roomId).collection("messages").doc(msgId);
+    const msgSnap = await msgRef.get();
+    if (!msgSnap.exists) return NextResponse.json({ error: "Message not found" }, { status: 404 });
 
-    const post = postSnap.data() as ResolvablePredictionPost;
-    if (post.type !== "prediction") {
-      return NextResponse.json({ error: "Only prediction posts can be resolved" }, { status: 400 });
+    const message = msgSnap.data() as ResolvableRoomPrediction;
+    if (message.type !== "prediction") {
+      return NextResponse.json({ error: "Only prediction messages can be resolved" }, { status: 400 });
+    }
+    if (message.authorUid !== info.actualUserId && message.authorUid !== user.userId && message.authorUid !== user.email) {
+      return NextResponse.json({ error: "Only the prediction creator can resolve this poll" }, { status: 403 });
+    }
+    if (message.resolvedAt) {
+      return NextResponse.json({ error: "Prediction is already resolved" }, { status: 409 });
     }
     if (optionVoteMatch) {
       const optionIndex = Number(optionVoteMatch[1]);
-      if (!Array.isArray(post.predictionOptions) || optionIndex < 2 || optionIndex >= post.predictionOptions.length) {
+      if (!Array.isArray(message.predictionOptions) || optionIndex < 2 || optionIndex >= message.predictionOptions.length) {
         return NextResponse.json({ error: "Invalid prediction option" }, { status: 400 });
       }
     }
-    if (post.authorUid !== info.actualUserId && post.authorUid !== user.userId && post.authorUid !== user.email) {
-      return NextResponse.json({ error: "Only the prediction creator can resolve this poll" }, { status: 403 });
-    }
-    if (post.resolvedAt) {
-      return NextResponse.json({ error: "Prediction is already resolved" }, { status: 409 });
-    }
 
     const now = Date.now();
-    if (post.closesAt && post.closesAt > now) {
+    if (message.closesAt && message.closesAt > now) {
       return NextResponse.json({ error: "Prediction poll is still open" }, { status: 409 });
     }
 
-    const votesSnap = await postRef.collection("roarVotes").get();
+    const votesSnap = await msgRef.collection("votes").get();
     const batch = db.batch();
-    batch.update(postRef, {
-      closedAt: post.closedAt ?? now,
+    batch.update(msgRef, {
+      closedAt: message.closedAt ?? now,
       resolvedAt: now,
       correctVote,
       accuracyAwarded: true,
-      status: "active",
       updatedAt: now,
     });
 
@@ -138,9 +136,9 @@ export async function POST(
           userExists: userSnap.exists,
           reason: "ROAR_PREDICTION_CORRECT",
           points: ACCURACY_POINTS,
-          transactionId: `roar_prediction_correct_${postId}_${voterId}`,
-          metadata: { postId, vote, correctVote },
-        }).catch((err) => console.error("[prediction resolve] point award failed:", err));
+          transactionId: `roar_room_prediction_correct_${roomId}_${msgId}_${voterId}`,
+          metadata: { roomId, postId: msgId, vote, correctVote },
+        }).catch((err) => console.error("[room prediction resolve] point award failed:", err));
       }
 
       await createNotification(voterId, {
@@ -148,24 +146,26 @@ export async function POST(
         title: isCorrect ? "Prediction correct" : "Prediction resolved",
         subtitle: isCorrect ? `You got it right. +${ACCURACY_POINTS} accuracy points.` : "Your pick was not the correct answer this time.",
         cta: "See prediction",
-        postId,
-        postPreview: String(post.text ?? "").slice(0, 120),
-      }).catch((err) => console.error("[prediction resolve] participant notification failed:", err));
+        postId: msgId,
+        roomId,
+        postPreview: String(message.text ?? "").slice(0, 120),
+      }).catch((err) => console.error("[room prediction resolve] participant notification failed:", err));
     }));
 
     return NextResponse.json({
       success: true,
-      postId,
+      roomId,
+      msgId,
       correctVote,
       participantCount: votesSnap.size,
       correctCount,
       wrongCount,
       accuracyPoints: ACCURACY_POINTS,
-      post: { resolvedAt: now, closedAt: post.closedAt ?? now, correctVote },
+      message: { resolvedAt: now, closedAt: message.closedAt ?? now, correctVote },
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
-    console.error("POST /api/roar/posts/[postId]/resolve error:", error);
+    console.error("POST room prediction resolve error:", error);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
