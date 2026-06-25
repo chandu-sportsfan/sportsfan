@@ -1108,6 +1108,7 @@ export async function POST(
       authorUid: resolvedUserId,
       authorUsername: userData.username,
       authorBadge: userData.badge,
+      authorEmail: user.email, 
       text: text.trim(),
       type,
       fireCount: 0,

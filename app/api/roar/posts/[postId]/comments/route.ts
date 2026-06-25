@@ -430,10 +430,10 @@
 //         .doc(roomId)
 //         .collection("messages")
 //         .doc(postId);
-      
+
 //       const messageSnap = await messageRef.get();
 //       console.log(`[DEBUG] Message exists: ${messageSnap.exists}`);
-      
+
 //       if (messageSnap.exists) {
 //         const currentData = messageSnap.data();
 //         console.log(`[DEBUG] Current room message replyCount: ${currentData?.replyCount || 0}`);
@@ -529,7 +529,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { getUser } from "@/lib/getUser";
-import { notifyPostComment } from "@/lib/roarNotifyHelpers";
+import { notifyPostComment, notifyRoomMessageComment } from "@/lib/roarNotifyHelpers";
 
 // ─── GET ──────────────────────────────────────────────────────────────────────
 
@@ -555,7 +555,7 @@ export async function GET(
     if (lastCreatedAt) query = query.startAfter(lastCreatedAt);
 
     const snap = await query.get();
-    const comments = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    const comments = snap.docs.map((doc) => ({ id: doc.id, commentId: doc.id, ...doc.data() }));
 
     return NextResponse.json({ success: true, comments });
   } catch (err) {
@@ -577,6 +577,7 @@ export async function POST(
     const body = await req.json();
     const text: string = (body.text ?? "").trim();
     const roomId: string | undefined = body.roomId;
+    const parentCommentId: string | undefined = body.parentCommentId;
 
     if (!text) return NextResponse.json({ error: "text is required" }, { status: 400 });
 
@@ -586,34 +587,74 @@ export async function POST(
     const username = await resolveUsername(user.userId, user.name, user.email);
 
     const now = Date.now();
-    const commentRef = db
-      .collection("roarPosts")
-      .doc(postId)
-      .collection("comments")
-      .doc();
+    // const commentRef = db
+    //   .collection("roarPosts")
+    //   .doc(postId)
+    //   .collection("comments")
+    //   .doc();
 
-    await commentRef.set({
-      text,
-      authorUid: user.userId,
-      authorEmail: user.email,
-      authorUsername: username,
-      createdAt: now,
-      ...(roomId ? { roomId } : {}),
-    });
+    // await commentRef.set({
+    //   commentId: commentRef.id,
+    //   text,
+    //   authorUid: user.userId,
+    //   authorEmail: user.email,
+    //   authorUsername: username,
+    //   createdAt: now,
+    //   ...(roomId ? { roomId } : {}),
+    //   ...(parentCommentId ? { parentCommentId } : {}),
+    // });
 
-    // Increment replyCount on the post (non-fatal if it fails)
-    db.collection("roarPosts")
-      .doc(postId)
-      .update({ replyCount: FieldValue.increment(1) })
-      .catch(() => {});
+    // // Increment replyCount on the post (non-fatal if it fails)
+    // db.collection("roarPosts")
+    //   .doc(postId)
+    //   .update({ replyCount: FieldValue.increment(1) })
+    //   .catch(() => { });
+
+
+    const isRoomMessage = !!roomId;
+
+const commentRef = isRoomMessage
+  ? db.collection("roarRooms").doc(roomId).collection("messages").doc(postId).collection("comments").doc()
+  : db.collection("roarPosts").doc(postId).collection("comments").doc();
+
+await commentRef.set({
+  text,
+  authorUid: user.userId,
+  authorEmail: user.email,
+  authorUsername: username,
+  createdAt: now,
+  ...(roomId ? { roomId } : {}),
+});
+
+// Increment replyCount on the correct parent doc
+const parentRef = isRoomMessage
+  ? db.collection("roarRooms").doc(roomId).collection("messages").doc(postId)
+  : db.collection("roarPosts").doc(postId);
+
+parentRef.update({ replyCount: FieldValue.increment(1) }).catch(() => {});
+
 
     // Notify post author (non-blocking)
-    notifyPostComment(postId, user.userId, user.email, username, text.slice(0, 80)).catch(() => {});
+    // notifyPostComment(postId, user.userId, user.email, username, text.slice(0, 80)).catch(() => {});
+    if (roomId) {
+      notifyRoomMessageComment(roomId, postId, user.userId, user.email, username, text.slice(0, 80)).catch(() => { });
+    } else {
+      notifyPostComment(postId, user.userId, user.email, username, text.slice(0, 80)).catch(() => { });
+    }
 
     return NextResponse.json({
       success: true,
       commentId: commentRef.id,
-      comment: { id: commentRef.id, text, authorUid: user.userId, authorUsername: username, createdAt: now },
+      comment: {
+        id: commentRef.id,
+        commentId: commentRef.id,
+        text,
+        authorUid: user.userId,
+        authorUsername: username,
+        parentCommentId: parentCommentId || null,
+        roomId,
+        createdAt: now,
+      },
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unexpected error";
