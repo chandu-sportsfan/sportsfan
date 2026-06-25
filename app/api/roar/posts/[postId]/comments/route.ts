@@ -555,7 +555,7 @@ export async function GET(
     if (lastCreatedAt) query = query.startAfter(lastCreatedAt);
 
     const snap = await query.get();
-    const comments = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    const comments = snap.docs.map((doc) => ({ id: doc.id, commentId: doc.id, ...doc.data() }));
 
     return NextResponse.json({ success: true, comments });
   } catch (err) {
@@ -577,6 +577,7 @@ export async function POST(
     const body = await req.json();
     const text: string = (body.text ?? "").trim();
     const roomId: string | undefined = body.roomId;
+    const parentCommentId: string | undefined = body.parentCommentId;
 
     if (!text) return NextResponse.json({ error: "text is required" }, { status: 400 });
 
@@ -593,12 +594,14 @@ export async function POST(
       .doc();
 
     await commentRef.set({
+      commentId: commentRef.id,
       text,
       authorUid: user.userId,
       authorEmail: user.email,
       authorUsername: username,
       createdAt: now,
       ...(roomId ? { roomId } : {}),
+      ...(parentCommentId ? { parentCommentId } : {}),
     });
 
     // Increment replyCount on the post (non-fatal if it fails)
@@ -613,7 +616,16 @@ export async function POST(
     return NextResponse.json({
       success: true,
       commentId: commentRef.id,
-      comment: { id: commentRef.id, text, authorUid: user.userId, authorUsername: username, createdAt: now },
+      comment: {
+        id: commentRef.id,
+        commentId: commentRef.id,
+        text,
+        authorUid: user.userId,
+        authorUsername: username,
+        parentCommentId: parentCommentId || null,
+        roomId,
+        createdAt: now,
+      },
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unexpected error";
