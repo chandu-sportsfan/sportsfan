@@ -206,6 +206,16 @@ export async function POST(
     const previousReaction = reactions[userId] ?? null;
     const isSameReaction = previousReaction === reaction;
 
+    // if (isSameReaction) {
+    //   const newLikeCount = Math.max(0, (data.likeCount ?? 0) - 1);
+    //   await targetRef.update({
+    //     [`reactions.${userId}`]: FieldValue.delete(),
+    //     likeCount: newLikeCount,
+    //     [reactionCountField(previousReaction)]: Math.max(0, (data[reactionCountField(previousReaction)] ?? 0) - 1),
+    //   });
+    //   return NextResponse.json({ success: true, action: "removed", reaction: null, likeCount: newLikeCount });
+    // }
+
     if (isSameReaction) {
       const newLikeCount = Math.max(0, (data.likeCount ?? 0) - 1);
       await targetRef.update({
@@ -213,6 +223,7 @@ export async function POST(
         likeCount: newLikeCount,
         [reactionCountField(previousReaction)]: Math.max(0, (data[reactionCountField(previousReaction)] ?? 0) - 1),
       });
+      if (roomId) await targetRef.collection("likes").doc(userId).delete();
       return NextResponse.json({ success: true, action: "removed", reaction: null, likeCount: newLikeCount });
     }
 
@@ -229,16 +240,23 @@ export async function POST(
     update.likeCount = newLikeCount;
 
     await targetRef.update(update);
+    if (roomId) {
+      await targetRef.collection("likes").doc(userId).set({
+        reaction: reaction,
+        reactedAt: Date.now(),
+        userId,
+      });
+    }
 
     // Fire notification non-blocking (posts only, not room messages)
     // if (!roomId) {
     //   notifyPostReaction(postId, userId, reaction).catch(() => {});
     // }
     if (roomId) {
-  notifyRoomMessageReaction(roomId, postId, userId, reaction).catch(() => {});
-} else {
-  notifyPostReaction(postId, userId, reaction).catch(() => {});
-}
+      notifyRoomMessageReaction(roomId, postId, userId, reaction).catch(() => { });
+    } else {
+      notifyPostReaction(postId, userId, reaction).catch(() => { });
+    }
 
     return NextResponse.json({
       success: true,
@@ -280,14 +298,24 @@ export async function DELETE(
       return NextResponse.json({ success: true, action: "removed", reaction: null, likeCount: data.likeCount ?? 0 });
     }
 
-    const newLikeCount = Math.max(0, (data.likeCount ?? 0) - 1);
-    await targetRef.update({
-      [`reactions.${userId}`]: FieldValue.delete(),
-      likeCount: newLikeCount,
-      [reactionCountField(previousReaction)]: Math.max(0, (data[reactionCountField(previousReaction)] ?? 0) - 1),
-    });
+    // const newLikeCount = Math.max(0, (data.likeCount ?? 0) - 1);
+    // await targetRef.update({
+    //   [`reactions.${userId}`]: FieldValue.delete(),
+    //   likeCount: newLikeCount,
+    //   [reactionCountField(previousReaction)]: Math.max(0, (data[reactionCountField(previousReaction)] ?? 0) - 1),
+    // });
 
-    return NextResponse.json({ success: true, action: "removed", reaction: null, likeCount: newLikeCount });
+    // return NextResponse.json({ success: true, action: "removed", reaction: null, likeCount: newLikeCount });
+    const newLikeCount = Math.max(0, (data.likeCount ?? 0) - 1);
+await targetRef.update({
+  [`reactions.${userId}`]: FieldValue.delete(),
+  likeCount: newLikeCount,
+  [reactionCountField(previousReaction)]: Math.max(0, (data[reactionCountField(previousReaction)] ?? 0) - 1),
+});
+if (roomId) await targetRef.collection("likes").doc(userId).delete();
+
+return NextResponse.json({ success: true, action: "removed", reaction: null, likeCount: newLikeCount });
+
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unexpected error";
     console.error("[likesection DELETE]", err);
