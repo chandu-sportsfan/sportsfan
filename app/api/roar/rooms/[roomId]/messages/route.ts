@@ -820,6 +820,195 @@ const ROOM_TYPE_TO_POST_TYPE: Partial<Record<string, PostType | "post">> = {
 //     messages — no client-side authorUid/username special-casing needed
 //     in DiscussionRoom.tsx anymore.
 //
+// export async function GET(
+//   req: NextRequest,
+//   { params }: { params: Promise<{ roomId: string }> }
+// ) {
+//   try {
+//     const { roomId } = await params;
+//     const user = await getUser(req);
+//     if (!user) {
+//       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+//     }
+
+//     const { searchParams } = new URL(req.url);
+//     const limit = Math.min(parseInt(searchParams.get("limit") || "30"), 100);
+//     const lastCreatedAt = searchParams.get("lastCreatedAt");
+//     // Legacy cursor support — falls back to doc read only when no timestamp is provided.
+//     const lastDocId = searchParams.get("lastDocId");
+
+//     // Resolve user via getUserInfo (same canonical ID as createpost / roar/posts)
+//     const resolved = await resolveUser(user.email, user.userId);
+//     if (!resolved) {
+//       return NextResponse.json({ error: "User profile not found" }, { status: 404 });
+//     }
+//     const resolvedUserId = resolved.id;
+
+//     // Build query — timestamp cursor preferred (0 extra reads vs 1 for doc cursor)
+//     const messagesRef = db
+//       .collection("roarRooms")
+//       .doc(roomId)
+//       .collection("messages");
+
+//     let query = messagesRef.orderBy("createdAt", "desc").limit(limit);
+
+//     // if (lastCreatedAt) {
+//     //   // Zero-cost cursor: startAfter a raw timestamp value
+//     //   query = query.startAfter(parseInt(lastCreatedAt, 10));
+//     // } else if (lastDocId) {
+//     //   // Legacy path: 1 extra read to fetch the cursor doc
+//     //   const cursorDoc = await messagesRef.doc(lastDocId).get();
+//     //   if (cursorDoc.exists) query = query.startAfter(cursorDoc);
+//     // }
+//     const since = searchParams.get("since");
+
+//     if (since) {
+//       // Poll path: only fetch messages newer than this timestamp
+//       // If nothing new, returns 0 docs = 0 subcollection reads
+//       query = messagesRef
+//         .where("createdAt", ">", parseInt(since, 10))
+//         .orderBy("createdAt", "desc")
+//         .limit(limit);
+//     } else if (lastCreatedAt) {
+//       // Scroll pagination cursor (going backwards into history)
+//       query = query.startAfter(parseInt(lastCreatedAt, 10));
+//     } else if (lastDocId) {
+//       // Legacy cursor fallback
+//       const cursorDoc = await messagesRef.doc(lastDocId).get();
+//       if (cursorDoc.exists) query = query.startAfter(cursorDoc);
+//     }
+
+//     const snapshot = await query.get();
+//     if (snapshot.empty) {
+//       return NextResponse.json({
+//         success: true,
+//         messages: [],
+//         pagination: { limit, hasMore: false, nextCursor: null },
+//       });
+//     }
+
+//     // ── Batch subcollection reads — votes + reactions in parallel ──────────────
+//     //
+//     // Two parallel Promise.all calls, one round-trip each:
+//     //   • votePromises     — only for VOTABLE_TYPES (saves reads on chat/post msgs)
+//     //   • reactionPromises — every message, reading likes/{resolvedUserId}
+//     //     (the same shape roar/posts uses, NOT the old reactions/{uid}_heart
+//     //     doc-per-type scheme)
+//     //
+//     // Total subcollection reads per GET page of N messages with V votable:
+//     //   V vote reads + N reaction reads  (fired in parallel → 1 logical round-trip)
+
+//     const votableIndices: number[] = [];
+//     const votePromises: Promise<FirebaseFirestore.DocumentSnapshot>[] = [];
+//     const reactionPromises: Promise<FirebaseFirestore.DocumentSnapshot>[] = [];
+
+//     snapshot.docs.forEach((doc, i) => {
+//       const type = (doc.data() as RoomMessage).type;
+//       if (VOTABLE_TYPES.has(type)) {
+//         votableIndices.push(i);
+//         votePromises.push(doc.ref.collection("votes").doc(resolvedUserId).get());
+//       }
+//       reactionPromises.push(doc.ref.collection("likes").doc(resolvedUserId).get());
+//     });
+
+//     const [voteResults, reactionResults] = await Promise.all([
+//       Promise.all(votePromises),
+//       Promise.all(reactionPromises),
+//     ]);
+
+//     // Build lookup maps
+//     const userVoteByIndex = new Map<number, string | null>();
+//     votableIndices.forEach((docIdx, resultIdx) => {
+//       const snap = voteResults[resultIdx];
+//       userVoteByIndex.set(docIdx, snap.exists ? ((snap.data() as any).vote ?? null) : null);
+//     });
+
+//     // userReaction: the actual reaction type (heart|fire|laugh|sad|thumb) the
+//     // current user picked on this message, or null if they haven't reacted.
+//     const userReactionByIndex = new Map<number, string | null>();
+//     snapshot.docs.forEach((_, i) => {
+//       const snap = reactionResults[i];
+//       userReactionByIndex.set(i, snap.exists ? ((snap.data() as any).reaction ?? "heart") : null);
+//     });
+
+//     // ── Batch-fetch live avatarUrl/badge per unique author ────────────────────
+//     // Same fix as roar/posts/route.ts GET: room messages never store
+//     // authorAvatarUrl at creation time (see POST handler below — only
+//     // authorUsername/authorBadge are stamped), so every author's CURRENT
+//     // avatar/badge is resolved here on every read instead, using the same
+//     // dedupe-then-Promise.all batching pattern as the vote/reaction reads
+//     // above. This means avatar changes show up immediately on existing
+//     // messages too, including the viewer's own messages — no client-side
+//     // authorUid/username special-casing needed in DiscussionRoom.tsx anymore.
+//     const authorMap = new Map<string, { avatarUrl: string | null; badge: string | null }>();
+//     const uniqueAuthorUids = Array.from(
+//       new Set(snapshot.docs.map((d) => (d.data() as RoomMessage).authorUid))
+//     );
+
+//     const authorSnaps = await Promise.all(
+//       uniqueAuthorUids.map((uid) => db.collection("users").doc(uid).get())
+//     );
+
+//     uniqueAuthorUids.forEach((uid, i) => {
+//       const s = authorSnaps[i];
+//       const data = s.exists ? (s.data() as any) : null;
+//       authorMap.set(uid, {
+//         avatarUrl: data?.avatarUrl ?? null,
+//         badge: data?.badge ?? null,
+//       });
+//     });
+
+//     // ── Assemble response ─────────────────────────────────────────────────────
+//     const messages = snapshot.docs.map((doc, i) => {
+//       const data = doc.data() as RoomMessage;
+//       const author = authorMap.get(data.authorUid);
+//       return {
+//         ...data,
+//         msgId: doc.id,
+//         agreeCount: data.agreeCount ?? 0,
+//         disagreeCount: data.disagreeCount ?? 0,
+//         // heartCount is the single aggregate reaction counter (incremented
+//         // for ANY of the 5 reaction types by likesection/route.ts's
+//         // room-aware branch — not heart-specific despite the field name).
+//         heartCount: (data as any).heartCount ?? 0,
+//         replyCount: data.replyCount ?? 0,
+//         userVote: userVoteByIndex.has(i) ? userVoteByIndex.get(i) : null,
+//         userReaction: userReactionByIndex.get(i) ?? null,
+//         // Live-resolved, not stored-on-message — authorAvatarUrl is
+//         // intentionally null (not a stale fallback) when the author's user
+//         // doc has none set, same convention as roar/posts/route.ts GET.
+//         authorAvatarUrl: author?.avatarUrl ?? null,
+//         // authorBadge falls back to the stamped-at-creation value only if
+//         // the live user doc lookup came back empty (e.g. deleted user doc),
+//         // so an old message doesn't lose its badge entirely.
+//         authorBadge: author?.badge ?? data.authorBadge,
+//       };
+//     });
+
+//     const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+//     const lastMsg = messages[messages.length - 1];
+
+//     return NextResponse.json({
+//       success: true,
+//       messages,
+//       pagination: {
+//         limit,
+//         hasMore: messages.length === limit,
+//         nextCursor:
+//           messages.length === limit
+//             ? { lastDocId: lastDoc?.id, lastCreatedAt: lastMsg?.createdAt ?? null }
+//             : null,
+//       },
+//     });
+//   } catch (error: unknown) {
+//     const msg = error instanceof Error ? error.message : "Unexpected error";
+//     console.error("GET /api/roar/rooms/messages error:", error);
+//     return NextResponse.json({ error: msg }, { status: 500 });
+//   }
+// }
+
+
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ roomId: string }> }
@@ -834,17 +1023,14 @@ export async function GET(
     const { searchParams } = new URL(req.url);
     const limit = Math.min(parseInt(searchParams.get("limit") || "30"), 100);
     const lastCreatedAt = searchParams.get("lastCreatedAt");
-    // Legacy cursor support — falls back to doc read only when no timestamp is provided.
     const lastDocId = searchParams.get("lastDocId");
 
-    // Resolve user via getUserInfo (same canonical ID as createpost / roar/posts)
     const resolved = await resolveUser(user.email, user.userId);
     if (!resolved) {
       return NextResponse.json({ error: "User profile not found" }, { status: 404 });
     }
     const resolvedUserId = resolved.id;
 
-    // Build query — timestamp cursor preferred (0 extra reads vs 1 for doc cursor)
     const messagesRef = db
       .collection("roarRooms")
       .doc(roomId)
@@ -852,28 +1038,16 @@ export async function GET(
 
     let query = messagesRef.orderBy("createdAt", "desc").limit(limit);
 
-    // if (lastCreatedAt) {
-    //   // Zero-cost cursor: startAfter a raw timestamp value
-    //   query = query.startAfter(parseInt(lastCreatedAt, 10));
-    // } else if (lastDocId) {
-    //   // Legacy path: 1 extra read to fetch the cursor doc
-    //   const cursorDoc = await messagesRef.doc(lastDocId).get();
-    //   if (cursorDoc.exists) query = query.startAfter(cursorDoc);
-    // }
     const since = searchParams.get("since");
 
     if (since) {
-      // Poll path: only fetch messages newer than this timestamp
-      // If nothing new, returns 0 docs = 0 subcollection reads
       query = messagesRef
         .where("createdAt", ">", parseInt(since, 10))
         .orderBy("createdAt", "desc")
         .limit(limit);
     } else if (lastCreatedAt) {
-      // Scroll pagination cursor (going backwards into history)
       query = query.startAfter(parseInt(lastCreatedAt, 10));
     } else if (lastDocId) {
-      // Legacy cursor fallback
       const cursorDoc = await messagesRef.doc(lastDocId).get();
       if (cursorDoc.exists) query = query.startAfter(cursorDoc);
     }
@@ -887,20 +1061,9 @@ export async function GET(
       });
     }
 
-    // ── Batch subcollection reads — votes + reactions in parallel ──────────────
-    //
-    // Two parallel Promise.all calls, one round-trip each:
-    //   • votePromises     — only for VOTABLE_TYPES (saves reads on chat/post msgs)
-    //   • reactionPromises — every message, reading likes/{resolvedUserId}
-    //     (the same shape roar/posts uses, NOT the old reactions/{uid}_heart
-    //     doc-per-type scheme)
-    //
-    // Total subcollection reads per GET page of N messages with V votable:
-    //   V vote reads + N reaction reads  (fired in parallel → 1 logical round-trip)
-
+    // ── Batch vote reads only (reactions now read from doc map field) ─────────
     const votableIndices: number[] = [];
     const votePromises: Promise<FirebaseFirestore.DocumentSnapshot>[] = [];
-    const reactionPromises: Promise<FirebaseFirestore.DocumentSnapshot>[] = [];
 
     snapshot.docs.forEach((doc, i) => {
       const type = (doc.data() as RoomMessage).type;
@@ -908,46 +1071,18 @@ export async function GET(
         votableIndices.push(i);
         votePromises.push(doc.ref.collection("votes").doc(resolvedUserId).get());
       }
-      reactionPromises.push(doc.ref.collection("likes").doc(resolvedUserId).get());
-    });
-
-    const [voteResults, reactionResults] = await Promise.all([
-      Promise.all(votePromises),
-      Promise.all(reactionPromises),
-    ]);
-
-    // Build lookup maps
-    const userVoteByIndex = new Map<number, string | null>();
-    votableIndices.forEach((docIdx, resultIdx) => {
-      const snap = voteResults[resultIdx];
-      userVoteByIndex.set(docIdx, snap.exists ? ((snap.data() as any).vote ?? null) : null);
-    });
-
-    // userReaction: the actual reaction type (heart|fire|laugh|sad|thumb) the
-    // current user picked on this message, or null if they haven't reacted.
-    const userReactionByIndex = new Map<number, string | null>();
-    snapshot.docs.forEach((_, i) => {
-      const snap = reactionResults[i];
-      userReactionByIndex.set(i, snap.exists ? ((snap.data() as any).reaction ?? "heart") : null);
     });
 
     // ── Batch-fetch live avatarUrl/badge per unique author ────────────────────
-    // Same fix as roar/posts/route.ts GET: room messages never store
-    // authorAvatarUrl at creation time (see POST handler below — only
-    // authorUsername/authorBadge are stamped), so every author's CURRENT
-    // avatar/badge is resolved here on every read instead, using the same
-    // dedupe-then-Promise.all batching pattern as the vote/reaction reads
-    // above. This means avatar changes show up immediately on existing
-    // messages too, including the viewer's own messages — no client-side
-    // authorUid/username special-casing needed in DiscussionRoom.tsx anymore.
     const authorMap = new Map<string, { avatarUrl: string | null; badge: string | null }>();
     const uniqueAuthorUids = Array.from(
       new Set(snapshot.docs.map((d) => (d.data() as RoomMessage).authorUid))
     );
 
-    const authorSnaps = await Promise.all(
-      uniqueAuthorUids.map((uid) => db.collection("users").doc(uid).get())
-    );
+    const [voteResults, authorSnaps] = await Promise.all([
+      Promise.all(votePromises),
+      Promise.all(uniqueAuthorUids.map((uid) => db.collection("users").doc(uid).get())),
+    ]);
 
     uniqueAuthorUids.forEach((uid, i) => {
       const s = authorSnaps[i];
@@ -956,6 +1091,13 @@ export async function GET(
         avatarUrl: data?.avatarUrl ?? null,
         badge: data?.badge ?? null,
       });
+    });
+
+    // Build vote lookup map
+    const userVoteByIndex = new Map<number, string | null>();
+    votableIndices.forEach((docIdx, resultIdx) => {
+      const snap = voteResults[resultIdx];
+      userVoteByIndex.set(docIdx, snap.exists ? ((snap.data() as any).vote ?? null) : null);
     });
 
     // ── Assemble response ─────────────────────────────────────────────────────
@@ -967,20 +1109,29 @@ export async function GET(
         msgId: doc.id,
         agreeCount: data.agreeCount ?? 0,
         disagreeCount: data.disagreeCount ?? 0,
-        // heartCount is the single aggregate reaction counter (incremented
-        // for ANY of the 5 reaction types by likesection/route.ts's
-        // room-aware branch — not heart-specific despite the field name).
-        heartCount: (data as any).heartCount ?? 0,
+
+        // Total reaction count across all emoji types
+        heartCount: (data as any).likeCount ?? 0,
+
+        // Individual emoji counts
+        fireCount: (data as any).fireCount ?? 0,
+        mindblownCount: (data as any).mindblownCount ?? 0,
+        goatCount: (data as any).goatCount ?? 0,
+        clapCount: (data as any).clapCount ?? 0,
+        nochanceCount: (data as any).nochanceCount ?? 0,
+        laughCount: (data as any).laughCount ?? 0,
+        sadCount: (data as any).sadCount ?? 0,
+        thumbCount: (data as any).thumbCount ?? 0,
+
         replyCount: data.replyCount ?? 0,
         userVote: userVoteByIndex.has(i) ? userVoteByIndex.get(i) : null,
-        userReaction: userReactionByIndex.get(i) ?? null,
-        // Live-resolved, not stored-on-message — authorAvatarUrl is
-        // intentionally null (not a stale fallback) when the author's user
-        // doc has none set, same convention as roar/posts/route.ts GET.
+
+        // Read userReaction from the reactions map on the doc itself —
+        // written by likesection as reactions.{userId}: "fire"|"heart" etc.
+        // Zero extra reads vs the old likes subcollection approach.
+        userReaction: (data as any).reactions?.[resolvedUserId] ?? null,
+
         authorAvatarUrl: author?.avatarUrl ?? null,
-        // authorBadge falls back to the stamped-at-creation value only if
-        // the live user doc lookup came back empty (e.g. deleted user doc),
-        // so an old message doesn't lose its badge entirely.
         authorBadge: author?.badge ?? data.authorBadge,
       };
     });
@@ -1006,6 +1157,7 @@ export async function GET(
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST  /api/roar/rooms/[roomId]/messages
@@ -1033,6 +1185,10 @@ export async function GET(
 // message doc — GET resolves it live instead (see fix #5 above), the same
 // way roar/posts/route.ts's POST never stamps authorAvatarUrl either.
 //
+
+
+
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ roomId: string }> }
