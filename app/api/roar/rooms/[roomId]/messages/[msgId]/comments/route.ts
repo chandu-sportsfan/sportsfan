@@ -1,3 +1,5 @@
+// api/roar/rooms/[roomId]/messages/[msgId]/comments/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";

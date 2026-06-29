@@ -767,7 +767,7 @@ async function resolveUser(
 }
 
 // ── Message types that support agree/disagree voting ─────────────────────────
-const VOTABLE_TYPES = new Set(["hottake", "prediction", "hot_take"]);
+const VOTABLE_TYPES = new Set(["hottake", "prediction", "hot_take", "debate"]);
 
 // ── PostType map for awardRoarPoints ──────────────────────────────────────────
 const ROOM_TYPE_TO_POST_TYPE: Partial<Record<string, PostType | "post">> = {

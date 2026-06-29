@@ -125,7 +125,7 @@ export async function POST(
       closedAt?: number;
       resolvedAt?: number;
     };
-    const msgType = msgData.type ?? null;
+    const msgType = msgData.type ?? "";
     const optionVoteMatch = /^option_(\d+)$/.exec(vote);
     if (vote !== "agree" && vote !== "disagree" && !optionVoteMatch) {
       return NextResponse.json({ error: "Invalid vote value" }, { status: 400 });
