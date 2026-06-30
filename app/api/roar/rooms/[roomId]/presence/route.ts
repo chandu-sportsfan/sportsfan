@@ -250,7 +250,6 @@ import { db } from "@/lib/firebaseAdmin";
 import { getUser } from "@/lib/getUser";
 import { getUserInfo } from "@/lib/userPoints";
 
-// How long a presence doc is considered "active" without a refresh.
 const PRESENCE_TTL_MS = 60_000;
 
 async function resolveUser(
@@ -267,6 +266,14 @@ async function resolveUser(
 }
 
 // POST — join / heartbeat
+//
+// FIX: previously this never returned pinnedPost, but the client's join()
+// handler unconditionally did setPinnedPost(res.data.pinnedPost ?? null) —
+// since the field was always undefined here, the pin got reset to null on
+// every single page load/refresh, even though it still existed in
+// Firestore. Now resolves the user's pin doc in parallel with the rest of
+// this handler and includes it in the response, so the banner is correct
+// immediately instead of waiting ~2s for the GET refresh.
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ roomId: string }> },
@@ -286,8 +293,12 @@ export async function POST(
     const roomRef = db.collection("roarRooms").doc(roomId);
     const presenceRef = roomRef.collection("presence").doc(resolvedUserId);
     const joinedRef   = roomRef.collection("joinedUsers").doc(resolvedUserId);
+    const pinRef = roomRef.collection("userPins").doc(resolvedUserId);
 
-    const joinedSnap = await joinedRef.get();
+    const [joinedSnap, pinSnap] = await Promise.all([
+      joinedRef.get(),
+      pinRef.get(),
+    ]);
     const isFirstJoin = !joinedSnap.exists;
 
     await presenceRef.set(
@@ -328,6 +339,7 @@ export async function POST(
       success: true,
       fanCount: activeSnap.size,
       totalJoinCount,
+      pinnedPost: pinSnap.exists ? pinSnap.data() : null,
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
@@ -366,11 +378,10 @@ export async function DELETE(
 
 // GET — list currently active users in the room (most recent first)
 //
-// CHANGED: now also returns the caller's private pinned post for this room
-// (`pinnedPost`, or null). This piggybacks on the request the client already
-// fires once on room mount (DiscussionRoom.tsx's refreshActiveFans, ~2s
-// after join) and again every 120s — so there is no dedicated GET /pin
-// endpoint and no extra round-trip. The pin doc lives at
+// Also returns the caller's private pinned post for this room
+// (`pinnedPost`, or null). Piggybacks on the request the client already
+// fires (refreshActiveFans, ~2s after join, then every 120s) — no
+// dedicated GET /pin endpoint. Pin doc lives at
 // roarRooms/{roomId}/userPins/{uid}, keyed by the resolved canonical user
 // id, and is only ever read for the requesting user — never exposed in the
 // `fans` list or any other shared response.
@@ -402,9 +413,6 @@ export async function GET(
       };
     });
 
-    // Resolve the caller once and fetch room doc + their private pin doc
-    // in parallel. resolveUser failing (no profile) just means no pin —
-    // doesn't block the fan list from returning.
     const resolved = await resolveUser(user.email, user.userId);
     const [roomSnap, pinSnap] = await Promise.all([
       db.collection("roarRooms").doc(roomId).get(),
