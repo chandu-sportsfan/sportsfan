@@ -1,7 +1,7 @@
 // app/models/RoomMessage.ts
 
 
-export type MessageType = "chat" | "post" | "prediction" | "hottake" | "hot_take" | "debate" | "raw_reactions" | "memory" | "quiz";
+export type MessageType = "chat" | "post" | "prediction" | "hottake" | "hot_take" | "debate" | "raw_reactions" | "memory" | "quiz" | "predictions_live";
 
 export interface RoomMessage {
   msgId: string;
@@ -22,6 +22,8 @@ export interface RoomMessage {
   heartCount?: number;   // ← add
   sideA?: string;        // ← add
   sideB?: string;
+  questions?: { question: string; options: { label: string; emoji: string }[] }[];
+  matchTitle?: string;
   predictionOptions?: string[];
   predictionOptionCounts?: Record<string, number>;
   closesAt?: number;
@@ -30,6 +32,6 @@ export interface RoomMessage {
   correctVote?: string;
   accuracyAwarded?: boolean;
   memGifUrl?: string;
-memTag?: string;
+  memTag?: string;
 
 }

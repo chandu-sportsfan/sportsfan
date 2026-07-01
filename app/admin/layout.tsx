@@ -666,6 +666,7 @@ const FULL_NAV: NavGroup[] = [
           { href: "/admin/roar-management/add-roar", label: "Add RoAR Show" },
           { href: "/admin/roar-management/roar-list", label: "RoAR Show List" },
           { href: "/admin/roar-management/posts-list", label: "RoAR Posts & Comments" },
+          { href: "/admin/roar-management/add-prediction", label: "Add RoAR Predictions" },
         ],
       },
       {

@@ -1130,6 +1130,7 @@ export async function GET(
         // written by likesection as reactions.{userId}: "fire"|"heart" etc.
         // Zero extra reads vs the old likes subcollection approach.
         userReaction: (data as any).reactions?.[resolvedUserId] ?? null,
+        closesAt: data.closesAt ?? 0,
 
         authorAvatarUrl: author?.avatarUrl ?? null,
         authorBadge: author?.badge ?? data.authorBadge,
@@ -1212,6 +1213,8 @@ export async function POST(
       closeAfterMinutes,
       memGifUrl,
       memTag,
+      questions,
+      matchTitle,
     }: {
       text: string;
       type: MessageType;
@@ -1223,6 +1226,8 @@ export async function POST(
       closeAfterMinutes?: number;
       memGifUrl?: string;
       memTag?: string;
+      questions?: { question: string; options: { label: string; emoji: string }[] }[];  // ← add
+  matchTitle?: string;
     } = body;
 
     if (!text?.trim()) {
@@ -1264,7 +1269,7 @@ export async function POST(
       authorUid: resolvedUserId,
       authorUsername: userData.username,
       authorBadge: userData.badge,
-      authorEmail: user.email, 
+      authorEmail: user.email,
       text: text.trim(),
       type,
       fireCount: 0,
@@ -1277,6 +1282,8 @@ export async function POST(
       ...(mediaUrls?.length && { mediaUrls }),
       ...(sideA && { sideA }),
       ...(sideB && { sideB }),
+      ...(questions?.length && { questions }),  
+      ...(matchTitle && { matchTitle }),
       ...(type === "prediction" && Array.isArray(predictionOptions) && { predictionOptions: predictionOptions.map((option) => String(option).trim()).filter(Boolean).slice(0, 6) }),
       ...(predictionClosesAt && { closesAt: predictionClosesAt }),
       ...(memGifUrl && { memGifUrl }),
@@ -1321,7 +1328,7 @@ export async function POST(
         type,
         ...(sideA && { sideA }),
         ...(sideB && { sideB }),
-      ...(type === "prediction" && Array.isArray(predictionOptions) && { predictionOptions: predictionOptions.map((option) => String(option).trim()).filter(Boolean).slice(0, 6) }),
+        ...(type === "prediction" && Array.isArray(predictionOptions) && { predictionOptions: predictionOptions.map((option) => String(option).trim()).filter(Boolean).slice(0, 6) }),
       },
     }).catch((err) => {
       console.warn(`[POST rooms/messages] Failed to award points for ${roarPostType}:`, err);
