@@ -767,7 +767,7 @@ async function resolveUser(
 }
 
 // ── Message types that support agree/disagree voting ─────────────────────────
-const VOTABLE_TYPES = new Set(["hottake", "prediction", "hot_take", "debate"]);
+// const VOTABLE_TYPES = new Set(["hottake", "prediction", "hot_take", "debate"]);
 
 // ── PostType map for awardRoarPoints ──────────────────────────────────────────
 const ROOM_TYPE_TO_POST_TYPE: Partial<Record<string, PostType | "post">> = {
@@ -782,6 +782,162 @@ const ROOM_TYPE_TO_POST_TYPE: Partial<Record<string, PostType | "post">> = {
 };
 
 
+
+// export async function GET(
+//   req: NextRequest,
+//   { params }: { params: Promise<{ roomId: string }> }
+// ) {
+//   try {
+//     const { roomId } = await params;
+//     const user = await getUser(req);
+//     if (!user) {
+//       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+//     }
+
+//     const { searchParams } = new URL(req.url);
+//     const limit = Math.min(parseInt(searchParams.get("limit") || "30"), 100);
+//     const lastCreatedAt = searchParams.get("lastCreatedAt");
+//     const lastDocId = searchParams.get("lastDocId");
+
+//     const resolved = await resolveUser(user.email, user.userId);
+//     if (!resolved) {
+//       return NextResponse.json({ error: "User profile not found" }, { status: 404 });
+//     }
+//     const resolvedUserId = resolved.id;
+
+//     const messagesRef = db
+//       .collection("roarRooms")
+//       .doc(roomId)
+//       .collection("messages");
+
+//     let query = messagesRef.orderBy("createdAt", "desc").limit(limit);
+
+//     const since = searchParams.get("since");
+
+//     if (since) {
+//       query = messagesRef
+//         .where("createdAt", ">", parseInt(since, 10))
+//         .orderBy("createdAt", "desc")
+//         .limit(limit);
+//     } else if (lastCreatedAt) {
+//       query = query.startAfter(parseInt(lastCreatedAt, 10));
+//     } else if (lastDocId) {
+//       const cursorDoc = await messagesRef.doc(lastDocId).get();
+//       if (cursorDoc.exists) query = query.startAfter(cursorDoc);
+//     }
+
+//     const snapshot = await query.get();
+//     if (snapshot.empty) {
+//       return NextResponse.json({
+//         success: true,
+//         messages: [],
+//         pagination: { limit, hasMore: false, nextCursor: null },
+//       });
+//     }
+
+//     // ── Batch vote reads only (reactions now read from doc map field) ─────────
+//     const votableIndices: number[] = [];
+//     const votePromises: Promise<FirebaseFirestore.DocumentSnapshot>[] = [];
+
+//     snapshot.docs.forEach((doc, i) => {
+//       const type = (doc.data() as RoomMessage).type;
+//       if (VOTABLE_TYPES.has(type)) {
+//         votableIndices.push(i);
+//         votePromises.push(doc.ref.collection("votes").doc(resolvedUserId).get());
+//       }
+//     });
+
+//     // ── Batch-fetch live avatarUrl/badge per unique author ────────────────────
+//     const authorMap = new Map<string, { avatarUrl: string | null; badge: string | null }>();
+//     const uniqueAuthorUids = Array.from(
+//       new Set(snapshot.docs.map((d) => (d.data() as RoomMessage).authorUid))
+//     );
+
+//     const [voteResults, authorSnaps] = await Promise.all([
+//       Promise.all(votePromises),
+//       Promise.all(uniqueAuthorUids.map((uid) => db.collection("users").doc(uid).get())),
+//     ]);
+
+//     uniqueAuthorUids.forEach((uid, i) => {
+//       const s = authorSnaps[i];
+//       const data = s.exists ? (s.data() as any) : null;
+//       authorMap.set(uid, {
+//         avatarUrl: data?.avatarUrl ?? null,
+//         badge: data?.badge ?? null,
+//       });
+//     });
+
+//     // Build vote lookup map
+//     const userVoteByIndex = new Map<number, string | null>();
+//     votableIndices.forEach((docIdx, resultIdx) => {
+//       const snap = voteResults[resultIdx];
+//       userVoteByIndex.set(docIdx, snap.exists ? ((snap.data() as any).vote ?? null) : null);
+//     });
+
+//     // ── Assemble response ─────────────────────────────────────────────────────
+//     const messages = snapshot.docs.map((doc, i) => {
+//       const data = doc.data() as RoomMessage;
+//       const author = authorMap.get(data.authorUid);
+//       return {
+//         ...data,
+//         msgId: doc.id,
+//         agreeCount: data.agreeCount ?? 0,
+//         disagreeCount: data.disagreeCount ?? 0,
+
+//         // Total reaction count across all emoji types
+//         heartCount: (data as any).likeCount ?? 0,
+
+//         // Individual emoji counts
+//         fireCount: (data as any).fireCount ?? 0,
+//         mindblownCount: (data as any).mindblownCount ?? 0,
+//         goatCount: (data as any).goatCount ?? 0,
+//         clapCount: (data as any).clapCount ?? 0,
+//         nochanceCount: (data as any).nochanceCount ?? 0,
+//         laughCount: (data as any).laughCount ?? 0,
+//         sadCount: (data as any).sadCount ?? 0,
+//         thumbCount: (data as any).thumbCount ?? 0,
+
+//         replyCount: data.replyCount ?? 0,
+//         userVote: userVoteByIndex.has(i) ? userVoteByIndex.get(i) : null,
+
+//         // Read userReaction from the reactions map on the doc itself —
+//         // written by likesection as reactions.{userId}: "fire"|"heart" etc.
+//         // Zero extra reads vs the old likes subcollection approach.
+//         userReaction: (data as any).reactions?.[resolvedUserId] ?? null,
+//         closesAt: data.closesAt ?? 0,
+
+//         authorAvatarUrl: author?.avatarUrl ?? null,
+//         authorBadge: author?.badge ?? data.authorBadge,
+//       };
+//     });
+
+//     const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+//     const lastMsg = messages[messages.length - 1];
+
+//     return NextResponse.json({
+//       success: true,
+//       messages,
+//       pagination: {
+//         limit,
+//         hasMore: messages.length === limit,
+//         nextCursor:
+//           messages.length === limit
+//             ? { lastDocId: lastDoc?.id, lastCreatedAt: lastMsg?.createdAt ?? null }
+//             : null,
+//       },
+//     });
+//   } catch (error: unknown) {
+//     const msg = error instanceof Error ? error.message : "Unexpected error";
+//     console.error("GET /api/roar/rooms/messages error:", error);
+//     return NextResponse.json({ error: msg }, { status: 500 });
+//   }
+// }
+
+
+
+// ── Message types that support agree/disagree voting ─────────────────────────
+const VOTABLE_TYPES = new Set(["hottake", "prediction", "hot_take", "debate"]);
+const MULTI_QUESTION_TYPES = new Set(["predictions_live"]);
 
 export async function GET(
   req: NextRequest,
@@ -835,15 +991,38 @@ export async function GET(
       });
     }
 
-    // ── Batch vote reads only (reactions now read from doc map field) ─────────
+    // ── Batch vote reads ────────────────────────────────────────────────────
+    // Two cases:
+    //  1. Single-question votable types (debate/hottake/prediction) → one
+    //     vote doc per message, keyed `${resolvedUserId}_q0`.
+    //  2. Multi-question types (predictions_live) → one vote doc PER
+    //     QUESTION in that message, keyed `${resolvedUserId}_q{idx}`, so we
+    //     can restore which specific question(s) the user already answered.
     const votableIndices: number[] = [];
     const votePromises: Promise<FirebaseFirestore.DocumentSnapshot>[] = [];
 
+    const multiQuestionIndices: number[] = [];
+    // For each doc index, the list of question indices we're fetching votes for,
+    // and the corresponding promises (parallel arrays, same order).
+    const multiQuestionMeta: { docIdx: number; qIdx: number }[] = [];
+    const multiQuestionVotePromises: Promise<FirebaseFirestore.DocumentSnapshot>[] = [];
+
     snapshot.docs.forEach((doc, i) => {
-      const type = (doc.data() as RoomMessage).type;
-      if (VOTABLE_TYPES.has(type)) {
+      const data = doc.data() as RoomMessage & { questions?: any[] };
+      const type = data.type;
+
+      if (MULTI_QUESTION_TYPES.has(type)) {
+        const questions = Array.isArray(data.questions) ? data.questions : [];
+        multiQuestionIndices.push(i);
+        questions.forEach((_q, qIdx) => {
+          multiQuestionMeta.push({ docIdx: i, qIdx });
+          multiQuestionVotePromises.push(
+            doc.ref.collection("votes").doc(`${resolvedUserId}_q${qIdx}`).get()
+          );
+        });
+      } else if (VOTABLE_TYPES.has(type)) {
         votableIndices.push(i);
-        votePromises.push(doc.ref.collection("votes").doc(resolvedUserId).get());
+        votePromises.push(doc.ref.collection("votes").doc(`${resolvedUserId}_q0`).get());
       }
     });
 
@@ -853,8 +1032,9 @@ export async function GET(
       new Set(snapshot.docs.map((d) => (d.data() as RoomMessage).authorUid))
     );
 
-    const [voteResults, authorSnaps] = await Promise.all([
+    const [voteResults, multiQuestionVoteResults, authorSnaps] = await Promise.all([
       Promise.all(votePromises),
+      Promise.all(multiQuestionVotePromises),
       Promise.all(uniqueAuthorUids.map((uid) => db.collection("users").doc(uid).get())),
     ]);
 
@@ -867,17 +1047,32 @@ export async function GET(
       });
     });
 
-    // Build vote lookup map
+    // Build single-question vote lookup map: docIdx -> vote string | null
     const userVoteByIndex = new Map<number, string | null>();
     votableIndices.forEach((docIdx, resultIdx) => {
       const snap = voteResults[resultIdx];
       userVoteByIndex.set(docIdx, snap.exists ? ((snap.data() as any).vote ?? null) : null);
     });
 
+    // Build multi-question vote lookup map: docIdx -> { qIdx: vote }
+    const userPredictionVotesByIndex = new Map<number, Record<number, string>>();
+    multiQuestionMeta.forEach((meta, resultIdx) => {
+      const snap = multiQuestionVoteResults[resultIdx];
+      if (snap.exists) {
+        const existing = userPredictionVotesByIndex.get(meta.docIdx) ?? {};
+        existing[meta.qIdx] = (snap.data() as any).vote;
+        userPredictionVotesByIndex.set(meta.docIdx, existing);
+      }
+    });
+
     // ── Assemble response ─────────────────────────────────────────────────────
     const messages = snapshot.docs.map((doc, i) => {
-      const data = doc.data() as RoomMessage;
+      const data = doc.data() as RoomMessage & {
+        questions?: any[];
+        questionVoteCounts?: Record<string, Record<string, number>>;
+      };
       const author = authorMap.get(data.authorUid);
+
       return {
         ...data,
         msgId: doc.id,
@@ -899,6 +1094,12 @@ export async function GET(
 
         replyCount: data.replyCount ?? 0,
         userVote: userVoteByIndex.has(i) ? userVoteByIndex.get(i) : null,
+
+        // Per-question votes/counts for predictions_live messages, so the
+        // client can restore exactly which question(s) this user already
+        // answered and disable those options after a refresh.
+        userPredictionVotes: userPredictionVotesByIndex.get(i) ?? {},
+        questionVoteCounts: data.questionVoteCounts ?? {},
 
         // Read userReaction from the reactions map on the doc itself —
         // written by likesection as reactions.{userId}: "fire"|"heart" etc.
@@ -932,10 +1133,6 @@ export async function GET(
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
-
-
-
-
 
 // export async function POST(
 //   req: NextRequest,
