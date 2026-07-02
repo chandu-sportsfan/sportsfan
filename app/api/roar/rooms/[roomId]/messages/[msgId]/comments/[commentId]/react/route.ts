@@ -1,4 +1,4 @@
-
+// api/roar/[roomId]/messages/[msgId]/comments/[commentId]/react/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
