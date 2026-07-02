@@ -447,6 +447,7 @@ const ROOM_TYPE_TO_POST_TYPE: Partial<Record<string, PostType | "post">> = {
 // having to load every paginated message into memory first.
 const COUNT_FIELD_BY_TYPE: Partial<Record<string, "postCount" | "debateCount" | "predictionCount">> = {
   post: "postCount",
+  chat: "postCount",
   debate: "debateCount",
   prediction: "predictionCount",
 };

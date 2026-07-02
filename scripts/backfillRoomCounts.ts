@@ -42,6 +42,13 @@ const db = admin.firestore();
 db.settings({ ignoreUndefinedProperties: true, databaseId: "(default)" });
 
 // ── 3. Backfill postCount / debateCount / predictionCount on each room ───────
+//
+// NOTE: messages with a missing/undefined `type` field are treated as "post"
+// (matching the frontend's `p.type === "post" || !p.type` rule and the
+// POST-handler's default type of "chat" being bucketed as a post-equivalent).
+// Earlier versions of this script only matched strict `type === "post"`,
+// which silently skipped untyped legacy messages — causing tracked counts
+// to undercount the true number of visible posts (e.g. 32 shown vs 37 actual).
 async function main() {
   console.log("Fetching all roarRooms documents...");
   const roomsSnap = await db.collection("roarRooms").get();
@@ -65,7 +72,7 @@ async function main() {
 
     messagesSnap.docs.forEach((msgDoc) => {
       const type = msgDoc.data().type;
-      if (type === "post") postCount++;
+      if (type === "post" || !type) postCount++;
       else if (type === "debate") debateCount++;
       else if (type === "prediction") predictionCount++;
     });
