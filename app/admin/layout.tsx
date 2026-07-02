@@ -661,6 +661,13 @@ const FULL_NAV: NavGroup[] = [
         ],
       },
       {
+        label: "Focus Group Matches", icon: "◉",
+        children: [
+          { href: "/admin/focusmatch-management/add-focusmatch", label: "Add Focus Match" },
+          { href: "/admin/focusmatch-management/focusmatch-list", label: "Matches List" },
+        ],
+      },
+      {
         label: "RoAR Management", icon: "◉",
         children: [
           { href: "/admin/roar-management/add-roar", label: "Add RoAR Show" },

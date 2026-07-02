@@ -1,7 +1,6 @@
-// app/admin/roar-management/add-roar/AddRoarForm.tsx
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 
@@ -17,6 +16,28 @@ export default function AddRoarForm() {
   const [scoreSubtitle, setScoreSubtitle] = useState('');
   const [createWatchAlong, setCreateWatchAlong] = useState(true);
   const [saving, setSaving] = useState(false);
+  
+  const [matches, setMatches] = useState<{ id: string; team_a: string; team_b: string; sport: string }[]>([]);
+  const [selectedMatchId, setSelectedMatchId] = useState('');
+
+  useEffect(() => {
+    async function loadMatches() {
+      try {
+        const response = await fetch('/api/roar/matches');
+        const resData = await response.json();
+        if (response.ok) {
+          // Filter to only upcoming or live matches
+          const activeMatches = (resData.matches || []).filter(
+            (m: any) => m.status === "upcoming" || m.status === "live"
+          );
+          setMatches(activeMatches);
+        }
+      } catch (err) {
+        console.error("Failed to load matches list", err);
+      }
+    }
+    loadMatches();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +56,7 @@ export default function AddRoarForm() {
         score: score.trim(),
         scoreSubtitle: scoreSubtitle.trim(),
         createWatchAlong,
+        matchId: selectedMatchId || undefined,
       });
       router.push('/admin/roar-management/roar-list');
     } catch (error: any) {
@@ -83,6 +105,25 @@ export default function AddRoarForm() {
           >
             <option value="cricket">Cricket 🏏</option>
             <option value="football">Football ⚽</option>
+          </select>
+        </div>
+
+        {/* Link to Focus Match (Optional Dropdown) */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-300 mb-2">
+            Link to Focus Group Match (Optional)
+          </label>
+          <select
+            value={selectedMatchId}
+            onChange={(e) => setSelectedMatchId(e.target.value)}
+            className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500"
+          >
+            <option value="">-- No Match Linked (Normal Fallback Mode) --</option>
+            {matches.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.sport === "cricket" ? "🏏" : "⚽"} {m.team_a} vs {m.team_b} ({m.sport.toUpperCase()})
+              </option>
+            ))}
           </select>
         </div>
 

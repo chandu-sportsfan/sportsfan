@@ -527,6 +527,19 @@ function getActivityLabel(reason: string, meta?: Record<string, unknown>): strin
   return ACTIVITY_LABELS[reason]?.(meta) ?? reason.replace(/_/g, " ").toLowerCase();
 }
 
+// Simple in-memory cache for user profiles to reduce Firestore reads
+interface CachedUserProfile {
+  userName: string;
+  userEmail: string;
+  exists: boolean;
+  actualUserId: string;
+  authUserId: string;
+  cachedAt: number;
+}
+
+const userProfileCache = new Map<string, CachedUserProfile>();
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 // ─── getUserInfo ──────────────────────────────────────────────────────────────
 export async function getUserInfo(
   userId: string,
@@ -539,48 +552,74 @@ export async function getUserInfo(
   actualUserId: string;
   authUserId: string;
 }> {
+  // Check cache first
+  const cached = userProfileCache.get(userId);
+  if (cached && (Date.now() - cached.cachedAt) < CACHE_TTL_MS) {
+    return {
+      userName: cached.userName,
+      userEmail: cached.userEmail,
+      exists: cached.exists,
+      actualUserId: cached.actualUserId,
+      authUserId: cached.authUserId,
+    };
+  }
+
   try {
     let snap = await db.collection("users").doc(userId).get();
     let actualUserId = userId;
 
-    // If not found by exact ID, try email lookup
-    if (!snap.exists && fallbackEmail) {
-      const emailQuery = await db
-        .collection("users")
-        .where("email", "==", fallbackEmail)
-        .limit(1)
-        .get();
+    // If not found by exact ID, run fallback queries in parallel
+    if (!snap.exists) {
+      const fallbackPromises: Promise<any>[] = [];
+      const promiseTypes: string[] = [];
 
-      if (!emailQuery.empty) {
-        snap = emailQuery.docs[0];
-        actualUserId = snap.id;
-        console.log(`[getUserInfo] Found user by email: ${actualUserId} for authUserId: ${userId}`);
+      if (fallbackEmail) {
+        fallbackPromises.push(
+          db.collection("users").where("email", "==", fallbackEmail).limit(1).get()
+        );
+        promiseTypes.push("email");
+      }
+
+      let sanitizedId = "";
+      if (userId.includes('@')) {
+        sanitizedId = userId.replace(/\./g, '_').replace(/@/g, '_');
+        fallbackPromises.push(db.collection("users").doc(sanitizedId).get());
+        promiseTypes.push("sanitized");
+      }
+
+      let emailFormatId = "";
+      if (userId.includes('_') && !userId.includes('@')) {
+        emailFormatId = userId.replace(/_/g, '.');
+        fallbackPromises.push(db.collection("users").doc(emailFormatId).get());
+        promiseTypes.push("emailFormat");
+      }
+
+      const results = await Promise.all(fallbackPromises);
+
+      for (let i = 0; i < results.length; i++) {
+        const type = promiseTypes[i];
+        const res = results[i];
+
+        if (type === "email" && !res.empty) {
+          snap = res.docs[0];
+          actualUserId = snap.id;
+          console.log(`[getUserInfo] Found user by email: ${actualUserId} for authUserId: ${userId}`);
+          break;
+        } else if (type === "sanitized" && res.exists) {
+          snap = res;
+          actualUserId = sanitizedId;
+          console.log(`[getUserInfo] Found user by sanitized ID: ${actualUserId} for authUserId: ${userId}`);
+          break;
+        } else if (type === "emailFormat" && res.exists) {
+          snap = res;
+          actualUserId = emailFormatId;
+          console.log(`[getUserInfo] Found user by email format: ${actualUserId} for authUserId: ${userId}`);
+          break;
+        }
       }
     }
 
-    // If userId contains '@' (email format), try the sanitized version
-    if (!snap.exists && userId.includes('@')) {
-      const sanitizedId = userId.replace(/\./g, '_').replace(/@/g, '_');
-      const sanitizedSnap = await db.collection("users").doc(sanitizedId).get();
-
-      if (sanitizedSnap.exists) {
-        snap = sanitizedSnap;
-        actualUserId = sanitizedId;
-        console.log(`[getUserInfo] Found user by sanitized ID: ${actualUserId} for authUserId: ${userId}`);
-      }
-    }
-
-    // If userId is sanitized format (contains '_' and no '@'), try email format
-    if (!snap.exists && userId.includes('_') && !userId.includes('@')) {
-      const emailFormatId = userId.replace(/_/g, '.');
-      const emailSnap = await db.collection("users").doc(emailFormatId).get();
-
-      if (emailSnap.exists) {
-        snap = emailSnap;
-        actualUserId = emailFormatId;
-        console.log(`[getUserInfo] Found user by email format: ${actualUserId} for authUserId: ${userId}`);
-      }
-    }
+    let resolvedProfile;
 
     if (snap.exists) {
       const d = snap.data()!;
@@ -589,22 +628,30 @@ export async function getUserInfo(
         : d.name ||
           (d.email ? d.email.split("@")[0] : fallbackName) ||
           "User";
-      return {
+      resolvedProfile = {
         userName,
         userEmail: d.email || fallbackEmail || "",
         exists: true,
         actualUserId,
         authUserId: userId,
       };
+    } else {
+      resolvedProfile = {
+        userName: fallbackName || "User",
+        userEmail: fallbackEmail || "",
+        exists: false,
+        actualUserId: userId,
+        authUserId: userId,
+      };
     }
 
-    return {
-      userName: fallbackName || "User",
-      userEmail: fallbackEmail || "",
-      exists: false,
-      actualUserId: userId,
-      authUserId: userId,
-    };
+    // Cache the resolved profile
+    userProfileCache.set(userId, {
+      ...resolvedProfile,
+      cachedAt: Date.now(),
+    });
+
+    return resolvedProfile;
   } catch (err) {
     console.error("[getUserInfo] error:", err);
     return {
@@ -644,78 +691,85 @@ export async function awardUserPoints({
   const leaderboardUserId = authUserId ?? actualUserId;
 
   const transactionRef = db.collection("userPointTransactions").doc(transactionId);
-  const txSnap = await transactionRef.get();
-  if (txSnap.exists) return false;
-
-  const now = Date.now();
-  const batch = db.batch();
-  const defaultActivityLabel =
-    reason === "LISTEN_AUDIO_DROP" || reason === "LISTEN_COMPLETE"
-      ? "Listen Audio Drops"
-      : reason;
-  const defaultActivityType =
-    reason === "LISTEN_AUDIO_DROP" || reason === "LISTEN_COMPLETE"
-      ? "LISTEN_AUDIO_DROP"
-      : reason;
-  const activityLabel =
-    typeof metadata?.activityLabel === "string" ? metadata.activityLabel : defaultActivityLabel;
-  const activityType =
-    typeof metadata?.activityType === "string" ? metadata.activityType : defaultActivityType;
-
-  // 1. Transaction record (idempotency guard)
-  batch.set(transactionRef, {
-    userId: leaderboardUserId,
-    userEmail,
-    userName,
-    points,
-    reason,
-    type: activityType,
-    label: activityLabel,
-    metadata: metadata ?? {},
-    createdAt: now,
-  });
-
-  // 2. User doc — keyed on actualUserId
-  if (userExists) {
-    const userRef = db.collection("users").doc(actualUserId);
-    batch.update(userRef, {
-      totalPoints: FieldValue.increment(points),
-      [`pointsBreakdown.${reason}`]: FieldValue.increment(points),
-       [`activityCounts.${reason}`]: FieldValue.increment(1),
-      [`activityCounts.total`]: FieldValue.increment(1),
-      lastUpdated: now,
-    });
-  }
-
-  // 3. Global leaderboard — keyed on leaderboardUserId
+  const userRef = db.collection("users").doc(actualUserId);
   const globalRef = db.collection("globalLeaderboard").doc(leaderboardUserId);
-  batch.set(
-    globalRef,
-    {
-      userId: leaderboardUserId,
-      userName,
-      userEmail,
-      totalPoints: FieldValue.increment(points),
-      lastUpdated: now,
-    },
-    { merge: true }
-  );
+  const activityRef = db.collection("users").doc(actualUserId).collection("activityLog").doc();
 
-  // 4. Activity log — atomic with the points write
-  const activityRef = db
-    .collection("users")
-    .doc(actualUserId)
-    .collection("activityLog")
-    .doc();
+  try {
+    const success = await db.runTransaction(async (transaction) => {
+      // 1. Read phase (idempotency guard)
+      const txSnap = await transaction.get(transactionRef);
+      if (txSnap.exists) {
+        return false;
+      }
 
-  batch.set(activityRef, {
-    type:      reason,
-    points:    points,
-    label:     getActivityLabel(reason, metadata),
-    metadata:  metadata ?? {},
-    createdAt: now,
-  });
+      const now = Date.now();
+      const defaultActivityLabel =
+        reason === "LISTEN_AUDIO_DROP" || reason === "LISTEN_COMPLETE"
+          ? "Listen Audio Drops"
+          : reason;
+      const defaultActivityType =
+        reason === "LISTEN_AUDIO_DROP" || reason === "LISTEN_COMPLETE"
+          ? "LISTEN_AUDIO_DROP"
+          : reason;
+      const activityLabel =
+        typeof metadata?.activityLabel === "string" ? metadata.activityLabel : defaultActivityLabel;
+      const activityType =
+        typeof metadata?.activityType === "string" ? metadata.activityType : defaultActivityType;
 
-  await batch.commit();
-  return true;
+      // 2. Write phase
+      // A. Transaction record
+      transaction.set(transactionRef, {
+        userId: leaderboardUserId,
+        userEmail,
+        userName,
+        points,
+        reason,
+        type: activityType,
+        label: activityLabel,
+        metadata: metadata ?? {},
+        createdAt: now,
+      });
+
+      // B. User doc
+      if (userExists) {
+        transaction.update(userRef, {
+          totalPoints: FieldValue.increment(points),
+          [`pointsBreakdown.${reason}`]: FieldValue.increment(points),
+          [`activityCounts.${reason}`]: FieldValue.increment(1),
+          [`activityCounts.total`]: FieldValue.increment(1),
+          lastUpdated: now,
+        });
+      }
+
+      // C. Global leaderboard
+      transaction.set(
+        globalRef,
+        {
+          userId: leaderboardUserId,
+          userName,
+          userEmail,
+          totalPoints: FieldValue.increment(points),
+          lastUpdated: now,
+        },
+        { merge: true }
+      );
+
+      // D. Activity log
+      transaction.set(activityRef, {
+        type:      reason,
+        points:    points,
+        label:     getActivityLabel(reason, metadata),
+        metadata:  metadata ?? {},
+        createdAt: now,
+      });
+
+      return true;
+    });
+
+    return success;
+  } catch (error) {
+    console.error("[awardUserPoints] Transaction failed:", error);
+    return false;
+  }
 }
