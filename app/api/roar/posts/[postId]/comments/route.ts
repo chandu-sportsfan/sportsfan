@@ -533,45 +533,11 @@ import { notifyPostComment, notifyRoomMessageComment } from "@/lib/roarNotifyHel
 
 // ─── GET ──────────────────────────────────────────────────────────────────────
 
-// export async function GET(
-//   req: NextRequest,
-//   { params }: { params: { postId: string } }
-// ) {
-//   try {
-//     const { postId } = params;
-//     const { searchParams } = new URL(req.url);
-//     const limit = Math.min(parseInt(searchParams.get("limit") ?? "50"), 100);
-//     const lastCreatedAt = searchParams.get("lastCreatedAt")
-//       ? parseInt(searchParams.get("lastCreatedAt")!)
-//       : null;
-
-//     let query = db
-//       .collection("roarPosts")
-//       .doc(postId)
-//       .collection("comments")
-//       .orderBy("createdAt", "desc")
-//       .limit(limit) as FirebaseFirestore.Query;
-
-//     if (lastCreatedAt) query = query.startAfter(lastCreatedAt);
-
-//     const snap = await query.get();
-//     const comments = snap.docs.map((doc) => ({ id: doc.id, commentId: doc.id, ...doc.data() }));
-
-//     return NextResponse.json({ success: true, comments });
-//   } catch (err) {
-//     const msg = err instanceof Error ? err.message : "Unexpected error";
-//     return NextResponse.json({ error: msg }, { status: 500 });
-//   }
-// }
-
 export async function GET(
   req: NextRequest,
   { params }: { params: { postId: string } }
 ) {
   try {
-    const user = await getUser(req);
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
     const { postId } = params;
     const { searchParams } = new URL(req.url);
     const limit = Math.min(parseInt(searchParams.get("limit") ?? "50"), 100);
@@ -589,16 +555,7 @@ export async function GET(
     if (lastCreatedAt) query = query.startAfter(lastCreatedAt);
 
     const snap = await query.get();
-    const comments = snap.docs.map((doc) => {
-      const data = doc.data() as any;
-      return {
-        id: doc.id,
-        commentId: doc.id,
-        ...data,
-        heartCount: data.heartCount ?? 0,
-        userReaction: data.reactions?.[user.userId] ?? null,
-      };
-    });
+    const comments = snap.docs.map((doc) => ({ id: doc.id, commentId: doc.id, ...doc.data() }));
 
     return NextResponse.json({ success: true, comments });
   } catch (err) {
@@ -606,6 +563,7 @@ export async function GET(
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
 
 // ─── POST ─────────────────────────────────────────────────────────────────────
 
