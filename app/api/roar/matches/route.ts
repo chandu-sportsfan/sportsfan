@@ -73,7 +73,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Missing match ID parameter." }, { status: 400 });
     }
 
-    await db.collection("matches").document(id).delete();
+    await db.collection("matches").doc(id).delete();
     return NextResponse.json({ success: true, message: `Match ${id} deleted successfully.` });
   } catch (error: any) {
     console.error("DELETE /api/roar/matches error:", error);
