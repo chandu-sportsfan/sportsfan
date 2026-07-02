@@ -57,3 +57,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message || "Failed to create match." }, { status: 500 });
   }
 }
+
+// DELETE /api/roar/matches
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await getUser(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json({ error: "Missing match ID parameter." }, { status: 400 });
+    }
+
+    await db.collection("matches").doc(id).delete();
+    return NextResponse.json({ success: true, message: `Match ${id} deleted successfully.` });
+  } catch (error: any) {
+    console.error("DELETE /api/roar/matches error:", error);
+    return NextResponse.json({ error: error.message || "Failed to delete match." }, { status: 500 });
+  }
+}

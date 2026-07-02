@@ -41,6 +41,23 @@ export default function FocusMatchListPage() {
 
   const filteredMatches = matches.filter((m) => m.sport === activeTab);
 
+  const handleDelete = async (matchId: string) => {
+    if (!confirm("Are you sure you want to delete this focus match?")) return;
+    try {
+      const response = await fetch(`/api/roar/matches?id=${matchId}`, {
+        method: "DELETE",
+      });
+      const resData = await response.json();
+      if (!response.ok) {
+        throw new Error(resData.error || "Failed to delete match.");
+      }
+      setMatches((prev) => prev.filter((m) => m.id !== matchId));
+    } catch (err: any) {
+      console.error("Error deleting match:", err);
+      alert(err.message || "Failed to delete match.");
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "live": return "#2ea043";
@@ -102,6 +119,7 @@ export default function FocusMatchListPage() {
                 <th style={{ textAlign: "left", padding: "10px 12px", color: "#8b949e" }}>Kickoff Time (IST)</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", color: "#8b949e" }}>Stage</th>
                 <th style={{ textAlign: "left", padding: "10px 12px", color: "#8b949e" }}>Status</th>
+                <th style={{ textAlign: "right", padding: "10px 12px", color: "#8b949e" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -126,6 +144,26 @@ export default function FocusMatchListPage() {
                     }}>
                       {m.status}
                     </span>
+                  </td>
+                  <td style={{ padding: "12px", textAlign: "right" }}>
+                    <button
+                      onClick={() => handleDelete(m.id)}
+                      style={{
+                        background: "#21262d",
+                        border: "1px solid #30363d",
+                        color: "#f85149",
+                        padding: "5px 10px",
+                        borderRadius: 6,
+                        cursor: "pointer",
+                        fontSize: 12,
+                        fontWeight: "600",
+                        transition: "0.2s"
+                      }}
+                      onMouseOver={(e) => (e.currentTarget.style.background = "#30363d")}
+                      onMouseOut={(e) => (e.currentTarget.style.background = "#21262d")}
+                    >
+                      Delete 🗑️
+                    </button>
                   </td>
                 </tr>
               ))}
