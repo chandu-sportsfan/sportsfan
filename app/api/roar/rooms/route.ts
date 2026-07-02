@@ -127,6 +127,7 @@ export async function POST(req: NextRequest) {
       score,
       scoreSubtitle,
       createWatchAlong,
+      matchId,
     } = body;
 
     if (!name?.trim()) {
@@ -186,7 +187,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const newRoom: ChatRoom = {
+    const newRoom: ChatRoom & { matchId?: string } = {
       roomId: roomRef.id,
       name: name.trim(),
       sport: sport || "general",
@@ -201,6 +202,7 @@ export async function POST(req: NextRequest) {
       ...(score && { score }),
       ...(scoreSubtitle && { scoreSubtitle }),
       ...(watchAlongRoomId && { watchAlongRoomId }),
+      ...(matchId && { matchId }),
     };
 
     await roomRef.set(newRoom);

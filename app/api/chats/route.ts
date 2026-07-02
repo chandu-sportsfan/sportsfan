@@ -201,20 +201,8 @@ export async function GET(req: NextRequest) {
 
  const enrichedChats = await Promise.all(
   chats.map(async (chat: any) => {
-    // ✅ WORKAROUND: Fetch all unread, then filter in code
-    const messagesSnap = await db
-      .collection("messages")
-      .where("chatId", "==", chat.id)
-      .where("isRead", "==", false)
-      .get();
-
-    // Filter out own messages in JavaScript (not in query)
-    // Use isSameUser() to handle normalized IDs correctly (e.g. dots/@ replaced with _)
-    const unreadFromOther = messagesSnap.docs.filter(
-      (doc) => !isSameUser(doc.data().senderId, CURRENT_USER_ID)
-    );
-
-    const unreadCount = unreadFromOther.length;
+    // Read unread count directly from the map on the chat document
+    const unreadCount = chat.unreadCount?.[CURRENT_USER_ID] || 0;
 
     if (chat.type === "dm" && Array.isArray(chat.participantIds)) {
       const otherId = chat.participantIds.find(

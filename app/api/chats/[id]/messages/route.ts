@@ -129,7 +129,7 @@ export async function GET(req: NextRequest) {
     if (unreadDocs.length > 0) {
       const batch = db.batch();
       unreadDocs.forEach((doc) => batch.update(doc.ref, { isRead: true }));
-      batch.update(chatRef, { unreadCount: 0 });
+      batch.update(chatRef, { [`unreadCount.${normalizeId(CURRENT_USER_ID)}`]: 0 });
       await batch.commit();
     }
 
@@ -226,13 +226,21 @@ export async function POST(req: NextRequest) {
 
     const msgRef = await db.collection("messages").add(newMessage);
 
-    // ✅ FIXED: Only update message metadata, NOT unreadCount
-    await chatRef.update({
+    const participantIds = chatDoc.data()?.participantIds as string[] || [];
+    const updateData: Record<string, any> = {
       lastMessageContent: content.trim(),
       lastMessageAt: now,
       updatedAt: now,
-      // ❌ REMOVED: unreadCount: FieldValue.increment(otherCount),
+    };
+
+    participantIds.forEach((pid) => {
+      if (!isSameUser(pid, CURRENT_USER_ID)) {
+        const normalizedPid = normalizeId(pid);
+        updateData[`unreadCount.${normalizedPid}`] = FieldValue.increment(1);
+      }
     });
+
+    await chatRef.update(updateData);
 
     return NextResponse.json(
       {
