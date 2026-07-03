@@ -1,7 +1,7 @@
 // app/models/RoomMessage.ts
 
 
-export type MessageType = "chat" | "post" | "prediction" | "hottake" | "hot_take" | "debate" | "raw_reactions" | "memory" | "quiz" | "predictions_live";
+export type MessageType = "chat" | "post" | "prediction" | "hottake" | "hot_take" | "debate" | "raw_reactions" | "memory" | "quiz" | "predictions_live" | "trivia" | "battle";
 
 export interface RoomMessage {
   msgId: string;
@@ -33,5 +33,35 @@ export interface RoomMessage {
   accuracyAwarded?: boolean;
   memGifUrl?: string;
   memTag?: string;
+  triviaQuestions?: TriviaQuestion[];
+  battleQuestions?: BattleQuestion[];
+  triviaParticipants?: Record<number, number>; // questionIndex -> count
+  battleVoteCounts?: Record<number, { playerA: number; playerB: number }>;
 
+}
+
+
+
+export interface TriviaOption {
+  label: string;   // "A" | "B" | "C" | "D"
+  text: string;
+  isCorrect?: boolean; // only ever sent to client for THIS user's answered/expired question
+}
+
+export interface TriviaQuestion {
+  question: string;
+  options: TriviaOption[];
+  timerSeconds?: number;
+}
+
+export interface BattlePlayer {
+  name: string;
+  team?: string;
+  image?: string;
+}
+
+export interface BattleQuestion {
+  question?: string; // optional headline, e.g. "Player of the Match"
+  playerA: BattlePlayer;
+  playerB: BattlePlayer;
 }

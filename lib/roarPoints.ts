@@ -110,11 +110,11 @@ import type { PostType } from "@/app/models/Post";
 
 // ─── Point values per ROAR post type ─────────────────────────────────────────
 export const ROAR_POINTS: Record<PostType | "post", number> = {
-  hot_take:   2,
+  hot_take: 2,
   prediction: 2,
-  debate:     2,
-  raw_reactions:     2,
-  post:       2,
+  debate: 2,
+  raw_reactions: 2,
+  post: 2,
   quiz: 2,
 };
 
@@ -125,17 +125,19 @@ export const ROAR_POINTS: Record<PostType | "post", number> = {
 export const ROAR_EVENT_POINTS: Record<string, number> = {
   ROAR_DEBATE_PARTICIPATE: 2,
   ROAR_PREDICTION_PARTICIPATE: 2,
+  ROAR_TRIVIA_CORRECT: 2,
+  ROAR_BATTLE_PARTICIPATE: 2,
 };
 
 // ─── Reason key from post type ────────────────────────────────────────────────
 export function roarReasonFromType(type: PostType | "post"): string {
   const map: Record<PostType | "post", string> = {
-    hot_take:   "ROAR_HOT_TAKE",
+    hot_take: "ROAR_HOT_TAKE",
     prediction: "ROAR_PREDICTION",
-    debate:     "ROAR_DEBATE",
-    raw_reactions:     "ROAR_RAW_REACTIONS",
-    post:       "ROAR_POST",
-     quiz:       "ROAR_QUIZ",  
+    debate: "ROAR_DEBATE",
+    raw_reactions: "ROAR_RAW_REACTIONS",
+    post: "ROAR_POST",
+    quiz: "ROAR_QUIZ",
   };
   return map[type];
 }
@@ -239,7 +241,7 @@ export async function awardRoarPointsByReason({
   const roarRef = db.collection("roarLeaderboard").doc(leaderboardUserId);
   await roarRef.set(
     {
-      userId:      leaderboardUserId,
+      userId: leaderboardUserId,
       userName,
       userEmail,
       totalPoints: FieldValue.increment(points),

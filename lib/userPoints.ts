@@ -521,6 +521,8 @@ const ACTIVITY_LABELS: Record<string, (meta?: Record<string, unknown>) => string
   ROAR_POST:        ()  => "Created a ROAR Post",
   ROAR_QUIZ:        ()  => "Answered a ROAR Quiz",
   ROAR_RAW_REACTIONS: () => "Posted ROAR Raw Reactions",
+  ROAR_TRIVIA_CORRECT: (m) => `Answered a ROAR Trivia question correctly${m?.matchTitle ? ` — ${m.matchTitle}` : ""}`,
+  ROAR_BATTLE_PARTICIPATE: (m) => `Voted in a ROAR Battle${m?.matchTitle ? ` — ${m.matchTitle}` : ""}`,
 };
 
 function getActivityLabel(reason: string, meta?: Record<string, unknown>): string {
