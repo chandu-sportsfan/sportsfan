@@ -73,16 +73,22 @@ export async function GET(req: NextRequest) {
       )
     ).flatMap((s) => s.docs);
 
-    const roomNameById = new Map<string, string>();
+    // Carry both name AND sport through so the history UI can show the
+    // correct icon (cricket vs football vs general) per past match.
+    const roomInfoById = new Map<string, { name: string; sport: string }>();
     roomDocs.forEach((doc) => {
-      const data = doc.data() as { name?: string };
-      roomNameById.set(doc.id, data?.name ?? "Match");
+      const data = doc.data() as { name?: string; sport?: string };
+      roomInfoById.set(doc.id, {
+        name: data?.name ?? "Match",
+        sport: data?.sport ?? "general",
+      });
     });
 
     const rooms = roomIds
       .map((roomId) => ({
         roomId,
-        title: roomNameById.get(roomId) ?? "Match",
+        title: roomInfoById.get(roomId)?.name ?? "Match",
+        sport: roomInfoById.get(roomId)?.sport ?? "general",
         lastQuestion: latestByRoom.get(roomId)!.question,
         lastAskedAt: latestByRoom.get(roomId)!.createdAt,
       }))
