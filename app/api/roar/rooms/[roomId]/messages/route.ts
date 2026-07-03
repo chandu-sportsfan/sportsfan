@@ -406,6 +406,7 @@ import type { PostType } from "@/app/models/Post";
 // votes/reactions subcollections (causing userVote/userLiked to read back
 // wrong after a refresh). We now use getUserInfo everywhere so there's a
 // single source of truth for "what is this user's doc ID".
+
 async function resolveUser(
   email: string,
   userId: string
