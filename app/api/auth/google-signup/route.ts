@@ -100,6 +100,7 @@ export async function POST(req: NextRequest) {
         const nameParts = (name ?? "").split(" ");
         const firstName = nameParts[0] ?? "";
         const lastName  = nameParts.slice(1).join(" ") ?? "";
+        const username = `${firstName} ${lastName}`.trim() || email.split("@")[0]; 
 
         let userId = consistentUserId;
         let role   = "user";
@@ -109,6 +110,7 @@ export async function POST(req: NextRequest) {
                 email,
                 userId: consistentUserId,
                 firstName, lastName,
+                username, 
                 avatar: avatar ?? "",
                 provider: "google",
                 authProviders: { google: true, emailPassword: false },
