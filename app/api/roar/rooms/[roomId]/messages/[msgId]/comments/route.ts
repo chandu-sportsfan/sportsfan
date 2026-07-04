@@ -7,6 +7,41 @@ import { getUser } from "@/lib/getUser";
 import { notifyRoomMessageComment } from "@/lib/roarNotifyHelpers";
 
 // ─── GET ──────────────────────────────────────────────────────────────────────
+// export async function GET(
+//     req: NextRequest,
+//     { params }: { params: { roomId: string; msgId: string } }
+// ) {
+//     try {
+//         const { roomId, msgId } = params;
+//         const { searchParams } = new URL(req.url);
+//         const limit = Math.min(parseInt(searchParams.get("limit") ?? "50"), 100);
+
+//         const snap = await db
+//             .collection("roarRooms")
+//             .doc(roomId)
+//             .collection("messages")
+//             .doc(msgId)
+//             .collection("comments")
+//             .orderBy("createdAt", "desc")
+//             .limit(limit)
+//             .get();
+
+//         const comments = snap.docs.map((doc) => ({
+//             id: doc.id,
+//             commentId: doc.id,
+//             ...doc.data(),
+//         }));
+
+//         return NextResponse.json({ success: true, comments });
+//     } catch (err) {
+//         const msg = err instanceof Error ? err.message : "Unexpected error";
+//         return NextResponse.json({ error: msg }, { status: 500 });
+//     }
+// }
+
+
+// api/roar/rooms/[roomId]/messages/[msgId]/comments/route.ts
+
 export async function GET(
     req: NextRequest,
     { params }: { params: { roomId: string; msgId: string } }
@@ -26,11 +61,37 @@ export async function GET(
             .limit(limit)
             .get();
 
-        const comments = snap.docs.map((doc) => ({
-            id: doc.id,
-            commentId: doc.id,
-            ...doc.data(),
-        }));
+        // ── Batch-fetch live avatarUrl/badge per unique author, same pattern
+        // as GET /rooms/[roomId]/messages — comment docs store a snapshot of
+        // authorAvatarUrl at post time, which goes stale/missing if the user
+        // didn't have an avatar yet when they commented.
+        const authorMap = new Map<string, { avatarUrl: string | null; badge: string | null }>();
+        const uniqueAuthorUids = Array.from(
+            new Set(snap.docs.map((d) => (d.data() as any).authorUid).filter(Boolean))
+        );
+        const authorSnaps = await Promise.all(
+            uniqueAuthorUids.map((uid) => db.collection("users").doc(uid).get())
+        );
+        uniqueAuthorUids.forEach((uid, i) => {
+            const s = authorSnaps[i];
+            const data = s.exists ? (s.data() as any) : null;
+            authorMap.set(uid, {
+                avatarUrl: data?.avatarUrl ?? null,
+                badge: data?.badge ?? null,
+            });
+        });
+
+        const comments = snap.docs.map((doc) => {
+            const data = doc.data() as any;
+            const author = authorMap.get(data.authorUid);
+            return {
+                id: doc.id,
+                commentId: doc.id,
+                ...data,
+                authorAvatarUrl: author?.avatarUrl ?? data.authorAvatarUrl ?? null,
+                authorBadge: author?.badge ?? data.authorBadge ?? null,
+            };
+        });
 
         return NextResponse.json({ success: true, comments });
     } catch (err) {
