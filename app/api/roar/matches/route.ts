@@ -58,6 +58,41 @@ export async function POST(req: NextRequest) {
   }
 }
 
+// PATCH /api/roar/matches
+export async function PATCH(req: NextRequest) {
+  try {
+    const user = await getUser(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json({ error: "Missing match ID parameter." }, { status: 400 });
+    }
+
+    const body = await req.json();
+    const updateData = {
+      sport: body.sport,
+      competition: body.competition || "",
+      team_a: body.team_a,
+      team_b: body.team_b,
+      kickoff_time: Number(body.kickoff_time),
+      stage: body.stage || "group",
+      status: body.status || "upcoming",
+      updated_at: Date.now()
+    };
+
+    await db.collection("matches").doc(id).update(updateData);
+    return NextResponse.json({ success: true, message: `Match ${id} updated successfully.` });
+  } catch (error: any) {
+    console.error("PATCH /api/roar/matches error:", error);
+    return NextResponse.json({ error: error.message || "Failed to update match." }, { status: 500 });
+  }
+}
+
 // DELETE /api/roar/matches
 export async function DELETE(req: NextRequest) {
   try {
