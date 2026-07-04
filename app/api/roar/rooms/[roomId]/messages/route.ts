@@ -882,11 +882,13 @@ const ROOM_TYPE_TO_POST_TYPE: Partial<Record<string, PostType | "post">> = {
 // Kept as simple increment/decrement fields on the room doc so the client can
 // show accurate category badge counts (Posts/Debates/Predictions) without
 // having to load every paginated message into memory first.
-const COUNT_FIELD_BY_TYPE: Partial<Record<string, "postCount" | "debateCount" | "predictionCount">> = {
+const COUNT_FIELD_BY_TYPE: Partial<Record<string, "postCount" | "debateCount" | "predictionCount" | "triviaCount" | "battleCount">> = {
   post: "postCount",
   chat: "postCount",
   debate: "debateCount",
   prediction: "predictionCount",
+  trivia: "triviaCount",
+  battle: "battleCount",
 };
 
 export async function GET(
@@ -949,6 +951,8 @@ export async function GET(
           post: roomDataEmpty?.postCount ?? 0,
           debate: roomDataEmpty?.debateCount ?? 0,
           prediction: roomDataEmpty?.predictionCount ?? 0,
+          trivia: roomDataEmpty?.triviaCount ?? 0,
+          battle: roomDataEmpty?.battleCount ?? 0,
         },
       });
     }
@@ -1147,6 +1151,8 @@ export async function GET(
         post: roomData?.postCount ?? 0,
         debate: roomData?.debateCount ?? 0,
         prediction: roomData?.predictionCount ?? 0,
+        trivia: roomData?.triviaCount ?? 0,
+        battle: roomData?.battleCount ?? 0,
       },
     });
   } catch (error: unknown) {
@@ -1199,7 +1205,7 @@ export async function POST(
       triviaQuestions?: {
         question: string;
         timerSeconds?: number;
-        options: { label: string; text: string; isCorrect?: boolean }[];
+        options: { label: string; text?: string; isCorrect?: boolean }[];
       }[];
       battleQuestions?: {
         question?: string;
@@ -1284,7 +1290,7 @@ export async function POST(
       timerSeconds: Number.isFinite(q.timerSeconds) && (q.timerSeconds as number) > 0 ? q.timerSeconds : 15,
       options: q.options.map((o) => ({
         label: o.label,
-        text: o.text.trim(),
+        text: (o.text ?? o.label ?? "").toString().trim(),
         isCorrect: !!o.isCorrect,
       })),
     }));
@@ -1327,7 +1333,7 @@ export async function POST(
       ...(type === "prediction" && Array.isArray(predictionOptions) && {
         predictionOptions: predictionOptions.map((option) => String(option).trim()).filter(Boolean).slice(0, 6)
       }),
-      // ⭐ Include closesAt for predictions_live / battle / (optionally) trivia
+      //  Include closesAt for predictions_live / battle / (optionally) trivia
       ...(predictionClosesAt !== undefined && { closesAt: predictionClosesAt }),
       ...(memGifUrl && { memGifUrl }),
       ...(memTag && { memTag }),
