@@ -145,7 +145,27 @@ export default function FocusMatchListPage() {
                       {m.status}
                     </span>
                   </td>
-                  <td style={{ padding: "12px", textAlign: "right" }}>
+                  <td style={{ padding: "12px", textAlign: "right", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                    <Link
+                      href={`/admin/focusmatch-management/edit-focusmatch/${m.id}`}
+                      style={{
+                        background: "#21262d",
+                        border: "1px solid #30363d",
+                        color: "#58a6ff",
+                        padding: "5px 10px",
+                        borderRadius: 6,
+                        cursor: "pointer",
+                        fontSize: 12,
+                        fontWeight: "600",
+                        textDecoration: "none",
+                        transition: "0.2s"
+                      }}
+                      onMouseOver={(e) => (e.currentTarget.style.background = "#30363d")}
+                      onMouseOut={(e) => (e.currentTarget.style.background = "#21262d")}
+                    >
+                      Edit ✏️
+                    </Link>
+                    
                     <button
                       onClick={() => handleDelete(m.id)}
                       style={{
