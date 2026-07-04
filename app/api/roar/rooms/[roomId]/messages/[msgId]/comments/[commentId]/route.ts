@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
 import { getUser } from "@/lib/getUser";
+import { getUserInfo } from "@/lib/userPoints";
 
 export async function DELETE(
   req: NextRequest,
@@ -28,7 +29,18 @@ export async function DELETE(
     }
 
     const data = snap.data() as any;
-    const isAuthor = data.authorUid === user.userId || data.authorEmail === user.email;
+
+    // Resolve the requester's canonical id the same way comments are
+    // authored, so ownership checks aren't fooled by raw-uid vs
+    // resolved-doc-id mismatches.
+    const info = await getUserInfo(user.userId, undefined, user.email);
+    const resolvedRequesterId = info.exists ? info.actualUserId : user.userId;
+
+    const isAuthor =
+      data.authorUid === resolvedRequesterId ||
+      data.authorUid === user.userId ||
+      data.authorEmail === user.email;
+
     if (!isAuthor) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -41,7 +53,7 @@ export async function DELETE(
       .collection("messages")
       .doc(msgId)
       .update({ replyCount: FieldValue.increment(-1) })
-      .catch(() => {});
+      .catch(() => { });
 
     return NextResponse.json({ success: true });
   } catch (err) {

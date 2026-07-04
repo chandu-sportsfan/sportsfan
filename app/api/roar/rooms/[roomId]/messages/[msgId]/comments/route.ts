@@ -1,12 +1,12 @@
-// api/roar/rooms/[roomId]/messages/[msgId]/comments/route.ts
+// // api/roar/rooms/[roomId]/messages/[msgId]/comments/route.ts
 
-import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebaseAdmin";
-import { FieldValue } from "firebase-admin/firestore";
-import { getUser } from "@/lib/getUser";
-import { notifyRoomMessageComment } from "@/lib/roarNotifyHelpers";
+// import { NextRequest, NextResponse } from "next/server";
+// import { db } from "@/lib/firebaseAdmin";
+// import { FieldValue } from "firebase-admin/firestore";
+// import { getUser } from "@/lib/getUser";
+// import { notifyRoomMessageComment } from "@/lib/roarNotifyHelpers";
 
-// ─── GET ──────────────────────────────────────────────────────────────────────
+// // ─── GET ──────────────────────────────────────────────────────────────────────
 // export async function GET(
 //     req: NextRequest,
 //     { params }: { params: { roomId: string; msgId: string } }
@@ -39,9 +39,119 @@ import { notifyRoomMessageComment } from "@/lib/roarNotifyHelpers";
 //     }
 // }
 
+// // ─── POST ─────────────────────────────────────────────────────────────────────
+// export async function POST(
+//     req: NextRequest,
+//     { params }: { params: { roomId: string; msgId: string } }
+// ) {
+//     try {
+//         const user = await getUser(req);
+//         if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+//         const { roomId, msgId } = params;
+//         const body = await req.json();
+//         const text: string = (body.text ?? "").trim();
+//         if (!text) return NextResponse.json({ error: "text is required" }, { status: 400 });
+
+//         const { username, avatarUrl, badge } = await resolveUserInfo(user.userId, user.name, user.email);
+//         const now = Date.now();
+
+//         const commentRef = db
+//             .collection("roarRooms")
+//             .doc(roomId)
+//             .collection("messages")
+//             .doc(msgId)
+//             .collection("comments")
+//             .doc();
+
+//         await commentRef.set({
+//             commentId: commentRef.id,
+//             text,
+//             authorUid: user.userId,
+//             authorEmail: user.email,
+//             authorUsername: username,
+//             authorAvatarUrl: avatarUrl,
+//             authorBadge: badge,
+//             createdAt: now,
+//             roomId,
+//         });
+
+//         // Increment replyCount on the message
+//         db.collection("roarRooms")
+//             .doc(roomId)
+//             .collection("messages")
+//             .doc(msgId)
+//             .update({ replyCount: FieldValue.increment(1) })
+//             .catch(() => { });
+
+//         // Notify post author
+//         notifyRoomMessageComment(roomId, msgId, user.userId, user.email, username, text.slice(0, 80)).catch(() => { });
+
+//         return NextResponse.json({
+//             success: true,
+//             commentId: commentRef.id,
+//             comment: {
+//                 id: commentRef.id,
+//                 commentId: commentRef.id,
+//                 text,
+//                 authorUid: user.userId,
+//                 authorUsername: username,
+//                 authorAvatarUrl: avatarUrl,  
+//                 authorBadge: badge,
+//                 roomId,
+//                 createdAt: now,
+//             },
+//         });
+//     } catch (err) {
+//         const msg = err instanceof Error ? err.message : "Unexpected error";
+//         return NextResponse.json({ error: msg }, { status: 500 });
+//     }
+// }
+
+// async function resolveUserInfo(userId: string, name: string, email: string): Promise<{
+//     username: string;
+//     avatarUrl: string | null;
+//     badge: string | null;
+// }> {
+//     try {
+//         const snap = await db.collection("users").doc(userId).get();
+//         if (snap.exists) {
+//             const d = snap.data()!;
+//             return {
+//                 username: (d.username as string) || name || email.split("@")[0],
+//                 avatarUrl: (d.avatarUrl as string) ?? null,
+//                 badge: (d.badge as string) ?? null,
+//             };
+//         }
+//     } catch { }
+//     return { username: name || email.split("@")[0], avatarUrl: null, badge: null };
+// }
+
+
+
 
 // api/roar/rooms/[roomId]/messages/[msgId]/comments/route.ts
 
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/firebaseAdmin";
+import { FieldValue } from "firebase-admin/firestore";
+import { getUser } from "@/lib/getUser";
+import { getUserInfo } from "@/lib/userPoints";
+import { notifyRoomMessageComment } from "@/lib/roarNotifyHelpers";
+
+// Same resolution used by /rooms/[roomId]/messages — resolves the raw auth
+// uid/email down to the canonical `users/{actualUserId}` doc id. Comments
+// previously stored the raw `user.userId` as authorUid, which can diverge
+// from that resolved doc id (e.g. sanitized-email ids like
+// "henrique_henriqueccbneves_gmail_com"), so profile lookups from the reply
+// section 404'd for some users while post-level profile lookups (which
+// already went through this resolution) worked fine.
+async function resolveCommentAuthorId(userId: string, email: string): Promise<string> {
+    const info = await getUserInfo(userId, undefined, email);
+    return info.exists ? info.actualUserId : userId;
+}
+
+// ─── GET ──────────────────────────────────────────────────────────────────────
 export async function GET(
     req: NextRequest,
     { params }: { params: { roomId: string; msgId: string } }
@@ -114,7 +224,8 @@ export async function POST(
         const text: string = (body.text ?? "").trim();
         if (!text) return NextResponse.json({ error: "text is required" }, { status: 400 });
 
-        const { username, avatarUrl, badge } = await resolveUserInfo(user.userId, user.name, user.email);
+        const resolvedAuthorId = await resolveCommentAuthorId(user.userId, user.email);
+        const { username, avatarUrl, badge } = await resolveUserInfo(resolvedAuthorId, user.name, user.email);
         const now = Date.now();
 
         const commentRef = db
@@ -128,7 +239,7 @@ export async function POST(
         await commentRef.set({
             commentId: commentRef.id,
             text,
-            authorUid: user.userId,
+            authorUid: resolvedAuthorId,
             authorEmail: user.email,
             authorUsername: username,
             authorAvatarUrl: avatarUrl,
@@ -146,7 +257,7 @@ export async function POST(
             .catch(() => { });
 
         // Notify post author
-        notifyRoomMessageComment(roomId, msgId, user.userId, user.email, username, text.slice(0, 80)).catch(() => { });
+        notifyRoomMessageComment(roomId, msgId, resolvedAuthorId, user.email, username, text.slice(0, 80)).catch(() => { });
 
         return NextResponse.json({
             success: true,
@@ -155,9 +266,9 @@ export async function POST(
                 id: commentRef.id,
                 commentId: commentRef.id,
                 text,
-                authorUid: user.userId,
+                authorUid: resolvedAuthorId,
                 authorUsername: username,
-                authorAvatarUrl: avatarUrl,  
+                authorAvatarUrl: avatarUrl,
                 authorBadge: badge,
                 roomId,
                 createdAt: now,
