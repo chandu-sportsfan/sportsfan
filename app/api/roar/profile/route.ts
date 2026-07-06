@@ -269,6 +269,13 @@ import { getUserInfo } from "@/lib/userPoints";
 import type { User } from "@/app/models/RoarUser";
 import type { BadgeProgress } from "@/app/models/BadgeProgress";
 import type { Post } from "@/app/models/Post";
+import {
+  getGlobalTier,
+  getGlobalTierProgress,
+  getAllFeatureBadges,
+  getSpecialBadges,
+  FeatureKey,
+} from "@/lib/roarBadges";
 
 // ── Canonical doc resolution ───────────────────────────────────────────────
 // Priority flipped from doc(email)-first to doc(userId)-first.
@@ -425,8 +432,12 @@ export async function GET(req: NextRequest) {
     //   return NextResponse.json({ error: "ROAR profile not onboarded", onboarded: false }, { status: 404 });
     // }
 
-    const [badgesSnap, postsSnap, rivalSnap] = await Promise.all([
-      db.collection("roarBadges").doc(resolvedUserId).collection("roarProgress").get(),
+    // const [badgesSnap, postsSnap, rivalSnap] = await Promise.all([
+    //   db.collection("roarBadges").doc(resolvedUserId).collection("roarProgress").get(),
+    //   db.collection("roarPosts").where("authorUid", "==", resolvedUserId).get(),
+    //   db.collection("rivals").doc(resolvedUserId).get(),
+    // ]);
+    const [postsSnap, rivalSnap] = await Promise.all([
       db.collection("roarPosts").where("authorUid", "==", resolvedUserId).get(),
       db.collection("rivals").doc(resolvedUserId).get(),
     ]);
@@ -439,6 +450,36 @@ export async function GET(req: NextRequest) {
 
     const allPosts = postsSnap.docs.map((d) => ({ ...(d.data() as Post), postId: d.id }));
     const sortedPosts = allPosts.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
+
+    const actCounts = userData.activityCounts ?? {};
+
+  const featureCounts: Partial<Record<FeatureKey, number>> = {
+  post:        actCounts.ROAR_POST ?? 0,
+  debate:      actCounts.ROAR_DEBATE_PARTICIPATE ?? 0,
+  prediction:  actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0,
+  trivia:      actCounts.ROAR_TRIVIA_CORRECT ?? 0,       // fixed: was ROAR_QUIZ
+  fanBattle:   actCounts.ROAR_BATTLE_PARTICIPATE ?? 0,    // fixed: was ROAR_FAN_BATTLE_PARTICIPATE
+  community:   actCounts.likesReceived ?? 0,              // not tracked yet — see below
+  shares:      actCounts.ROAR_SHARE ?? 0,                 // not tracked yet — see below
+  comments:    actCounts.ROAR_COMMENT ?? 0,               // not tracked yet — see below
+  media:       actCounts.ROAR_MEDIA_UPLOAD ?? 0,          // not tracked yet — see below
+};
+
+    const featureBadges = getAllFeatureBadges(featureCounts);
+
+    const globalXp = userData.totalPoints ?? userData.reputationScore ?? 0;
+    const globalTier = getGlobalTier(globalXp);
+    const globalTierProgress = getGlobalTierProgress(globalXp);
+
+    const specialBadges = getSpecialBadges(
+      {
+        longestStreak: userData.longestStreak ?? userData.currentStreak ?? 0,
+        hasViralPost: userData.hasViralPost ?? false,      // wire up when viral-post tracking exists
+        hasSeasonTop100: userData.hasSeasonTop100 ?? false, // wire up when seasons exist
+        hasSeasonTop3: userData.hasSeasonTop3 ?? false,
+      },
+      featureBadges
+    );
 
     return NextResponse.json({
       success: true,
@@ -454,7 +495,11 @@ export async function GET(req: NextRequest) {
         about: userData.about ?? null,
         avatarUrl: userData.avatarUrl ?? null,
       },
-      badges: badgesSnap.docs.map((d) => ({ ...d.data(), badgeId: d.id })),
+      // badges: badgesSnap.docs.map((d) => ({ ...d.data(), badgeId: d.id })),
+      globalTier,            // { tier, tierLevel, subRank, label, min, max }
+      globalTierProgress,    // 0-100
+      featureBadges,          // FeatureBadgeState[] — 9 entries
+      specialBadges,
       predictions: sortedPosts.filter((p: any) => p.type === "prediction").slice(0, 20),
       hotTakes: sortedPosts.filter((p: any) => p.type === "hot_take").slice(0, 10),
       rival: rivalSnap.exists ? rivalSnap.data() : null,

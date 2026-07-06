@@ -185,6 +185,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getUser } from "@/lib/getUser";
 import { getUserInfo } from "@/lib/userPoints";
 import { notifyPostReaction, notifyRoomMessageReaction } from "@/lib/roarNotifyHelpers";
+import { awardRoarPointsByReason } from "@/lib/roarPoints";
 
 type ReactionType = "heart" | "fire" | "mindblown" | "goat" | "clap" | "nochance" | string;
 
@@ -247,6 +248,7 @@ export async function POST(
     const reactions: Record<string, string> = data.reactions ?? {};
     const previousReaction = reactions[userId] ?? null;
     const isSameReaction = previousReaction === reaction;
+    const postOwnerId: string | undefined = data.authorUid;
 
     if (isSameReaction) {
       const newLikeCount = Math.max(0, (data.likeCount ?? 0) - 1);
@@ -256,6 +258,12 @@ export async function POST(
         [reactionCountField(previousReaction)]: Math.max(0, (data[reactionCountField(previousReaction)] ?? 0) - 1),
       });
       if (roomId) await targetRef.collection("likes").doc(userId).delete();
+      if (postOwnerId && postOwnerId !== userId) {
+        db.collection("users").doc(postOwnerId).set(
+          { [`activityCounts.likesReceived`]: FieldValue.increment(-1) },
+          { merge: true }
+        ).catch(() => { });
+      }
       return NextResponse.json({ success: true, action: "removed", reaction: null, likeCount: newLikeCount });
     }
 
@@ -278,6 +286,36 @@ export async function POST(
         reactedAt: Date.now(),
         userId,
       });
+    }
+
+
+
+    // ── 1. Reactor's own points (participation: React) ──────────────────────
+    // Only on a genuinely new reaction, not a switch or repeat of the same one.
+    if (!previousReaction) {
+      const info = await getUserInfo(user.userId, undefined, user.email);
+      awardRoarPointsByReason({
+        actualUserId: userId, // already resolved above
+        authUserId: user.userId,
+        userName: info.userName,
+        userEmail: user.email,
+        userExists: info.exists,
+        reason: "REACT",
+        points: 3, // §3 updated React value
+        transactionId: `react_${postId}_${userId}_${roomId ?? "post"}`,
+        metadata: { postId, roomId, reaction },
+      }).catch(() => { });
+    }
+
+    // ── 2. Post owner's Community-ladder counter (likes received) ───────────
+    // Separate write, separate doc — not something awardUserPoints touches.
+    // Only increment when this reaction is brand new (not a same-reaction
+    // toggle-off, and not a reaction-type switch, which is still "1 like" not 2).
+    if (postOwnerId && postOwnerId !== userId && !previousReaction) {
+      db.collection("users").doc(postOwnerId).set(
+        { [`activityCounts.likesReceived`]: FieldValue.increment(1) },
+        { merge: true }
+      ).catch(() => { });
     }
 
     // Fire notification non-blocking
@@ -330,6 +368,7 @@ export async function DELETE(
     const reactions: Record<string, string> = data.reactions ?? {};
     const previousReaction = reactions[userId] ?? null;
 
+
     if (!previousReaction) {
       return NextResponse.json({ success: true, action: "removed", reaction: null, likeCount: data.likeCount ?? 0 });
     }
@@ -341,6 +380,13 @@ export async function DELETE(
       [reactionCountField(previousReaction)]: Math.max(0, (data[reactionCountField(previousReaction)] ?? 0) - 1),
     });
     if (roomId) await targetRef.collection("likes").doc(userId).delete();
+    const postOwnerId: string | undefined = data.authorUid;
+    if (postOwnerId && postOwnerId !== userId) {
+      db.collection("users").doc(postOwnerId).set(
+        { [`activityCounts.likesReceived`]: FieldValue.increment(-1) },
+        { merge: true }
+      ).catch(() => { });
+    }
 
     return NextResponse.json({ success: true, action: "removed", reaction: null, likeCount: newLikeCount });
 

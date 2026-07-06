@@ -138,6 +138,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getUser } from "@/lib/getUser";
 import { getUserInfo } from "@/lib/userPoints";
 import { notifyRoomMessageComment } from "@/lib/roarNotifyHelpers";
+import { awardRoarPointsByReason } from "@/lib/roarPoints";
 
 // Same resolution used by /rooms/[roomId]/messages — resolves the raw auth
 // uid/email down to the canonical `users/{actualUserId}` doc id. Comments
@@ -224,7 +225,10 @@ export async function POST(
         const text: string = (body.text ?? "").trim();
         if (!text) return NextResponse.json({ error: "text is required" }, { status: 400 });
 
-        const resolvedAuthorId = await resolveCommentAuthorId(user.userId, user.email);
+        // const resolvedAuthorId = await resolveCommentAuthorId(user.userId, user.email);
+        // const { username, avatarUrl, badge } = await resolveUserInfo(resolvedAuthorId, user.name, user.email);
+        const info = await getUserInfo(user.userId, undefined, user.email);
+        const resolvedAuthorId = info.exists ? info.actualUserId : user.userId;
         const { username, avatarUrl, badge } = await resolveUserInfo(resolvedAuthorId, user.name, user.email);
         const now = Date.now();
 
@@ -247,6 +251,18 @@ export async function POST(
             createdAt: now,
             roomId,
         });
+
+        awardRoarPointsByReason({
+            actualUserId: resolvedAuthorId,
+            authUserId: user.userId,
+            userName: username,
+            userEmail: user.email,
+            userExists: info.exists,
+            reason: "ROAR_COMMENT",
+            points: 8, // §3 updated Comment value
+            transactionId: `comment_${commentRef.id}`,
+            metadata: { roomId, msgId, commentId: commentRef.id },
+        }).catch(() => { });
 
         // Increment replyCount on the message
         db.collection("roarRooms")
