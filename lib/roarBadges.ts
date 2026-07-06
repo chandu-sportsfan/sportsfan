@@ -97,7 +97,7 @@ export const FEATURE_LABELS: Record<FeatureKey, string[]> = {
 // exact filenames below are placeholders showing the expected pattern:
 // {feature}-l{level}.png
 export const FEATURE_ICONS: Record<FeatureKey, [string, string, string, string, string]> = {
-  post:       ["/images/badges/post-l1.png", "/images/badges/post-l2.png", "/images/badges/post-l3.png", "/images/badges/post-l4.png", "/images/badges/post-l5.png"],
+  post:       ["/images/badges/postl1.png", "/images/badges/postl2.png", "/images/badges/postl3.png", "/images/badges/postl4.png", "/images/badges/postl5.png"],
   debate:     ["/images/badges/debate-l1.png", "/images/badges/debate-l2.png", "/images/badges/debate-l3.png", "/images/badges/debate-l4.png", "/images/badges/debate-l5.png"],
   prediction: ["/images/badges/prediction-l1.png", "/images/badges/prediction-l2.png", "/images/badges/prediction-l3.png", "/images/badges/prediction-l4.png", "/images/badges/prediction-l5.png"],
   trivia:     ["/images/badges/trivia-l1.png", "/images/badges/trivia-l2.png", "/images/badges/trivia-l3.png", "/images/badges/trivia-l4.png", "/images/badges/trivia-l5.png"],
