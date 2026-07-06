@@ -40,12 +40,12 @@
 // //   let docRef = db.collection("users").doc(userId);
 // //   let snap = await docRef.get();
 // //   if (snap.exists) return { docRef, snap };
- 
+
 // //   // ── 2. Try raw email as doc ID (legacy users created before sanitization) ──
 // //   docRef = db.collection("users").doc(email);
 // //   snap = await docRef.get();
 // //   if (snap.exists) return { docRef, snap };
- 
+
 // //   // ── 3. Query by email field (catches any non-standard doc ID) ─────────────
 // //   // This is the same fallback getUserInfo() uses and is what finds users
 // //   // whose doc ID doesn't match the derived userId or raw email — e.g.
@@ -55,12 +55,12 @@
 // //     .where("email", "==", email)
 // //     .limit(1)
 // //     .get();
- 
+
 // //   if (!emailQuery.empty) {
 // //     const queryDoc = emailQuery.docs[0];
 // //     return { docRef: queryDoc.ref, snap: queryDoc };
 // //   }
- 
+
 // //   return null;
 // // }
 
@@ -120,10 +120,10 @@
 //   try {
 //     // console.log("[profile] cookies:", req.cookies.getAll()); // ← add this
 //     const user = await getUser(req);
-    
+
 //     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    
+
 //     const { searchParams } = new URL(req.url);
 //     const targetUserId = searchParams.get("userId");
 
@@ -302,12 +302,12 @@ async function resolveUserDoc(userId: string, email: string) {
 //   let docRef = db.collection("users").doc(userId);
 //   let snap = await docRef.get();
 //   if (snap.exists) return { docRef, snap };
- 
+
 //   // ── 2. Try raw email as doc ID (legacy users created before sanitization) ──
 //   docRef = db.collection("users").doc(email);
 //   snap = await docRef.get();
 //   if (snap.exists) return { docRef, snap };
- 
+
 //   // ── 3. Query by email field (catches any non-standard doc ID) ─────────────
 //   // This is the same fallback getUserInfo() uses and is what finds users
 //   // whose doc ID doesn't match the derived userId or raw email — e.g.
@@ -317,12 +317,12 @@ async function resolveUserDoc(userId: string, email: string) {
 //     .where("email", "==", email)
 //     .limit(1)
 //     .get();
- 
+
 //   if (!emailQuery.empty) {
 //     const queryDoc = emailQuery.docs[0];
 //     return { docRef: queryDoc.ref, snap: queryDoc };
 //   }
- 
+
 //   return null;
 // }
 
@@ -382,10 +382,10 @@ export async function GET(req: NextRequest) {
   try {
     // console.log("[profile] cookies:", req.cookies.getAll()); // ← add this
     const user = await getUser(req);
-    
+
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    
+
     const { searchParams } = new URL(req.url);
     const targetUserId = searchParams.get("userId");
 
@@ -508,6 +508,10 @@ export async function PATCH(req: NextRequest) {
     // showPredHistory
     if (body.showPredHistory !== undefined) {
       updates.showPredHistory = Boolean(body.showPredHistory);
+    }
+
+    if (body.showActivity !== undefined) {
+      updates.showActivity = Boolean(body.showActivity);
     }
 
     // standard passthrough fields
