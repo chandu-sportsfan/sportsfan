@@ -88,9 +88,24 @@ export const FEATURE_LABELS: Record<FeatureKey, string[]> = {
   media:       ["Photographer", "Story Creator", "Highlight Artist", "Content Pro", "Media Legend"],
 };
 
-export const FEATURE_ICONS: Record<FeatureKey, string> = {
-  post: "📝", debate: "🔥", prediction: "📊", trivia: "🧠", fanBattle: "⚔️",
-  community: "❤️", shares: "🔄", comments: "💬", media: "📸",
+// One icon per LEVEL (L1..L5) within each feature ladder. These are paths
+// under /public — Next.js serves anything in /public at the site root, so
+// a file at public/images/badges/post-l1.png is referenced here as
+// "/images/badges/post-l1.png" (no "public" in the path).
+//
+// Rename these to match whatever you actually dropped in /public — the
+// exact filenames below are placeholders showing the expected pattern:
+// {feature}-l{level}.png
+export const FEATURE_ICONS: Record<FeatureKey, [string, string, string, string, string]> = {
+  post:       ["/images/badges/post-l1.png", "/images/badges/post-l2.png", "/images/badges/post-l3.png", "/images/badges/post-l4.png", "/images/badges/post-l5.png"],
+  debate:     ["/images/badges/debate-l1.png", "/images/badges/debate-l2.png", "/images/badges/debate-l3.png", "/images/badges/debate-l4.png", "/images/badges/debate-l5.png"],
+  prediction: ["/images/badges/prediction-l1.png", "/images/badges/prediction-l2.png", "/images/badges/prediction-l3.png", "/images/badges/prediction-l4.png", "/images/badges/prediction-l5.png"],
+  trivia:     ["/images/badges/trivia-l1.png", "/images/badges/trivia-l2.png", "/images/badges/trivia-l3.png", "/images/badges/trivia-l4.png", "/images/badges/trivia-l5.png"],
+  fanBattle:  ["/images/badges/fanBattle-l1.png", "/images/badges/fanBattle-l2.png", "/images/badges/fanBattle-l3.png", "/images/badges/fanBattle-l4.png", "/images/badges/fanBattle-l5.png"],
+  community:  ["/images/badges/community-l1.png", "/images/badges/community-l2.png", "/images/badges/community-l3.png", "/images/badges/community-l4.png", "/images/badges/community-l5.png"],
+  shares:     ["/images/badges/shares-l1.png", "/images/badges/shares-l2.png", "/images/badges/shares-l3.png", "/images/badges/shares-l4.png", "/images/badges/shares-l5.png"],
+  comments:   ["/images/badges/comments-l1.png", "/images/badges/comments-l2.png", "/images/badges/comments-l3.png", "/images/badges/comments-l4.png", "/images/badges/comments-l5.png"],
+  media:      ["/images/badges/media-l1.png", "/images/badges/media-l2.png", "/images/badges/media-l3.png", "/images/badges/media-l4.png", "/images/badges/media-l5.png"],
 };
 
 // PLACEHOLDER THRESHOLDS — the doc names each level but doesn't give exact
@@ -136,9 +151,15 @@ export function getFeatureBadgeState(feature: FeatureKey, count: number): Featur
     ? Math.max(0, Math.min(100, Math.round(((safeCount - prevThreshold) / (nextThreshold - prevThreshold)) * 100)))
     : 100;
 
+  // Locked (level 0) badges show the L1 icon dimmed/greyscaled in the UI
+  // (handled by Profile.tsx's `filter: grayscale` on fb.level === 0), so we
+  // still return the L1 icon as a preview of "what you're working toward" —
+  // index by `level - 1`, clamped to 0 when not yet unlocked.
+  const iconIndex = Math.max(0, level - 1);
+
   return {
     feature,
-    icon: FEATURE_ICONS[feature],
+    icon: FEATURE_ICONS[feature][iconIndex],
     count: safeCount,
     level,
     label: level > 0 ? labels[level - 1] : labels[0],
