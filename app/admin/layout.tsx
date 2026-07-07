@@ -588,6 +588,12 @@ const FULL_NAV: NavGroup[] = [
           { href: "/admin/users/signups", label: "Signups" },
         ],
       },
+      {
+        label: "Points & Rewards", icon: "🪙",
+        children: [
+          { href: "/admin/points-management", label: "Points & Rules Config" },
+        ],
+      },
     ],
   },
   {
