@@ -98,14 +98,14 @@ export const FEATURE_LABELS: Record<FeatureKey, string[]> = {
 // {feature}-l{level}.png
 export const FEATURE_ICONS: Record<FeatureKey, [string, string, string, string, string]> = {
   post:       ["/images/badges/postl1.png", "/images/badges/postl2.png", "/images/badges/postl3.png", "/images/badges/postl4.png", "/images/badges/postl5.png"],
-  debate:     ["/images/badges/debate-l1.png", "/images/badges/debate-l2.png", "/images/badges/debate-l3.png", "/images/badges/debate-l4.png", "/images/badges/debate-l5.png"],
-  prediction: ["/images/badges/prediction-l1.png", "/images/badges/prediction-l2.png", "/images/badges/prediction-l3.png", "/images/badges/prediction-l4.png", "/images/badges/prediction-l5.png"],
-  trivia:     ["/images/badges/trivia-l1.png", "/images/badges/trivia-l2.png", "/images/badges/trivia-l3.png", "/images/badges/trivia-l4.png", "/images/badges/trivia-l5.png"],
-  fanBattle:  ["/images/badges/fanBattle-l1.png", "/images/badges/fanBattle-l2.png", "/images/badges/fanBattle-l3.png", "/images/badges/fanBattle-l4.png", "/images/badges/fanBattle-l5.png"],
-  community:  ["/images/badges/community-l1.png", "/images/badges/community-l2.png", "/images/badges/community-l3.png", "/images/badges/community-l4.png", "/images/badges/community-l5.png"],
-  shares:     ["/images/badges/shares-l1.png", "/images/badges/shares-l2.png", "/images/badges/shares-l3.png", "/images/badges/shares-l4.png", "/images/badges/shares-l5.png"],
-  comments:   ["/images/badges/comments-l1.png", "/images/badges/comments-l2.png", "/images/badges/comments-l3.png", "/images/badges/comments-l4.png", "/images/badges/comments-l5.png"],
-  media:      ["/images/badges/media-l1.png", "/images/badges/media-l2.png", "/images/badges/media-l3.png", "/images/badges/media-l4.png", "/images/badges/media-l5.png"],
+  debate:     ["/images/badges/debatel1.png", "/images/badges/debatel2.png", "/images/badges/debatel3.png", "/images/badges/debatel4.png", "/images/badges/debatel5.png"],
+  prediction: ["/images/badges/predictionl1.png", "/images/badges/predictionl2.png", "/images/badges/predictionl3.png", "/images/badges/predictionl4.png", "/images/badges/predictionl5.png"],
+  trivia:     ["/images/badges/trivial1.png", "/images/badges/trivial2.png", "/images/badges/trivial3.png", "/images/badges/trivial4.png", "/images/badges/trivial5.png"],
+  fanBattle:  ["/images/badges/fanBattlel1.png", "/images/badges/fanBattlel2.png", "/images/badges/fanBattlel3.png", "/images/badges/fanBattlel4.png", "/images/badges/fanBattlel5.png"],
+  community:  ["/images/badges/communityl1.png", "/images/badges/communityl2.png", "/images/badges/communityl3.png", "/images/badges/communityl4.png", "/images/badges/communityl5.png"],
+  shares:     ["/images/badges/sharesl1.png", "/images/badges/sharesl2.png", "/images/badges/sharesl3.png", "/images/badges/sharesl4.png", "/images/badges/sharesl5.png"],
+  comments:   ["/images/badges/commentsl1.png", "/images/badges/commentsl2.png", "/images/badges/commentsl3.png", "/images/badges/commentsl4.png", "/images/badges/commentsl5.png"],
+  media:      ["/images/badges/medial1.png", "/images/badges/medial2.png", "/images/badges/medial3.png", "/images/badges/medial4.png", "/images/badges/medial5.png"],
 };
 
 // PLACEHOLDER THRESHOLDS — the doc names each level but doesn't give exact
