@@ -7,9 +7,18 @@
 //
 // Source: SportsFan360 ROAR Reputation & Rewards System doc, sections 1, 2, 12.
 
-// ─────────────────────────────────────────────────────────────────────────
+// 
 // 1. GLOBAL REPUTATION (§1)
-// ─────────────────────────────────────────────────────────────────────────
+
+export const GLOBAL_TIER_ICONS: Record<string, string> = {
+  Spark:  "/images/badges/globalspark.png",
+  Chant:  "/images/badges/globalchant.png",
+  Roar:   "/images/badges/globalroar.png",
+  Storm:  "/images/badges/globalstorm.png",
+  Legend: "/images/badges/globallegend.png",
+  Icon:   "/images/badges/globalicon.png",
+  GOAT:   "/images/badges/globalgoat.png",
+};
 
 export interface GlobalTier {
   tier: string;       // "Spark" | "Chant" | ... | "GOAT"
@@ -17,7 +26,8 @@ export interface GlobalTier {
   subRank: number;    // 1..3, or 0 for GOAT (no sub-ranks)
   label: string;      // "Storm II"
   min: number;
-  max: number;         // Infinity for GOAT
+  max: number;     
+icon: string;    // Infinity for GOAT
 }
 
 // [tierName, tierLevel, minXP, maxXP-exclusive-or-Infinity]
@@ -36,9 +46,10 @@ export function getGlobalTier(xp: number): GlobalTier {
   const found = GLOBAL_TIERS.find(([, , min, max]) => safeXp >= min && safeXp < max)
     ?? GLOBAL_TIERS[GLOBAL_TIERS.length - 1];
   const [tier, tierLevel, min, max] = found;
+  const icon = GLOBAL_TIER_ICONS[tier];
 
   if (tier === "GOAT") {
-    return { tier, tierLevel, subRank: 0, label: "GOAT", min, max };
+    return { tier, tierLevel, subRank: 0, label: "GOAT", min, max, icon };
   }
 
   const span = max - min;
@@ -47,14 +58,12 @@ export function getGlobalTier(xp: number): GlobalTier {
   const subRank = Math.min(3, Math.floor(into / third) + 1);
 
   return {
-    tier,
-    tierLevel,
-    subRank,
+    tier, tierLevel, subRank,
     label: `${tier} ${["I", "II", "III"][subRank - 1]}`,
-    min,
-    max,
+    min, max, icon,
   };
 }
+
 
 // Progress (0-100) toward the *next* sub-rank (or next tier if at III / GOAT boundary).
 export function getGlobalTierProgress(xp: number): number {
