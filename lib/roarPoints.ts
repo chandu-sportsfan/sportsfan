@@ -12,6 +12,16 @@ export const ROAR_POINTS: Record<PostType | "post", number> = {
   quiz: 2,
 };
 
+// ─── Point values for non-post ROAR events ───────────────────────────────────
+// Legacy fallback points for event actions (points now loaded from pointRules dynamically)
+export const ROAR_EVENT_POINTS: Record<string, number> = {
+  ROAR_DEBATE_PARTICIPATE: 2,
+  ROAR_PREDICTION_PARTICIPATE: 2,
+  ROAR_TRIVIA_CORRECT: 2,
+  ROAR_BATTLE_PARTICIPATE: 2,
+};
+
+
 // ─── Reason key from post type ────────────────────────────────────────────────
 export function roarReasonFromType(type: PostType | "post"): string {
   const map: Record<PostType | "post", string> = {
