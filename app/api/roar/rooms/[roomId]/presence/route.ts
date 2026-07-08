@@ -53,7 +53,7 @@
 // //       .doc(roomId)
 // //       .collection("presence")
 // //       .doc(resolvedUserId);
-      
+
 
 // //     await presenceRef.set(
 // //       {
@@ -292,7 +292,7 @@ export async function POST(
 
     const roomRef = db.collection("roarRooms").doc(roomId);
     const presenceRef = roomRef.collection("presence").doc(resolvedUserId);
-    const joinedRef   = roomRef.collection("joinedUsers").doc(resolvedUserId);
+    const joinedRef = roomRef.collection("joinedUsers").doc(resolvedUserId);
     const pinRef = roomRef.collection("userPins").doc(resolvedUserId);
 
     const [joinedSnap, pinSnap] = await Promise.all([
@@ -327,18 +327,45 @@ export async function POST(
       });
     }
 
+    // const cutoff = Date.now() - PRESENCE_TTL_MS;
+    // const activeSnap = await presenceRef.parent
+    //   .where("lastSeenAt", ">=", cutoff)
+    //   .get();
+
+    // const roomSnap = await roomRef.get();
+    // const totalJoinCount = roomSnap.data()?.totalJoinCount ?? 0;
+
+    // return NextResponse.json({
+    //   success: true,
+    //   fanCount: activeSnap.size,
+    //   totalJoinCount,
+    //   pinnedPost: pinSnap.exists ? pinSnap.data() : null,
+    // });
     const cutoff = Date.now() - PRESENCE_TTL_MS;
     const activeSnap = await presenceRef.parent
       .where("lastSeenAt", ">=", cutoff)
+      .orderBy("lastSeenAt", "desc")
+      .limit(3)
       .get();
+
+    const fans = activeSnap.docs.map((d) => {
+      const data = d.data();
+      return {
+        uid: data.uid,
+        username: data.username,
+        avatarUrl: data.avatarUrl ?? null,
+        badge: data.badge ?? null,
+      };
+    });
 
     const roomSnap = await roomRef.get();
     const totalJoinCount = roomSnap.data()?.totalJoinCount ?? 0;
 
     return NextResponse.json({
       success: true,
-      fanCount: activeSnap.size,
+      fanCount: activeSnap.size, 
       totalJoinCount,
+      fans,
       pinnedPost: pinSnap.exists ? pinSnap.data() : null,
     });
   } catch (error: unknown) {
