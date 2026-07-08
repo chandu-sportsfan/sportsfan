@@ -1,3 +1,5 @@
+//app\test1\api\global-search//route.contract.ts
+
 export type SearchResult = {
   type: "player" | "team";
   id: string;
