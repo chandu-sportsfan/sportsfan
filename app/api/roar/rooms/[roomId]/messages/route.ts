@@ -1189,6 +1189,7 @@ export async function POST(
       matchTitle,
       triviaQuestions,
       battleQuestions,
+      clientMsgId,
     }: {
       text: string;
       type: MessageType;
@@ -1200,6 +1201,7 @@ export async function POST(
       closeAfterMinutes?: number;
       memGifUrl?: string;
       memTag?: string;
+      clientMsgId?: string;
       questions?: { question: string; options: { label: string; emoji: string }[] }[];
       matchTitle?: string;
       triviaQuestions?: {
@@ -1265,7 +1267,18 @@ export async function POST(
     const userData = userSnap.data() as { username: string; badge: string };
     const roomRef = db.collection("roarRooms").doc(roomId);
     const now = Date.now();
-    const msgRef = roomRef.collection("messages").doc();
+    // const msgRef = roomRef.collection("messages").doc();
+    const msgRef = clientMsgId
+      ? roomRef.collection("messages").doc(clientMsgId)
+      : roomRef.collection("messages").doc();
+
+    if (clientMsgId) {
+      const existing = await msgRef.get();
+      if (existing.exists) {
+        // Duplicate submit (double-tap / double-fire) — return the existing message instead of creating a second one.
+        return NextResponse.json({ success: true, msgId: msgRef.id, message: existing.data() });
+      }
+    }
     const normalizedCloseAfter = Number(closeAfterMinutes);
     const requestedClosesAt = Number(closesAt);
 
