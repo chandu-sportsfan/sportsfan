@@ -71,10 +71,13 @@ import type { RoomMessage } from "@/app/models/RoomMessage";
 // ── Room-level type counters (mirrors of fanCount) ────────────────────────────
 // Kept in sync with the POST route's increment so category badge counts
 // (Posts/Debates/Predictions) stay accurate after a message is deleted.
-const COUNT_FIELD_BY_TYPE: Partial<Record<string, "postCount" | "debateCount" | "predictionCount">> = {
+const COUNT_FIELD_BY_TYPE: Partial<Record<string, "postCount" | "debateCount" | "predictionCount" | "triviaCount" | "battleCount">> = {
   post: "postCount",
+  chat: "postCount",
   debate: "debateCount",
   prediction: "predictionCount",
+  trivia: "triviaCount",
+  battle: "battleCount",
 };
 
 export async function DELETE(
