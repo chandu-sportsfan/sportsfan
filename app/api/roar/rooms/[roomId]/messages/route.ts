@@ -1186,7 +1186,7 @@ export async function POST(
       memGifUrl,
       memTag,
       questions,
-      matchTitle,
+      matchTitle, matchStartAt, matchEndAt,
       triviaQuestions,
       battleQuestions,
       clientMsgId,
@@ -1203,7 +1203,7 @@ export async function POST(
       memTag?: string;
       clientMsgId?: string;
       questions?: { question: string; options: { label: string; emoji: string }[] }[];
-      matchTitle?: string;
+      matchTitle?: string; matchStartAt?: number; matchEndAt?: number
       triviaQuestions?: {
         question: string;
         timerSeconds?: number;
@@ -1338,6 +1338,8 @@ export async function POST(
       disagreeCount: 0,
       replyCount: 0,
       createdAt: now,
+      ...(matchStartAt && { matchStartAt }),
+      ...(matchEndAt && { matchEndAt }),
       ...(mediaUrls?.length && { mediaUrls }),
       ...(sideA && { sideA }),
       ...(sideB && { sideB }),

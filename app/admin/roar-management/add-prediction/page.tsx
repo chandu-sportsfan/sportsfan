@@ -28,6 +28,8 @@ interface PredictionsLiveForm {
   roomId: string;
   durationMinutes: number;
   questions: PollQuestion[];
+  matchStartTime: string;
+  matchEndTime: string;
 }
 
 interface ExistingPrediction {
@@ -37,6 +39,18 @@ interface ExistingPrediction {
   closesAt: number;
   createdAt: number;
   authorUsername?: string;
+}
+
+// IST helpers
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+function istLocalToTimestamp(localStr: string): number | null {
+  if (!localStr) return null;
+  const [datePart, timePart] = localStr.split("T");
+  if (!datePart || !timePart) return null;
+  const [y, mo, d] = datePart.split("-").map(Number);
+  const [h, mi] = timePart.split(":").map(Number);
+  return Date.UTC(y, mo - 1, d, h, mi) - IST_OFFSET_MS;
 }
 
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -300,7 +314,9 @@ function ExistingPredictionCard({ pred, roomId, onDeleted }: {
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function PredictionsLiveAdmin() {
   const [form, setForm] = useState<PredictionsLiveForm>({
-    matchTitle: "", roomId: "", durationMinutes: 108, questions: [makeQuestion()],
+    matchTitle: "", roomId: "", durationMinutes: 108,
+    matchStartTime: "", matchEndTime: "",
+    questions: [makeQuestion()],
   });
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -366,6 +382,11 @@ export default function PredictionsLiveAdmin() {
   const validate = (): string | null => {
     if (!form.matchTitle.trim()) return "Match title is required.";
     if (!form.roomId.trim()) return "Room is required.";
+    if (!form.matchStartTime) return "Match start time (IST) is required.";
+    if (!form.matchEndTime) return "Match end time (IST) is required.";
+    const start = istLocalToTimestamp(form.matchStartTime)!;
+    const end = istLocalToTimestamp(form.matchEndTime)!;
+    if (end <= start) return "Match end time must be after start time.";
     if (form.durationMinutes < 1) return "Timer must be at least 1 minute.";
     for (let i = 0; i < form.questions.length; i++) {
       const q = form.questions[i];
@@ -385,6 +406,8 @@ export default function PredictionsLiveAdmin() {
     setError(null);
     setSubmitting(true);
     try {
+      const start = istLocalToTimestamp(form.matchStartTime);
+      const end = istLocalToTimestamp(form.matchEndTime);
       const res = await fetch(`/api/roar/rooms/${form.roomId.trim()}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -392,6 +415,8 @@ export default function PredictionsLiveAdmin() {
           text: form.matchTitle.trim(),
           type: "predictions_live",
           matchTitle: form.matchTitle.trim(),
+          matchStartAt: start,
+          matchEndAt: end,
           questions: form.questions.map(q => ({
             question: q.question.trim(),
             options: q.options.map(o => ({ label: o.label.trim(), emoji: o.emoji })),
@@ -554,6 +579,31 @@ export default function PredictionsLiveAdmin() {
                         </div>
                       </div>
                       <p className="text-[11px] text-white/30 mt-2">Polls close and results show automatically after the timer expires</p>
+                    </div>
+
+                    <div className="bg-[rgba(18,18,28,0.7)] border border-white/[0.07] rounded-2xl p-4 flex flex-col gap-3">
+                      <p className="text-[12px] font-extrabold tracking-[0.06em] text-white/55 uppercase m-0 flex items-center gap-1.5">
+                        <Clock size={13} /> Match Time (IST)
+                      </p>
+                      <div className="flex gap-2.5">
+                        <div className="flex-1">
+                          <label className="block text-[11px] font-bold tracking-[0.06em] text-white/45 uppercase mb-2">
+                            Start <span className="text-[#f87171]">*</span>
+                          </label>
+                          <input type="datetime-local" value={form.matchStartTime}
+                            onChange={e => setForm(f => ({ ...f, matchStartTime: e.target.value }))}
+                            className="w-full bg-white/[0.04] border border-white/10 rounded-[10px] outline-none px-3 py-[9px] text-white text-[13px] box-border focus:border-[rgba(233,30,140,0.5)] transition-colors" required />
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-[11px] font-bold tracking-[0.06em] text-white/45 uppercase mb-2">
+                            End <span className="text-[#f87171]">*</span>
+                          </label>
+                          <input type="datetime-local" value={form.matchEndTime}
+                            onChange={e => setForm(f => ({ ...f, matchEndTime: e.target.value }))}
+                            className="w-full bg-white/[0.04] border border-white/10 rounded-[10px] outline-none px-3 py-[9px] text-white text-[13px] box-border focus:border-[rgba(233,30,140,0.5)] transition-colors" required />
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-white/30">Both times are IST. Predictions section opens by default before Start, and closes by default after Start (fans can still toggle manually).</p>
                     </div>
 
                     {/* Questions */}
