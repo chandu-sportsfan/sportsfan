@@ -435,6 +435,12 @@ function getFeatureCategory(reason: string): string {
     ROAR_PREDICTION_PARTICIPATE: "prediction_participate",
     ROAR_TRIVIA_CORRECT: "trivia",
     ROAR_BATTLE_PARTICIPATE: "battles",
+      ROAR_POST: "post",
+    ROAR_HOT_TAKE: "post",
+    ROAR_DEBATE: "debate",
+    ROAR_PREDICTION: "predictions",
+    ROAR_RAW_REACTIONS: "post",
+    ROAR_QUIZ: "trivia",
   };
   return map[reason] || "";
 }
