@@ -136,7 +136,7 @@
 //         favPlayer: userData.favPlayer ?? null,
 //         about: userData.about ?? null,
 //         avatarUrl: userData.avatarUrl ?? null,
-        
+
 //         // New Gamification Fields (Service 2 - dynamic lookup parameters)
 //         totalXP: userData.totalXP ?? globalXp,
 //         totalPoints: userData.totalPoints ?? globalXp,
@@ -316,18 +316,34 @@ export async function GET(req: NextRequest) {
     const allPosts = postsSnap.docs.map((d) => ({ ...(d.data() as Post), postId: d.id }));
     const sortedPosts = allPosts.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
 
-    const actCounts = userData.activityCounts ?? {};
+    // const actCounts = userData.activityCounts ?? {};
+    const liveFeatureStats = userData.featureStats ?? {};
+    const actCounts = {
+      ROAR_POST: liveFeatureStats.post ?? userData.activityCounts?.ROAR_POST ?? 0,
+      ROAR_DEBATE: liveFeatureStats.debate ?? userData.activityCounts?.ROAR_DEBATE ?? 0,
+      ROAR_PREDICTION: liveFeatureStats.predictions ?? userData.activityCounts?.ROAR_PREDICTION ?? 0,
+      ROAR_DEBATE_PARTICIPATE: liveFeatureStats.debate_participate ?? userData.activityCounts?.ROAR_DEBATE_PARTICIPATE ?? 0,
+      ROAR_PREDICTION_PARTICIPATE: liveFeatureStats.prediction_participate ?? userData.activityCounts?.ROAR_PREDICTION_PARTICIPATE ?? 0,
+      ROAR_QUIZ: liveFeatureStats.trivia ?? userData.activityCounts?.ROAR_QUIZ ?? 0,
+
+      ROAR_TRIVIA_CORRECT: liveFeatureStats.trivia ?? userData.activityCounts?.ROAR_TRIVIA_CORRECT ?? 0,
+      ROAR_BATTLE_PARTICIPATE: liveFeatureStats.battles ?? userData.activityCounts?.ROAR_BATTLE_PARTICIPATE ?? 0,
+      ROAR_SHARE: liveFeatureStats.shares ?? userData.activityCounts?.ROAR_SHARE ?? 0,
+      ROAR_COMMENT: liveFeatureStats.comments ?? userData.activityCounts?.ROAR_COMMENT ?? 0,
+      ROAR_MEDIA_UPLOAD: liveFeatureStats.media ?? userData.activityCounts?.ROAR_MEDIA_UPLOAD ?? 0,
+      likesReceived: userData.activityCounts?.likesReceived ?? 0,
+    };
 
     const featureCounts: Partial<Record<FeatureKey, number>> = {
-      post:        actCounts.ROAR_POST ?? 0,
-      debate:      actCounts.ROAR_DEBATE_PARTICIPATE ?? 0,
-      prediction:  actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0,
-      trivia:      actCounts.ROAR_TRIVIA_CORRECT ?? 0,       
-      fanBattle:   actCounts.ROAR_BATTLE_PARTICIPATE ?? 0,    
-      community:   actCounts.likesReceived ?? 0,              
-      shares:      actCounts.ROAR_SHARE ?? 0,                 
-      comments:    actCounts.ROAR_COMMENT ?? 0,               
-      media:       actCounts.ROAR_MEDIA_UPLOAD ?? 0,          
+      post: actCounts.ROAR_POST ?? 0,
+      debate: actCounts.ROAR_DEBATE_PARTICIPATE ?? 0,
+      prediction: actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0,
+      trivia: actCounts.ROAR_TRIVIA_CORRECT ?? 0,
+      fanBattle: actCounts.ROAR_BATTLE_PARTICIPATE ?? 0,
+      community: actCounts.likesReceived ?? 0,
+      shares: actCounts.ROAR_SHARE ?? 0,
+      comments: actCounts.ROAR_COMMENT ?? 0,
+      media: actCounts.ROAR_MEDIA_UPLOAD ?? 0,
     };
 
     const featureBadges = getAllFeatureBadges(featureCounts);
@@ -350,8 +366,8 @@ export async function GET(req: NextRequest) {
     const specialBadges = getSpecialBadges(
       {
         longestStreak: userData.longestStreak ?? userData.currentStreak ?? 0,
-        hasViralPost: userData.hasViralPost ?? false,      
-        hasSeasonTop100: userData.hasSeasonTop100 ?? false, 
+        hasViralPost: userData.hasViralPost ?? false,
+        hasSeasonTop100: userData.hasSeasonTop100 ?? false,
         hasSeasonTop3: userData.hasSeasonTop3 ?? false,
       },
       featureBadges
@@ -373,7 +389,7 @@ export async function GET(req: NextRequest) {
         avatarUrl: userData.avatarUrl ?? null,
         // LinkedIn-style optional cover/banner photo shown behind the avatar.
         coverPhotoUrl: userData.coverPhotoUrl ?? null,
-        
+
         // New Gamification Fields (Service 2 - dynamic lookup parameters)
         totalXP: userData.totalXP ?? globalXp,
         totalPoints: userData.totalPoints ?? globalXp,
@@ -387,8 +403,8 @@ export async function GET(req: NextRequest) {
         featureLevels: userData.featureLevels ?? {},
         isCompletionist: userData.isCompletionist ?? false
       },
-      globalTier: legacyGlobalTier,            
-      globalTierProgress,    
+      globalTier: legacyGlobalTier,
+      globalTierProgress,
       featureBadges: featureBadgesWithIcons,   // includes icons[] per feature
       specialBadges,
       predictions: sortedPosts.filter((p: any) => p.type === "prediction").slice(0, 20),
