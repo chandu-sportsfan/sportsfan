@@ -430,7 +430,11 @@ function getFeatureCategory(reason: string): string {
     AMA_JOIN: "ama",
     BOOK_PLAYER_SESSION: "player_sessions",
     LISTEN_AUDIO_DROP: "drops",
-    WATCH_VIDEO_DROP: "drops"
+    WATCH_VIDEO_DROP: "drops",
+    ROAR_DEBATE_PARTICIPATE: "debate_participate",
+    ROAR_PREDICTION_PARTICIPATE: "prediction_participate",
+    ROAR_TRIVIA_CORRECT: "trivia",
+    ROAR_BATTLE_PARTICIPATE: "battles",
   };
   return map[reason] || "";
 }
