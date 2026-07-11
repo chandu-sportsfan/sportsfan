@@ -401,7 +401,8 @@ export async function GET(req: NextRequest) {
         streakFreezeCount: userData.streakFreezeCount ?? 0,
         featureStats: userData.featureStats ?? {},
         featureLevels: userData.featureLevels ?? {},
-        isCompletionist: userData.isCompletionist ?? false
+        isCompletionist: userData.isCompletionist ?? false,
+         activityCounts: actCounts,
       },
       globalTier: legacyGlobalTier,
       globalTierProgress,
