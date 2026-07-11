@@ -1389,6 +1389,7 @@ export async function POST(
         postId: msgRef.id,
         roomId,
         type,
+        statement: text.trim(),
         ...(sideA && { sideA }),
         ...(sideB && { sideB }),
         ...(type === "prediction" && Array.isArray(predictionOptions) && {

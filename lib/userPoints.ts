@@ -725,7 +725,8 @@ export async function awardUserPoints({
       const activityLogRef = userRef.collection("activityLog").doc(transactionId);
       transaction.set(activityLogRef, {
         type: reason,
-        label: metadata?.label ?? reason,
+        // label: metadata?.label ?? reason,
+         label: metadata?.statement ?? metadata?.label ?? reason,
         points: finalTotalXPGained,
         metadata: metadata ?? {},
         roomId: metadata?.roomId ?? null,
