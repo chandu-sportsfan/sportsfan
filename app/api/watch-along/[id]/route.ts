@@ -117,7 +117,7 @@ export async function PUT(req: NextRequest) {
     const updates: Record<string, unknown> = { updatedAt: Date.now() };
 
     // Only update fields that were actually sent
-    const fields = ["name", "role", "badge", "badgeColor", "borderColor", "watching", "engagement", "active", "hostUserId", "coHostUserId"];
+    const fields = ["name", "role", "badge", "badgeColor", "borderColor", "watching", "engagement", "active", "hostUserId", "coHostUserId", "sport"];
     for (const field of fields) {
       const val = formData.get(field);
       if (val !== null) {

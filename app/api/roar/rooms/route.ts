@@ -137,12 +137,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const roomRef = db.collection("roarRooms").doc();
-    
-    let watchAlongRoomId = "";
-
-    // Unidirectional sync: Create a corresponding Watchalong Commentary Room (excluding the permanent Infinity Room and only if requested)
-    if (name.trim() !== "SF360 Infinity Room" && createWatchAlong === true) {
+    if (createWatchAlong === true) {
       try {
         // 1. Create a matching Match record
         const matchRef = await db.collection("watchAlongMatches").add({
@@ -159,7 +154,7 @@ export async function POST(req: NextRequest) {
           .toUpperCase()
           .slice(0, 2);
 
-        // 3. Create the watchAlongRoom document linked to the ROAR room
+        // 3. Create the watchAlongRoom document ONLY
         const watchAlongRoomData = {
           name: name.trim(),
           role: "Host",
@@ -175,39 +170,39 @@ export async function POST(req: NextRequest) {
           liveMatchId: matchRef.id,
           hostUserId: user.email || user.userId || null,
           coHostUserId: null,
-          roarRoomId: roomRef.id,
           createdAt: Date.now(),
           updatedAt: Date.now(),
         };
 
         const watchAlongRef = await db.collection("watchAlongRooms").add(watchAlongRoomData);
-        watchAlongRoomId = watchAlongRef.id;
+        return NextResponse.json({ success: true, watchAlongRoomId: watchAlongRef.id });
       } catch (err) {
-        console.error("Failed to auto-create corresponding Watchalong Room during ROAR room creation:", err);
+        console.error("Failed to create Watchalong Room:", err);
+        return NextResponse.json({ error: "Failed to create Watchalong Room" }, { status: 500 });
       }
+    } else {
+      // Create ONLY ROAR room
+      const roomRef = db.collection("roarRooms").doc();
+      const newRoom: ChatRoom & { matchId?: string } = {
+        roomId: roomRef.id,
+        name: name.trim(),
+        sport: sport || "general",
+        createdAt: Date.now(),
+        isActive: isActive !== undefined ? Boolean(isActive) : true,
+        fanCount: 0,
+        ...(icon && { icon }),
+        ...(description && { description: description.trim() }),
+        ...(scheduledStartTime && {
+          scheduledStartTime: Number(scheduledStartTime),
+        }),
+        ...(score && { score }),
+        ...(scoreSubtitle && { scoreSubtitle }),
+        ...(matchId && { matchId }),
+      };
+
+      await roomRef.set(newRoom);
+      return NextResponse.json({ success: true, room: newRoom });
     }
-
-    const newRoom: ChatRoom & { matchId?: string } = {
-      roomId: roomRef.id,
-      name: name.trim(),
-      sport: sport || "general",
-      createdAt: Date.now(),
-      isActive: isActive !== undefined ? Boolean(isActive) : true,
-      fanCount: 0,
-      ...(icon && { icon }),
-      ...(description && { description: description.trim() }),
-      ...(scheduledStartTime && {
-        scheduledStartTime: Number(scheduledStartTime),
-      }),
-      ...(score && { score }),
-      ...(scoreSubtitle && { scoreSubtitle }),
-      ...(watchAlongRoomId && { watchAlongRoomId }),
-      ...(matchId && { matchId }),
-    };
-
-    await roomRef.set(newRoom);
-
-    return NextResponse.json({ success: true, room: newRoom });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
     console.error("POST /api/roar/rooms error:", error);

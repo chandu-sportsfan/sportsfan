@@ -58,7 +58,11 @@ export default function AddRoarForm() {
         createWatchAlong,
         matchId: selectedMatchId || undefined,
       });
-      router.push('/admin/roar-management/roar-list');
+      if (createWatchAlong) {
+        router.push('/admin/watchalong-management/watchalong-list');
+      } else {
+        router.push('/admin/roar-management/roar-list');
+      }
     } catch (error: any) {
       console.error('Failed to create show', error);
       const errorMsg = error.response?.data?.error || error.message || 'Unknown error';
@@ -192,7 +196,7 @@ export default function AddRoarForm() {
             className="w-4 h-4 rounded text-blue-600 border-[#30363d] focus:ring-blue-500 bg-[#161b22] cursor-pointer"
           />
           <label htmlFor="createWatchAlong" className="text-sm font-semibold text-gray-300 cursor-pointer select-none">
-            Create matching Watchalong commentary room
+            Create as Watchalong Room (Audio/Video Support)
           </label>
         </div>
 

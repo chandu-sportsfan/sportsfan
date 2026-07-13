@@ -245,6 +245,19 @@ async function resolveUser(
   return { id: info.actualUserId, snap };
 }
 
+async function getRoomRef(roomId: string) {
+  let roomRef = db.collection("roarRooms").doc(roomId);
+  let snap = await roomRef.get();
+  if (!snap.exists) {
+    const fallbackRef = db.collection("watchAlongRooms").doc(roomId);
+    const fallbackSnap = await fallbackRef.get();
+    if (fallbackSnap.exists) {
+      roomRef = fallbackRef;
+    }
+  }
+  return roomRef;
+}
+
 // Fetches the full active-presence set for a room (TTL-filtered, no
 // `.limit()`) and maps it to FanRecord[] for buildPresencePayload. Both
 // POST and GET call this exact function so fanCount/fans can't diverge
@@ -252,13 +265,11 @@ async function resolveUser(
 // a `.limit()` before counting (that was the bug: the old POST query
 // capped fanCount at 3 by limiting before reading `.size`).
 async function fetchActiveFanRecords(
-  roomId: string,
+  roomRef: FirebaseFirestore.DocumentReference,
   now: number,
 ): Promise<FanRecord[]> {
   const cutoff = now - PRESENCE_TTL_MS;
-  const snap = await db
-    .collection("roarRooms")
-    .doc(roomId)
+  const snap = await roomRef
     .collection("presence")
     .where("lastSeenAt", ">=", cutoff)
     .get();
@@ -292,7 +303,7 @@ export async function POST(
     const { id: resolvedUserId, snap: userSnap } = resolved;
     const userData = userSnap.data() as { username: string; badge?: string; avatarUrl?: string };
 
-    const roomRef = db.collection("roarRooms").doc(roomId);
+    const roomRef = await getRoomRef(roomId);
     const presenceRef = roomRef.collection("presence").doc(resolvedUserId);
     const joinedRef = roomRef.collection("joinedUsers").doc(resolvedUserId);
     const pinRef = roomRef.collection("userPins").doc(resolvedUserId);
@@ -326,12 +337,14 @@ export async function POST(
           firstJoinedAt: now,
         });
 
-        tx.set(roomRef, { totalJoinCount: prev + 1 }, { merge: true });
+        if (roomSnap.exists) {
+          tx.set(roomRef, { totalJoinCount: prev + 1 }, { merge: true });
+        }
       });
     }
 
     const [activeRecords, roomSnap] = await Promise.all([
-      fetchActiveFanRecords(roomId, now),
+      fetchActiveFanRecords(roomRef, now),
       roomRef.get(),
     ]);
     const totalJoinCount = roomSnap.data()?.totalJoinCount ?? 0;
@@ -363,9 +376,8 @@ export async function DELETE(
       return NextResponse.json({ error: "User profile not found" }, { status: 404 });
     }
 
-    await db
-      .collection("roarRooms")
-      .doc(roomId)
+    const roomRef = await getRoomRef(roomId);
+    await roomRef
       .collection("presence")
       .doc(resolved.id)
       .delete();
@@ -393,12 +405,13 @@ export async function GET(
 
     const now = Date.now();
     const resolved = await resolveUser(user.email, user.userId);
+    const roomRef = await getRoomRef(roomId);
 
     const [activeRecords, roomSnap, pinSnap] = await Promise.all([
-      fetchActiveFanRecords(roomId, now),
-      db.collection("roarRooms").doc(roomId).get(),
+      fetchActiveFanRecords(roomRef, now),
+      roomRef.get(),
       resolved
-        ? db.collection("roarRooms").doc(roomId).collection("userPins").doc(resolved.id).get()
+        ? roomRef.collection("userPins").doc(resolved.id).get()
         : Promise.resolve(null),
     ]);
 

@@ -913,15 +913,24 @@ export async function GET(
     }
     const resolvedUserId = resolved.id;
 
-    const roomRef = db.collection("roarRooms").doc(roomId);
+    let roomRef = db.collection("roarRooms").doc(roomId);
+    let roomSnap = await roomRef.get();
+    let isWatchalongFallback = false;
+
+    if (!roomSnap.exists) {
+      roomRef = db.collection("watchAlongRooms").doc(roomId);
+      roomSnap = await roomRef.get();
+      if (!roomSnap.exists) {
+        return NextResponse.json({ error: "Room not found" }, { status: 404 });
+      }
+      isWatchalongFallback = true;
+    }
+
     // Fetched in parallel with the messages query below — used only to read
     // postCount/debateCount/predictionCount for the category badge counts.
-    const roomSnapPromise = roomRef.get();
+    const roomSnapPromise = Promise.resolve(roomSnap);
 
-    const messagesRef = db
-      .collection("roarRooms")
-      .doc(roomId)
-      .collection("messages");
+    const messagesRef = roomRef.collection("messages");
 
     let query = messagesRef.orderBy("createdAt", "desc").limit(limit);
 
@@ -1133,8 +1142,8 @@ export async function GET(
     const lastDoc = snapshot.docs[snapshot.docs.length - 1];
     const lastMsg = messages[messages.length - 1];
 
-    const roomSnap = await roomSnapPromise;
-    const roomData = roomSnap.exists ? (roomSnap.data() as any) : null;
+    const finalRoomSnap = await roomSnapPromise;
+    const roomData = finalRoomSnap.exists ? (finalRoomSnap.data() as any) : null;
 
     return NextResponse.json({
       success: true,
@@ -1251,13 +1260,18 @@ export async function POST(
     }
 
     // ── Resolve user + room in parallel ───────────────────────────────────────
-    const [resolved, roomSnap] = await Promise.all([
+    let [resolved, roomSnap] = await Promise.all([
       resolveUser(user.email, user.userId),
       db.collection("roarRooms").doc(roomId).get(),
     ]);
 
+    let isWatchalongFallback = false;
     if (!roomSnap.exists) {
-      return NextResponse.json({ error: "Room not found" }, { status: 404 });
+      roomSnap = await db.collection("watchAlongRooms").doc(roomId).get();
+      if (!roomSnap.exists) {
+        return NextResponse.json({ error: "Room not found" }, { status: 404 });
+      }
+      isWatchalongFallback = true;
     }
     if (!resolved) {
       return NextResponse.json({ error: "User profile not found" }, { status: 404 });
@@ -1265,7 +1279,11 @@ export async function POST(
 
     const { id: resolvedUserId, snap: userSnap } = resolved;
     const userData = userSnap.data() as { username: string; badge: string };
-    const roomRef = db.collection("roarRooms").doc(roomId);
+    
+    // Correctly point roomRef to watchAlongRooms if fallback is active
+    const roomRef = isWatchalongFallback 
+      ? db.collection("watchAlongRooms").doc(roomId) 
+      : db.collection("roarRooms").doc(roomId);
     const now = Date.now();
     // const msgRef = roomRef.collection("messages").doc();
     const msgRef = clientMsgId
@@ -1367,10 +1385,12 @@ export async function POST(
 
     const batch = db.batch();
     batch.set(msgRef, message);
-    batch.update(roomRef, {
-      fanCount: FieldValue.increment(1),
-      ...(countField && { [countField]: FieldValue.increment(1) }),
-    });
+    if (!isWatchalongFallback) {
+      batch.update(roomRef, {
+        fanCount: FieldValue.increment(1),
+        ...(countField && { [countField]: FieldValue.increment(1) }),
+      });
+    }
     await batch.commit();
 
     // ── Award points — non-fatal, fire and forget ─────────────────────────────

@@ -1226,6 +1226,7 @@ interface RoomForm {
   liveMatchId: string;
   hostUserId?: string;
   coHostUserId?: string;
+  sport?: string;
 }
 
 interface MatchForm {
@@ -1301,6 +1302,7 @@ export default function CreateWatchAlong({
     liveMatchId: "",
     hostUserId: "",
     coHostUserId: "",
+    sport: "cricket",
   });
   const [dpFile, setDpFile] = useState<File | null>(null);
   const [existingDp, setExistingDp] = useState<string>("");
@@ -1384,6 +1386,7 @@ export default function CreateWatchAlong({
         liveMatchId: r.liveMatchId || "",
         hostUserId: r.hostUserId || "",
         coHostUserId: r.coHostUserId || "",
+        sport: r.sport || "cricket",
       });
       setExistingDp(r.displayPicture || "");
       if (r.liveMatchId) {
@@ -1633,6 +1636,19 @@ export default function CreateWatchAlong({
             <div className="mt-4">
               <TextInput label="Host User ID / Email" name="hostUserId" value={roomForm.hostUserId || ""} onChange={handleRoomChange} placeholder="e.g. user_123 or user@gmail.com" />
               <TextInput label="Co-Host User ID / Email" name="coHostUserId" value={roomForm.coHostUserId || ""} onChange={handleRoomChange} placeholder="e.g. cohost@gmail.com (gets host controls)" />
+            </div>
+            
+            <div className="mt-4">
+              <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">Sport</label>
+              <select
+                name="sport"
+                value={roomForm.sport || "cricket"}
+                onChange={handleRoomChange}
+                className="w-full bg-[#0d1117] border border-[#2a2a2a] text-white text-sm rounded px-3 py-2 outline-none focus:border-blue-500 transition-colors"
+              >
+                <option value="cricket">Cricket</option>
+                <option value="football">Football</option>
+              </select>
             </div>
           </Section>
 

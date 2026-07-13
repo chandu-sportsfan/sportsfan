@@ -224,6 +224,7 @@ export async function POST(req: NextRequest) {
     const liveMatchId = (formData.get("liveMatchId") as string) || null;
     const hostUserId = (formData.get("hostUserId") as string) || user.userId || null;  // Default to authenticated user ID
     const coHostUserId = (formData.get("coHostUserId") as string) || null;  // Optional co-host
+    const sport = (formData.get("sport") as string) || "cricket";
 
     // ── Upload display picture ──
     let displayPicture = "";
@@ -285,6 +286,7 @@ export async function POST(req: NextRequest) {
       liveMatchId: resolvedMatchId,
       hostUserId: hostUserId || null,  // Store creator's user ID
       coHostUserId: coHostUserId || null,  // Optional co-host
+      sport,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
