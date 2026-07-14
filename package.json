@@ -15,7 +15,10 @@
   "dependencies": {
     "@ckeditor/ckeditor5-build-classic": "^41.4.2",
     "@ckeditor/ckeditor5-react": "^11.1.2",
+<<<<<<< HEAD
     "@nestjs/common": "^11.1.28",
+=======
+>>>>>>> ce4aa7a11232170e56360f819c7475e9ca2ef4ff
     "axios": "^1.13.6",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.9.0",
@@ -30,7 +33,10 @@
     "npm": "^11.12.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+<<<<<<< HEAD
     "rxjs": "^7.8.2",
+=======
+>>>>>>> ce4aa7a11232170e56360f819c7475e9ca2ef4ff
     "server-only": "^0.0.1",
     "xlsx": "^0.18.5",
     "zod": "^3.25.76"
