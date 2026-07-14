@@ -53,11 +53,6 @@
     "strictPropertyInitialization": true,
     "noImplicitThis": true,
     "useUnknownInCatchVariables": true, // This is key for catch errors
-<<<<<<< HEAD
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
-=======
->>>>>>> ce4aa7a11232170e56360f819c7475e9ca2ef4ff
     
     "plugins": [
       {
