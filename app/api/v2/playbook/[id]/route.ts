@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '../../../../lib/firebaseAdmin';
-import { PlaybookService } from '../../../../modules/playbook/playbook.service';
-
-const playbookService = new PlaybookService(db);
+import { db } from '@/lib/firebaseAdmin';
 
 export async function GET(
   request: NextRequest,
@@ -11,11 +8,14 @@ export async function GET(
   try {
     const resolvedParams = await props.params;
     const id = resolvedParams.id;
-    const week = await playbookService.getWeek(id);
-    if (!week) {
+    const doc = await db.collection('playbook').doc(id).get();
+    if (!doc.exists) {
       return NextResponse.json({ error: `Playbook week ${id} not found` }, { status: 404 });
     }
-    return NextResponse.json(week);
+    return NextResponse.json({
+      id: doc.id,
+      ...doc.data(),
+    });
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || 'Internal Server Error' },

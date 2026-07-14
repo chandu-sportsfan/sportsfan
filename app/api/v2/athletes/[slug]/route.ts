@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '../../../../lib/firebaseAdmin';
-import { AthleteProfileService } from '../../../../modules/athlete-profile/athlete-profile.service';
-
-const athleteService = new AthleteProfileService(db);
+import { db } from '@/lib/firebaseAdmin';
 
 export async function GET(
   request: NextRequest,
@@ -11,11 +8,14 @@ export async function GET(
   try {
     const resolvedParams = await props.params;
     const slug = resolvedParams.slug;
-    const athlete = await athleteService.getAthleteBySlug(slug);
-    if (!athlete) {
+    const doc = await db.collection('athletesProfile').doc(slug).get();
+    if (!doc.exists) {
       return NextResponse.json({ error: `Athlete ${slug} not found` }, { status: 404 });
     }
-    return NextResponse.json(athlete);
+    return NextResponse.json({
+      slug: doc.id,
+      ...doc.data(),
+    });
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || 'Internal Server Error' },

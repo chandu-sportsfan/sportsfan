@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '../../../../lib/firebaseAdmin';
-import { RecordsRepository } from '../../../../modules/records/records.repository';
-import { RecordsService } from '../../../../modules/records/records.service';
-
-const recordsRepository = new RecordsRepository(db);
-const recordsService = new RecordsService(recordsRepository);
+import { db } from '@/lib/firebaseAdmin';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = request.nextUrl;
     const event = searchParams.get('event') || '';
     const category = searchParams.get('category') || '';
-    const records = await recordsService.getRecords(event, category);
+
+    const key = `${event}_${category}`;
+    const doc = await db.collection('records').doc(key).get();
+    const records = doc.exists ? (doc.data()?.records || []) : [];
+
     return NextResponse.json(records);
   } catch (error: any) {
     return NextResponse.json(

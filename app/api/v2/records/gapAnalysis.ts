@@ -1,19 +1,4 @@
-import { Injectable } from '@nestjs/common';
-import { RecordsRepository } from './records.repository';
-import { RecordInsight } from './entities/record.entity';
-
-// ─── Gap Analysis Lookup Table ────────────────────────────────────────────────
-// Sourced directly from the "Gap Analysis" sheet in new-records.xlsx (Jun 2026).
-// Key: `${event}_${category}`   e.g. '100m_Men', 'JavelinThrow_Women'
-//
-// Fields:
-//   gapChange      – absolute gap change since baseline (negative = widening)
-//   baselineGap    – gap at the baseline year
-//   baselineYear   – year from which change is measured
-//   trendDirection – narrative label from the sheet
-//   globalRank     – confirmed World Athletics live rank or 'N/A'
-
-interface GapAnalysisRow {
+export interface GapAnalysisRow {
   gapChange: number;
   baselineGap: number;
   baselineYear: string;
@@ -21,7 +6,7 @@ interface GapAnalysisRow {
   globalRank: string;
 }
 
-const GAP_ANALYSIS: Record<string, GapAnalysisRow> = {
+export const GAP_ANALYSIS: Record<string, GapAnalysisRow> = {
   // ── Sprint & Hurdles ────────────────────────────────────────────────────────
   '100m_Men': {
     gapChange: 0.17, baselineGap: 0.68, baselineYear: '2016',
@@ -208,84 +193,3 @@ const GAP_ANALYSIS: Record<string, GapAnalysisRow> = {
     globalRank: 'N/A',
   },
 };
-
-@Injectable()
-export class RecordsService {
-  constructor(private readonly repository: RecordsRepository) {}
-
-  /** Returns National / Olympic / World records for a given event + category. */
-  getRecords(event: string, category: string) {
-    return this.repository.getRecords(event, category);
-  }
-
-  /** Returns yearly trend data for an event. */
-  getTrends(event: string) {
-    return this.repository.getTrends(event);
-  }
-
-  /** Returns gap-to-world-record progress data for an event. */
-  getProgress(event: string) {
-    return this.repository.getProgress(event);
-  }
-
-  /** Returns all featured stories. */
-  getStories() {
-    return this.repository.getStories();
-  }
-
-  /**
-   * Computes the performance insight for a given event + category.
-   * Gap reduction and trend direction are sourced from the Excel Gap Analysis sheet.
-   */
-  async getInsight(event: string, category: string): Promise<RecordInsight | null> {
-    const records = await this.repository.getRecords(event, category);
-
-    const national = records.find((r) => r.type === 'National');
-    const world = records.find((r) => r.type === 'World');
-
-    if (!national || !world) return null;
-
-    const isTimeEvent =
-      event.includes('m') &&
-      !event.includes('Jump') &&
-      !event.includes('Throw') &&
-      !event.includes('Put') &&
-      !event.includes('Vault');
-
-    const unit = isTimeEvent ? 's' : 'm';
-    const diff = Math.abs(national.numericValue - world.numericValue);
-    const percentage = ((diff / world.numericValue) * 100).toFixed(1);
-    const formattedDiff = `${diff.toFixed(2)}${unit}`;
-
-    // ── Gap analysis from the Excel sheet ────────────────────────────────────
-    const key = `${event}_${category}`;
-    const gap = GAP_ANALYSIS[key];
-
-    let gapReductionPercent = '0';
-    let trendDirection = 'Insufficient data';
-    let baselineYear = '—';
-    let globalRank = 'N/A';
-
-    if (gap) {
-      const reduction =
-        gap.baselineGap !== 0
-          ? ((gap.gapChange / gap.baselineGap) * 100).toFixed(1)
-          : '0';
-      gapReductionPercent = reduction;
-      trendDirection = gap.trendDirection;
-      baselineYear = gap.baselineYear;
-      globalRank = gap.globalRank;
-    }
-
-    return {
-      diff,
-      percentage,
-      formattedDiff,
-      unit,
-      gapReductionPercent,
-      globalRank,
-      trendDirection,
-      baselineYear,
-    };
-  }
-}

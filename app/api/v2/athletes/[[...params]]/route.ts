@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '../../../../../lib/firebaseAdmin';
-import { AthleteProfileService } from '../../../../../modules/athlete-profile/athlete-profile.service';
-
-const athleteService = new AthleteProfileService(db);
+import { db } from '@/lib/firebaseAdmin';
 
 export async function GET(
   request: NextRequest,
@@ -14,15 +11,26 @@ export async function GET(
 
     if (pathParams.length === 0) {
       // GET /api/v2/athletes
-      const athletes = await athleteService.getAllAthletes();
+      const snapshot = await db.collection('athletesProfile').get();
+      const athletes = snapshot.docs.map((doc) => ({
+        slug: doc.id,
+        ...doc.data(),
+      }));
       return NextResponse.json(athletes);
     }
 
     const slug = pathParams[0];
 
+    // Helper to get athlete by slug
+    const getAthleteBySlug = async (athleteSlug: string) => {
+      const doc = await db.collection('athletesProfile').doc(athleteSlug).get();
+      if (!doc.exists) return null;
+      return { slug: doc.id, ...doc.data() };
+    };
+
     if (pathParams.length === 1) {
       // GET /api/v2/athletes/:slug
-      const athlete = await athleteService.getAthleteBySlug(slug);
+      const athlete = await getAthleteBySlug(slug);
       if (!athlete) {
         return NextResponse.json({ error: `Athlete ${slug} not found` }, { status: 404 });
       }
@@ -31,23 +39,21 @@ export async function GET(
 
     if (pathParams.length === 2) {
       const subpath = pathParams[1];
+      const athlete: any = await getAthleteBySlug(slug);
+      
       switch (subpath) {
         case 'posts':
           // GET /api/v2/athletes/:slug/posts
-          const posts = await athleteService.getPosts(slug);
-          return NextResponse.json(posts);
+          return NextResponse.json(athlete?.postsContent ?? []);
         case 'videos':
           // GET /api/v2/athletes/:slug/videos
-          const videos = await athleteService.getVideos(slug);
-          return NextResponse.json(videos);
+          return NextResponse.json(athlete?.videosContent ?? []);
         case 'drops':
           // GET /api/v2/athletes/:slug/drops
-          const drops = await athleteService.getDrops(slug);
-          return NextResponse.json(drops);
+          return NextResponse.json(athlete?.dropsContent ?? []);
         case 'highlights':
           // GET /api/v2/athletes/:slug/highlights
-          const highlights = await athleteService.getHighlights(slug);
-          return NextResponse.json(highlights);
+          return NextResponse.json(athlete?.highlights ?? []);
         default:
           break;
       }
