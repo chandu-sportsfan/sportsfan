@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '../../../../../lib/firebaseAdmin';
-import { PlaybookService } from '../../../../../modules/playbook/playbook.service';
-
-const playbookService = new PlaybookService(db);
+import { db } from '@/lib/firebaseAdmin';
 
 export async function GET(
   request: NextRequest,
@@ -11,7 +8,8 @@ export async function GET(
   try {
     const resolvedParams = await props.params;
     const id = resolvedParams.id;
-    const drops = await playbookService.getDrops(id);
+    const doc = await db.collection('playbook').doc(id).get();
+    const drops = doc.exists ? (doc.data()?.drops || []) : [];
     return NextResponse.json(drops);
   } catch (error: any) {
     return NextResponse.json(

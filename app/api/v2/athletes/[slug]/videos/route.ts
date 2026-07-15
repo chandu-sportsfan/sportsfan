@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '../../../../../lib/firebaseAdmin';
-import { AthleteProfileService } from '../../../../../modules/athlete-profile/athlete-profile.service';
-
-const athleteService = new AthleteProfileService(db);
+import { db } from '@/lib/firebaseAdmin';
 
 export async function GET(
   request: NextRequest,
@@ -11,7 +8,8 @@ export async function GET(
   try {
     const resolvedParams = await props.params;
     const slug = resolvedParams.slug;
-    const videos = await athleteService.getVideos(slug);
+    const doc = await db.collection('athletesProfile').doc(slug).get();
+    const videos = doc.exists ? (doc.data()?.videosContent || []) : [];
     return NextResponse.json(videos);
   } catch (error: any) {
     return NextResponse.json(

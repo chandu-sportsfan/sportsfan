@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '../../../../../lib/firebaseAdmin';
-import { RecordsRepository } from '../../../../../modules/records/records.repository';
-import { RecordsService } from '../../../../../modules/records/records.service';
-
-const recordsRepository = new RecordsRepository(db);
-const recordsService = new RecordsService(recordsRepository);
+import { db } from '@/lib/firebaseAdmin';
 
 export async function GET(request: NextRequest) {
   try {
-    const stories = await recordsService.getStories();
+    const snapshot = await db.collection('recordStories').get();
+    const stories = snapshot.docs.map((doc) => doc.data());
     return NextResponse.json(stories);
   } catch (error: any) {
     return NextResponse.json(

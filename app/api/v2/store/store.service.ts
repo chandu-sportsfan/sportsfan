@@ -1,11 +1,9 @@
-import { Injectable, Inject, BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@/lib/exceptions';
 import { Firestore, FieldValue } from 'firebase-admin/firestore';
 import { randomUUID } from 'crypto';
 
-@Injectable()
 export class StoreService {
   constructor(
-    @Inject('FIREBASE_ADMIN')
     private readonly db: Firestore,
   ) {}
 

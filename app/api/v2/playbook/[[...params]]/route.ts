@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '../../../../../lib/firebaseAdmin';
-import { PlaybookService } from '../../../../../modules/playbook/playbook.service';
-
-const playbookService = new PlaybookService(db);
+import { db } from '@/lib/firebaseAdmin';
 
 export async function GET(
   request: NextRequest,
@@ -14,15 +11,29 @@ export async function GET(
 
     if (pathParams.length === 0) {
       // GET /api/v2/playbook
-      const weeks = await playbookService.getAllWeeks();
+      const snapshot = await db
+        .collection('playbook')
+        .orderBy('week')
+        .get();
+
+      const weeks = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
       return NextResponse.json(weeks);
     }
 
     const id = pathParams[0];
 
+    const getWeek = async (weekId: string) => {
+      const doc = await db.collection('playbook').doc(weekId).get();
+      if (!doc.exists) return null;
+      return { id: doc.id, ...doc.data() };
+    };
+
     if (pathParams.length === 1) {
       // GET /api/v2/playbook/:id
-      const week = await playbookService.getWeek(id);
+      const week = await getWeek(id);
       if (!week) {
         return NextResponse.json({ error: `Playbook week ${id} not found` }, { status: 404 });
       }
@@ -31,7 +42,8 @@ export async function GET(
 
     if (pathParams.length === 2 && pathParams[1] === 'drops') {
       // GET /api/v2/playbook/:id/drops
-      const drops = await playbookService.getDrops(id);
+      const week: any = await getWeek(id);
+      const drops = week?.drops ?? [];
       return NextResponse.json(drops);
     }
 

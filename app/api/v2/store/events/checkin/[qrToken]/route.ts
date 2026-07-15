@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '../../../../../../../lib/firebaseAdmin';
-import { StoreService } from '../../../../../../../modules/store/store.service';
+import { db } from '@/lib/firebaseAdmin';
+import { StoreService } from '@/app/api/v2/store/store.service';
 
 const storeService = new StoreService(db);
 
