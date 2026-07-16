@@ -124,7 +124,7 @@ export class StoreService {
       const data = doc.data();
       const lockExpiresAt = data.lockExpiresAt ? (data.lockExpiresAt.toDate ? data.lockExpiresAt.toDate() : new Date(data.lockExpiresAt)) : null;
 
-      if (data.status === 'locked' && lockExpiresAt && lockExpiresAt < now) {
+      if ((data.status === 'locked' || data.status === 'reserved') && lockExpiresAt && lockExpiresAt < now) {
         const docRef = doc.ref;
         batch.update(docRef, {
           status: 'available',
@@ -172,11 +172,14 @@ export class StoreService {
         throw new BadRequestException('Slot data is empty');
       }
       const now = new Date();
+      const lockExpiresAtVal = slotData.lockExpiresAt
+        ? (slotData.lockExpiresAt.toDate ? slotData.lockExpiresAt.toDate() : new Date(slotData.lockExpiresAt))
+        : null;
 
       if (
-        slotData.status === 'locked' &&
-        slotData.lockExpiresAt &&
-        slotData.lockExpiresAt.toDate() > now &&
+        (slotData.status === 'locked' || slotData.status === 'reserved') &&
+        lockExpiresAtVal &&
+        lockExpiresAtVal > now &&
         slotData.lockedBy !== userId
       ) {
         throw new BadRequestException('Slot is already locked by another user');
@@ -190,14 +193,14 @@ export class StoreService {
       const lockExpiresAt = new Date(now.getTime() + lockDurationMs);
 
       transaction.update(slotRef, {
-        status: 'locked',
+        status: 'reserved',
         lockedBy: userId,
         lockExpiresAt: lockExpiresAt,
       });
 
       return {
         slotId,
-        status: 'locked',
+        status: 'reserved',
         lockExpiresAt,
       };
     });
@@ -219,7 +222,7 @@ export class StoreService {
       const slotData = slotDoc.data();
       if (!slotData) return { success: true };
 
-      if (slotData.status === 'locked' && slotData.lockedBy === userId) {
+      if ((slotData.status === 'locked' || slotData.status === 'reserved') && slotData.lockedBy === userId) {
         transaction.update(slotRef, {
           status: 'available',
           lockedBy: null,
@@ -437,7 +440,7 @@ export class StoreService {
           }
         }
         const now = new Date();
-        if (slot.status === 'locked' && slot.lockExpiresAt) {
+        if ((slot.status === 'locked' || slot.status === 'reserved') && slot.lockExpiresAt) {
           const expiresAt = slot.lockExpiresAt.toDate ? slot.lockExpiresAt.toDate() : new Date(slot.lockExpiresAt);
           if (expiresAt < now) {
             throw new BadRequestException('Slot lock has expired');

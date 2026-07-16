@@ -6,7 +6,8 @@ import { randomUUID } from 'crypto';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
-    const { action, productId, userId, paymentMethod, pricePaise, idempotencyKey } = body;
+    const { action, productId, paymentMethod, pricePaise, idempotencyKey } = body;
+    const userId = body.userId || 'mock-user-123';
 
     if (!productId || !userId) {
       return NextResponse.json({ error: 'Missing productId or userId' }, { status: 400 });
