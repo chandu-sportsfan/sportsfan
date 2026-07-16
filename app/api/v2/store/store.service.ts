@@ -22,20 +22,75 @@ export class StoreService {
     }
 
     const snapshot = await query.get();
-    return snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    const now = new Date();
+    const batch = this.db.batch();
+    let hasUpdates = false;
+    const products: any[] = [];
+
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      const lockExpiresAt = data.lockExpiresAt ? (data.lockExpiresAt.toDate ? data.lockExpiresAt.toDate() : new Date(data.lockExpiresAt)) : null;
+
+      if ((data.status === 'locked' || data.status === 'reserved') && lockExpiresAt && lockExpiresAt < now) {
+        batch.update(doc.ref, {
+          status: 'available',
+          lockedBy: null,
+          lockExpiresAt: null,
+        });
+        products.push({
+          id: doc.id,
+          ...data,
+          status: 'available',
+          lockedBy: null,
+          lockExpiresAt: null,
+        });
+        hasUpdates = true;
+      } else {
+        products.push({
+          id: doc.id,
+          ...data,
+        });
+      }
+    }
+
+    if (hasUpdates) {
+      await batch.commit();
+    }
+    return products;
   }
 
   async getProductById(id: string) {
-    const doc = await this.db.collection('storeProducts').doc(id).get();
+    const docRef = this.db.collection('storeProducts').doc(id);
+    const doc = await docRef.get();
     if (!doc.exists) {
       throw new NotFoundException(`Product with ID ${id} not found`);
     }
+    const data = doc.data();
+    if (!data) {
+      throw new NotFoundException(`Product data is empty`);
+    }
+
+    const now = new Date();
+    const lockExpiresAt = data.lockExpiresAt ? (data.lockExpiresAt.toDate ? data.lockExpiresAt.toDate() : new Date(data.lockExpiresAt)) : null;
+
+    if ((data.status === 'locked' || data.status === 'reserved') && lockExpiresAt && lockExpiresAt < now) {
+      await docRef.update({
+        status: 'available',
+        lockedBy: null,
+        lockExpiresAt: null,
+      });
+      return {
+        id: doc.id,
+        ...data,
+        status: 'available',
+        lockedBy: null,
+        lockExpiresAt: null,
+      };
+    }
+
     return {
       id: doc.id,
-      ...doc.data(),
+      ...data,
     };
   }
 
@@ -406,6 +461,14 @@ export class StoreService {
         }
         transaction.update(productRef, {
           seatsBooked: seatsBooked + 1,
+        });
+      }
+
+      if (product.category === 'memorabilia') {
+        transaction.update(productRef, {
+          status: 'sold',
+          lockedBy: null,
+          lockExpiresAt: null,
         });
       }
 
