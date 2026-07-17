@@ -1199,6 +1199,8 @@ export async function POST(
       triviaQuestions,
       battleQuestions,
       clientMsgId,
+      channelId,
+      channelSlug,
     }: {
       text: string;
       type: MessageType;
@@ -1223,6 +1225,8 @@ export async function POST(
         playerA: { name: string; team?: string; image?: string };
         playerB: { name: string; team?: string; image?: string };
       }[];
+      channelId?: string;
+      channelSlug?: string;
     } = body;
 
     if (!text?.trim()) {
@@ -1279,10 +1283,10 @@ export async function POST(
 
     const { id: resolvedUserId, snap: userSnap } = resolved;
     const userData = userSnap.data() as { username: string; badge: string };
-    
+
     // Correctly point roomRef to watchAlongRooms if fallback is active
-    const roomRef = isWatchalongFallback 
-      ? db.collection("watchAlongRooms").doc(roomId) 
+    const roomRef = isWatchalongFallback
+      ? db.collection("watchAlongRooms").doc(roomId)
       : db.collection("roarRooms").doc(roomId);
     const now = Date.now();
     // const msgRef = roomRef.collection("messages").doc();
