@@ -54,28 +54,30 @@ export async function GET(req: NextRequest) {
     // For each session, pull its first user message (title) and last
     // message (subtitle preview) — two small queries per session, but
     // capped at 50 sessions so it stays cheap.
-    const sessions = await Promise.all(
-      sessionsSnap.docs.map(async (doc) => {
-        const data = doc.data();
-        const msgCol = doc.ref.collection("messages");
+  
+const sessions = await Promise.all(
+  sessionsSnap.docs.map(async (doc) => {
+    const data = doc.data();
+    const msgCol = doc.ref.collection("messages");
 
-        const [firstSnap, lastSnap] = await Promise.all([
-          msgCol.where("role", "==", "user").orderBy("timestamp", "asc").limit(1).get(),
-          msgCol.orderBy("timestamp", "desc").limit(1).get(),
-        ]);
+    const [firstSnap, lastSnap] = await Promise.all([
+      msgCol.where("role", "==", "user").orderBy("timestamp", "asc").limit(1).get(),
+      msgCol.orderBy("timestamp", "desc").limit(1).get(),
+    ]);
 
-        const firstQuestion = firstSnap.docs[0]?.data()?.content as string | undefined;
-        const lastMessage = lastSnap.docs[0]?.data()?.content as string | undefined;
-        const updatedAtMs = data.updatedAt?.toMillis?.() ?? Date.now();
+    const firstQuestion = firstSnap.docs[0]?.data()?.content as string | undefined;
+    const lastMessage = lastSnap.docs[0]?.data()?.content as string | undefined;
+    const updatedAtMs = data.updatedAt?.toMillis?.() ?? Date.now();
+    const customTitle = data.customTitle as string | undefined;
 
-        return {
-          sessionId: doc.id,
-          title: firstQuestion?.slice(0, 60) || "New chat",
-          subtitle: lastMessage?.slice(0, 80) || "",
-          dateLabel: new Date(updatedAtMs).toLocaleDateString([], { month: "short", day: "numeric" }),
-        };
-      })
-    );
+    return {
+      sessionId: doc.id,
+      title: customTitle || firstQuestion?.slice(0, 60) || "New chat",
+      subtitle: lastMessage?.slice(0, 80) || "",
+      dateLabel: new Date(updatedAtMs).toLocaleDateString([], { month: "short", day: "numeric" }),
+    };
+  })
+);
 
     return NextResponse.json({ success: true, sessions });
   } catch (error: unknown) {

@@ -124,7 +124,6 @@ async function resolveUser(
   return { id: info.actualUserId, username: data?.username ?? "Fan" };
 }
 
-// Helper: extract ID from URL
 function getIdFromUrl(req: NextRequest): string {
   const url = new URL(req.url);
   const parts = url.pathname.split("/");
@@ -149,8 +148,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Session ID is required' }, { status: 400 });
     }
 
-    // Path is scoped to askaiConversations/{resolved.id}/sessions/{sessionId} —
-    // that scoping IS the ownership check, same as Dolly's roomId-scoped reads.
     const sessionRef = db
       .collection('askaiConversations')
       .doc(resolved.id)
@@ -163,7 +160,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    // Get messages for this session
     const messagesSnap = await sessionRef
       .collection('messages')
       .orderBy('timestamp', 'asc')
@@ -182,6 +178,61 @@ export async function GET(req: NextRequest) {
 
   } catch (error) {
     console.error('[ask-ai GET session] Error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// PATCH: Rename a specific session (sets a custom title that overrides
+// the auto-derived "first question" title used in the sessions list).
+export async function PATCH(req: NextRequest) {
+  try {
+    const user = await getUser(req);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const resolved = await resolveUser(user.email, user.userId);
+    if (!resolved) {
+      return NextResponse.json({ error: 'User profile not found' }, { status: 404 });
+    }
+
+    const sessionId = getIdFromUrl(req);
+    if (!sessionId) {
+      return NextResponse.json({ error: 'Session ID is required' }, { status: 400 });
+    }
+
+    let body: Record<string, unknown>;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+
+    const title = (body.title as string | undefined)?.trim();
+    if (!title) {
+      return NextResponse.json({ error: 'Title is required' }, { status: 400 });
+    }
+    if (title.length > 60) {
+      return NextResponse.json({ error: 'Title must be 60 characters or fewer' }, { status: 400 });
+    }
+
+    const sessionRef = db
+      .collection('askaiConversations')
+      .doc(resolved.id)
+      .collection('sessions')
+      .doc(sessionId);
+
+    const sessionDoc = await sessionRef.get();
+    if (!sessionDoc.exists) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+    }
+
+    await sessionRef.set({ customTitle: title }, { merge: true });
+
+    return NextResponse.json({ success: true, sessionId, title });
+
+  } catch (error) {
+    console.error('[ask-ai PATCH session] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -210,13 +261,11 @@ export async function DELETE(req: NextRequest) {
       .collection('sessions')
       .doc(sessionId);
 
-    // Verify session exists before deleting
     const sessionDoc = await sessionRef.get();
     if (!sessionDoc.exists) {
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    // Delete all messages in the session first
     const messagesSnap = await sessionRef.collection('messages').get();
     const batch = db.batch();
     messagesSnap.docs.forEach(doc => {
