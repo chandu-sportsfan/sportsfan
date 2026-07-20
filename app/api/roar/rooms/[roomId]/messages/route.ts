@@ -787,18 +787,40 @@ export async function GET(
 
     const [snapshot, roomSnapForEmpty] = await Promise.all([query.get(), roomSnapPromise]);
 
+    // if (snapshot.empty) {
+    //   const roomDataEmpty = roomSnapForEmpty.exists ? (roomSnapForEmpty.data() as any) : null;
+    //   return NextResponse.json({
+    //     success: true,
+    //     messages: [],
+    //     pagination: { limit, hasMore: false, nextCursor: null },
+    //     counts: {
+    //       post: roomDataEmpty?.postCount ?? 0,
+    //       debate: roomDataEmpty?.debateCount ?? 0,
+    //       prediction: roomDataEmpty?.predictionCount ?? 0,
+    //       trivia: roomDataEmpty?.triviaCount ?? 0,
+    //       battle: roomDataEmpty?.battleCount ?? 0,
+    //     },
+    //   });
+    // }
+
+
     if (snapshot.empty) {
       const roomDataEmpty = roomSnapForEmpty.exists ? (roomSnapForEmpty.data() as any) : null;
+      let emptyCountsSource = roomDataEmpty;
+      if (channelId) {
+        const channelSnap = await roomRef.collection("channels").doc(channelId).get();
+        emptyCountsSource = channelSnap.exists ? (channelSnap.data() as any)?.counts ?? {} : {};
+      }
       return NextResponse.json({
         success: true,
         messages: [],
         pagination: { limit, hasMore: false, nextCursor: null },
         counts: {
-          post: roomDataEmpty?.postCount ?? 0,
-          debate: roomDataEmpty?.debateCount ?? 0,
-          prediction: roomDataEmpty?.predictionCount ?? 0,
-          trivia: roomDataEmpty?.triviaCount ?? 0,
-          battle: roomDataEmpty?.battleCount ?? 0,
+          post: emptyCountsSource?.postCount ?? 0,
+          debate: emptyCountsSource?.debateCount ?? 0,
+          prediction: emptyCountsSource?.predictionCount ?? 0,
+          trivia: emptyCountsSource?.triviaCount ?? 0,
+          battle: emptyCountsSource?.battleCount ?? 0,
         },
       });
     }
@@ -966,12 +988,19 @@ export async function GET(
             ? { lastDocId: lastDoc?.id, lastCreatedAt: lastMsg?.createdAt ?? null }
             : null,
       },
+      // counts: {
+      //   post: roomData?.postCount ?? 0,
+      //   debate: roomData?.debateCount ?? 0,
+      //   prediction: roomData?.predictionCount ?? 0,
+      //   trivia: roomData?.triviaCount ?? 0,
+      //   battle: roomData?.battleCount ?? 0,
+      // },
       counts: {
-        post: roomData?.postCount ?? 0,
-        debate: roomData?.debateCount ?? 0,
-        prediction: roomData?.predictionCount ?? 0,
-        trivia: roomData?.triviaCount ?? 0,
-        battle: roomData?.battleCount ?? 0,
+        post: countsSource?.postCount ?? 0,
+        debate: countsSource?.debateCount ?? 0,
+        prediction: countsSource?.predictionCount ?? 0,
+        trivia: countsSource?.triviaCount ?? 0,
+        battle: countsSource?.battleCount ?? 0,
       },
     });
   } catch (error: unknown) {
