@@ -723,7 +723,7 @@ export async function GET(
     const limit = Math.min(parseInt(searchParams.get("limit") || "30"), 100);
     const lastCreatedAt = searchParams.get("lastCreatedAt");
     const lastDocId = searchParams.get("lastDocId");
-    
+
     // ── Get channel filter parameters ──
     const channelId = searchParams.get("channelId");
     const channelSlug = searchParams.get("channelSlug");
@@ -948,6 +948,12 @@ export async function GET(
 
     const finalRoomSnap = await roomSnapPromise;
     const roomData = finalRoomSnap.exists ? (finalRoomSnap.data() as any) : null;
+
+    let countsSource = roomData;
+    if (channelId) {
+      const channelSnap = await roomRef.collection("channels").doc(channelId).get();
+      countsSource = channelSnap.exists ? (channelSnap.data() as any)?.counts ?? {} : {};
+    }
 
     return NextResponse.json({
       success: true,
@@ -1192,7 +1198,14 @@ export async function POST(
         fanCount: FieldValue.increment(1),
         ...(countField && { [countField]: FieldValue.increment(1) }),
       });
+      if (channelId && countField) {
+        const channelRef = roomRef.collection("channels").doc(channelId);
+        batch.update(channelRef, {
+          [`counts.${countField}`]: FieldValue.increment(1),
+        });
+      }
     }
+
     await batch.commit();
 
     // ── Award points ─────────────────────────────────────────────────────────────

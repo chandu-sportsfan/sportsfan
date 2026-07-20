@@ -131,6 +131,12 @@ export async function DELETE(
       fanCount: FieldValue.increment(-1),
       ...(countField && { [countField]: FieldValue.increment(-1) }),
     });
+    if (message.channelId && countField) {
+    const channelRef = roomRef.collection("channels").doc(message.channelId);
+    batch.update(channelRef, {
+        [`counts.${countField}`]: FieldValue.increment(-1),
+    });
+}
     await batch.commit();
 
     return NextResponse.json({ success: true });
