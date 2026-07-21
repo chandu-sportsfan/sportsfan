@@ -1,3 +1,5 @@
+// api\roar\rooms\[roomId]\dolly\[sessionId]\route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { getUser } from "@/lib/getUser";
@@ -99,5 +101,38 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ roo
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
     return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
+
+// PATCH — rename a session
+export async function PATCH(req: NextRequest, { params }: { params: { roomId: string; sessionId: string } }) {
+  try {
+    const { roomId, sessionId } = params;
+    const { customTitle } = await req.json();
+    if (!customTitle?.trim()) {
+      return NextResponse.json({ success: false, error: "customTitle is required" }, { status: 400 });
+    }
+    await db.collection("roarRooms").doc(roomId)
+      .collection("dollySessions").doc(sessionId)
+      .update({ customTitle: customTitle.trim(), title: customTitle.trim() });
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error("[dolly] Failed to rename session:", err);
+    return NextResponse.json({ success: false, error: "Failed to rename session" }, { status: 500 });
+  }
+}
+
+// DELETE — soft-delete a session so it drops out of history immediately
+export async function DELETE(req: NextRequest, { params }: { params: { roomId: string; sessionId: string } }) {
+  try {
+    const { roomId, sessionId } = params;
+    await db.collection("roarRooms").doc(roomId)
+      .collection("dollySessions").doc(sessionId)
+      .update({ softDeleted: true, softDeletedAt: Date.now() });
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error("[dolly] Failed to delete session:", err);
+    return NextResponse.json({ success: false, error: "Failed to delete session" }, { status: 500 });
   }
 }
