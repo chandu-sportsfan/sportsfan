@@ -604,6 +604,12 @@ const FULL_NAV: NavGroup[] = [
     label: "Home Data Components",
     items: [
       {
+        label: "Store Management", icon: "◉",
+        // children: [
+        //   { href: "/admin/store-management/add-store", label: "Add Store" },
+        // ],
+      },
+      {
         label: "Teams 360", icon: "◉",
         children: [
           { href: "/admin/team360-management/add-team360", label: "Add Teams 360" },
