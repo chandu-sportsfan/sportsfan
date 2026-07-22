@@ -605,9 +605,18 @@ const FULL_NAV: NavGroup[] = [
     items: [
       {
         label: "Store Management", icon: "◉",
-        // children: [
-        //   { href: "/admin/store-management/add-store", label: "Add Store" },
-        // ],
+        children: [
+          { href: "/admin/store-management/addCategory", label: "Add Category" },
+          { href: "/admin/store-management/addCoach", label: "Add Coach" },
+          { href: "/admin/store-management/addExperience", label: "Add Experience" },
+          { href: "/admin/store-management/addEvent", label: "Add Event" },
+          { href: "/admin/store-management/addAuction", label: "Add Auction" },
+          { href: "/admin/store-management/addAthlete", label: "Add Athlete" },
+          { href: "/admin/store-management/addMerchandise", label: "Add Merchandise" },
+          { href: "/admin/store-management/addBrand", label: "Add Brand" },
+          { href: "/admin/store-management/addDigitalProduct", label: "Add Digital Product" },
+          { href: "/admin/store-management/addMembership", label: "Add Membership" },
+        ],
       },
       {
         label: "Teams 360", icon: "◉",
