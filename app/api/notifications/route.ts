@@ -126,42 +126,54 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 
-// ─── GET — fetch notifications for a user + total unread count ────────────────
+
+
+
 // export async function GET(req: NextRequest) {
 //   try {
 //     const { searchParams } = new URL(req.url);
 //     const email = searchParams.get("email");
-//     // Optional: pass ?countOnly=true to get just the unread number (used by Header)
+//     const uid = searchParams.get("uid");
 //     const countOnly = searchParams.get("countOnly") === "true";
 
-//     if (!email) {
-//       return NextResponse.json({ error: "email is required" }, { status: 400 });
+//     if (!email && !uid) {
+//       return NextResponse.json({ error: "email or uid is required" }, { status: 400 });
 //     }
 
 //     if (countOnly) {
-//       const snap = await db
-//         .collection("notifications")
-//         .where("recipientEmail", "==", email)
-//         .where("isRead", "==", false)
-//         .get();
-//       return NextResponse.json({ success: true, unreadCount: snap.size });
+//       const queries = [];
+//       if (email) queries.push(
+//         db.collection("notifications").where("recipientEmail", "==", email).where("isRead", "==", false).get()
+//       );
+//       if (uid) queries.push(
+//         db.collection("notifications").where("recipientUid", "==", uid).where("isRead", "==", false).get()
+//       );
+//       const results = await Promise.all(queries);
+//       const ids = new Set<string>();
+//       results.forEach(snap => snap.docs.forEach(doc => ids.add(doc.id)));
+//       return NextResponse.json({ success: true, unreadCount: ids.size });
 //     }
 
-//     const snapshot = await db
-//       .collection("notifications")
-//       .where("recipientEmail", "==", email)
-//       .orderBy("createdAt", "desc")
-//       .limit(50)
-//       .get();
+//     const queries = [];
+//     if (email) queries.push(
+//       db.collection("notifications").where("recipientEmail", "==", email).orderBy("createdAt", "desc").limit(50).get()
+//     );
+//     if (uid) queries.push(
+//       db.collection("notifications").where("recipientUid", "==", uid).orderBy("createdAt", "desc").limit(50).get()
+//     );
 
-//     const notifications = snapshot.docs.map((doc) => ({
-//       id: doc.id,
-//       ...doc.data(),
+//     const results = await Promise.all(queries);
+//     const seen = new Set<string>();
+//     const notifications: any[] = [];
+//     results.forEach(snap => snap.docs.forEach(doc => {
+//       if (!seen.has(doc.id)) {
+//         seen.add(doc.id);
+//         notifications.push({ id: doc.id, ...doc.data() });
+//       }
 //     }));
 
-//     const unreadCount = notifications.filter(
-//       (n: Record<string, unknown>) => !n.isRead
-//     ).length;
+//     notifications.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+//     const unreadCount = notifications.filter(n => !n.isRead).length;
 
 //     return NextResponse.json({ success: true, notifications, unreadCount });
 //   } catch (error) {
@@ -170,7 +182,6 @@ import { db } from "@/lib/firebaseAdmin";
 //     return NextResponse.json({ error: msg }, { status: 500 });
 //   }
 // }
-
 
 export async function GET(req: NextRequest) {
   try {
@@ -183,14 +194,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "email or uid is required" }, { status: 400 });
     }
 
+    // Prefer uid alone — avoids a second full query when we already have a
+    // reliable identifier. Only fall back to email when uid isn't available.
+    const useUidOnly = Boolean(uid);
+
     if (countOnly) {
       const queries = [];
-      if (email) queries.push(
-        db.collection("notifications").where("recipientEmail", "==", email).where("isRead", "==", false).get()
-      );
-      if (uid) queries.push(
-        db.collection("notifications").where("recipientUid", "==", uid).where("isRead", "==", false).get()
-      );
+      if (useUidOnly) {
+        queries.push(db.collection("notifications").where("recipientUid", "==", uid).where("isRead", "==", false).get());
+      } else if (email) {
+        queries.push(db.collection("notifications").where("recipientEmail", "==", email).where("isRead", "==", false).get());
+      }
       const results = await Promise.all(queries);
       const ids = new Set<string>();
       results.forEach(snap => snap.docs.forEach(doc => ids.add(doc.id)));
@@ -198,12 +212,11 @@ export async function GET(req: NextRequest) {
     }
 
     const queries = [];
-    if (email) queries.push(
-      db.collection("notifications").where("recipientEmail", "==", email).orderBy("createdAt", "desc").limit(50).get()
-    );
-    if (uid) queries.push(
-      db.collection("notifications").where("recipientUid", "==", uid).orderBy("createdAt", "desc").limit(50).get()
-    );
+    if (useUidOnly) {
+      queries.push(db.collection("notifications").where("recipientUid", "==", uid).orderBy("createdAt", "desc").limit(50).get());
+    } else if (email) {
+      queries.push(db.collection("notifications").where("recipientEmail", "==", email).orderBy("createdAt", "desc").limit(50).get());
+    }
 
     const results = await Promise.all(queries);
     const seen = new Set<string>();
@@ -225,7 +238,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
-
 
 // ─── POST — create a single notification manually ────────────────────────────
 export async function POST(req: NextRequest) {
