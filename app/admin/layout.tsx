@@ -674,6 +674,13 @@ const FULL_NAV: NavGroup[] = [
           { href: "/admin/playerprofileplaylist-management/playerprofileplaylist-list", label: "Player Profiles Playlist" },
         ],
       },
+        {
+        label: "Onboarding", icon: "◉",
+        children: [
+          { href: "/admin/onboarding-management/add-onboarding", label: "Add Onboarding" },
+          
+        ],
+      },
       {
         label: "Watch Along", icon: "◉",
         children: [
