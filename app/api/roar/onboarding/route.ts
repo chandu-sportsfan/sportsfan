@@ -262,117 +262,112 @@
 
 
 
-
-
-//api/roar/onboarding/route.ts
+// app/api/roar/onboarding/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { getUser } from "@/lib/getUser";
-import { isAdmin } from "@/lib/isAdmin";
+import { getUserInfo } from "@/lib/userPoints";
 
-type ConfigType = "sports" | "engagement" | "followEntities";
-const VALID_TYPES: ConfigType[] = ["sports", "engagement", "followEntities"];
+// This route handles a signed-in user's OWN onboarding/preferences data —
+// distinct from api/roar/onboarding-config/route.ts, which manages the
+// admin-defined option lists (sports/followEntities/engagement) shown on
+// the onboarding and preferences screens. This one requires auth; the
+// config route deliberately does not.
 
-function collectionFor(type: ConfigType) {
-  return db.collection("roarOnboardingConfig").doc(type).collection("items");
+// getUser() returns { userId, email, ... } — not a Firestore uid directly.
+// Same as api/roar/rooms/[roomId]/messages/route.ts, we resolve the actual
+// users/{id} doc via getUserInfo before reading/writing.
+async function resolveUserId(email: string, userId: string): Promise<string | null> {
+  const info = await getUserInfo(userId, undefined, email);
+  return info.exists ? info.actualUserId : null;
 }
 
-// GET is used by everyone — onboarding screen, preferences screen, AND the admin form.
-// No admin check needed here since it's just reading active options.
-// ?type=sports|engagement|followEntities (required)
-// ?all=true — admin form passes this to also see inactive items
+// GET — used by the Preferences screen (and onboarding gate) to load the
+// user's current selections + completion state.
 export async function GET(req: NextRequest) {
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const type = req.nextUrl.searchParams.get("type") as ConfigType | null;
-  const includeInactive = req.nextUrl.searchParams.get("all") === "true";
+  const resolvedUserId = await resolveUserId(user.email, user.userId);
+  if (!resolvedUserId) return NextResponse.json({ error: "User profile not found" }, { status: 404 });
 
-  if (!type || !VALID_TYPES.includes(type)) {
-    return NextResponse.json({ error: "type must be one of sports|engagement|followEntities" }, { status: 400 });
-  }
+  const ref = db.collection("users").doc(resolvedUserId);
+  const doc = await ref.get();
+  const data = doc.exists ? doc.data() : {};
 
-  let query: FirebaseFirestore.Query = collectionFor(type);
-  if (!includeInactive) query = query.where("active", "==", true);
-  query = query.orderBy("order", "asc");
-
-  const snap = await query.get();
-  const items = snap.docs.map((d) => d.data());
-
-  return NextResponse.json({ success: true, type, items });
+  return NextResponse.json({
+    success: true,
+    sports: data?.sports ?? [],
+    followEntities: data?.followEntities ?? [],
+    engagementPrefs: data?.engagementPrefs ?? [],
+    onboardingCompleted: data?.onboardingCompleted ?? false,
+  });
 }
 
-// POST/PATCH/DELETE are admin-only — used by the admin form to manage options.
+// POST — final step of onboarding. Writes the user's selections and marks
+// onboarding as completed.
 export async function POST(req: NextRequest) {
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!isAdmin(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const resolvedUserId = await resolveUserId(user.email, user.userId);
+  if (!resolvedUserId) return NextResponse.json({ error: "User profile not found" }, { status: 404 });
 
   const body = await req.json();
-  const { type, item } = body as { type: ConfigType; item: any };
-
-  if (!type || !VALID_TYPES.includes(type)) {
-    return NextResponse.json({ error: "Invalid type" }, { status: 400 });
-  }
-  if (!item?.label) {
-    return NextResponse.json({ error: "item.label is required" }, { status: 400 });
-  }
-  if (type === "followEntities" && (!item.sportId || !item.category)) {
-    return NextResponse.json({ error: "followEntities requires sportId and category" }, { status: 400 });
-  }
-
-  const ref = collectionFor(type).doc();
-  const now = Date.now();
-  const data = {
-    ...item,
-    id: ref.id,
-    order: typeof item.order === "number" ? item.order : now,
-    active: item.active ?? true,
-    createdAt: now,
-    updatedAt: now,
+  const { sports, followEntities, engagementPrefs } = body as {
+    sports?: string[];
+    followEntities?: string[];
+    engagementPrefs?: string[];
   };
-  await ref.set(data);
 
-  return NextResponse.json({ success: true, item: data });
+  const ref = db.collection("users").doc(resolvedUserId);
+  await ref.set(
+    {
+      sports: sports ?? [],
+      followEntities: followEntities ?? [],
+      engagementPrefs: engagementPrefs ?? [],
+      onboardingCompleted: true,
+      onboardingCompletedAt: Date.now(),
+    },
+    { merge: true }
+  );
+
+  return NextResponse.json({ success: true, onboardingCompleted: true });
 }
 
+// PATCH — used by the Preferences screen to update any subset of the
+// user's selections after onboarding is already complete.
 export async function PATCH(req: NextRequest) {
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!isAdmin(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const resolvedUserId = await resolveUserId(user.email, user.userId);
+  if (!resolvedUserId) return NextResponse.json({ error: "User profile not found" }, { status: 404 });
 
   const body = await req.json();
-  const { type, id, updates } = body as { type: ConfigType; id: string; updates: any };
+  const { sports, followEntities, engagementPrefs } = body as {
+    sports?: string[];
+    followEntities?: string[];
+    engagementPrefs?: string[];
+  };
 
-  if (!type || !VALID_TYPES.includes(type)) {
-    return NextResponse.json({ error: "Invalid type" }, { status: 400 });
-  }
-  if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
+  const updates: Record<string, any> = { updatedAt: Date.now() };
+  if (sports !== undefined) updates.sports = sports;
+  if (followEntities !== undefined) updates.followEntities = followEntities;
+  if (engagementPrefs !== undefined) updates.engagementPrefs = engagementPrefs;
 
-  const ref = collectionFor(type).doc(id);
-  const doc = await ref.get();
-  if (!doc.exists) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const ref = db.collection("users").doc(resolvedUserId);
+  await ref.set(updates, { merge: true });
 
-  await ref.update({ ...updates, updatedAt: Date.now() });
   const updated = await ref.get();
+  const data = updated.data();
 
-  return NextResponse.json({ success: true, item: updated.data() });
-}
-
-export async function DELETE(req: NextRequest) {
-  const user = await getUser(req);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!isAdmin(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-
-  const type = req.nextUrl.searchParams.get("type") as ConfigType | null;
-  const id = req.nextUrl.searchParams.get("id");
-
-  if (!type || !VALID_TYPES.includes(type)) {
-    return NextResponse.json({ error: "Invalid type" }, { status: 400 });
-  }
-  if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
-
-  await collectionFor(type).doc(id).delete();
-  return NextResponse.json({ success: true, id });
+  return NextResponse.json({
+    success: true,
+    sports: data?.sports ?? [],
+    followEntities: data?.followEntities ?? [],
+    engagementPrefs: data?.engagementPrefs ?? [],
+    onboardingCompleted: data?.onboardingCompleted ?? false,
+  });
 }
